@@ -1,59 +1,96 @@
-import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
+//app\(tabs)\_layout.tsx
+import { Tabs, useRouter, useSegments } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+function ChatListButton() {
+  const segments = useSegments();
+  const router = useRouter();
+  
+  // "AIChat" または "EikenScreen" のときにボタンを表示
+  const isTargetScreen = ["AIChat", "EikenScreen", "AIteacherChat"].includes(segments[segments.length - 1]);
+  if (!isTargetScreen) return null;
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return (
+    <View style={{ position: 'absolute', left: 16, top: 10 }}>
+      <TouchableOpacity
+        onPress={() => router.push('/ChatListScreen')}
+        accessibilityLabel="チャットリスト画面へ"
+        accessibilityHint="リストアイコンをタップすると ChatListScreen に移動します"
+      >
+        <Ionicons name="list-outline" size={30} color="#222" />
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  console.log('[TabLayout] loaded!'); // ← これ入れるだけ！
+
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const storedTheme = await AsyncStorage.getItem('theme');
+        if (storedTheme === 'dark' || storedTheme === 'light') {
+          setTheme(storedTheme);
+        }
+      } catch (error) {
+        console.error('テーマの読み込みに失敗しました:', error);
+      }
+    };
+    loadTheme();
+  }, []);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
+        headerStyle: { backgroundColor: 'transparent' },
+        headerTransparent: true,
+        headerTitleStyle: { color: theme === 'dark' ? '#ccc' : '#555' },
+        tabBarStyle: { display: 'none' },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          title: '',
+          headerShown: true,
         }}
       />
+
       <Tabs.Screen
-        name="two"
+        name="SettingsScreen"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: '設定',
         }}
       />
+
+      <Tabs.Screen
+        name="ChatListScreen"
+        options={{
+          title: '',
+        }}
+      />
+
+        <Tabs.Screen
+          name="AIChat"
+          options={{
+            title: '',
+            headerLeft: () => <ChatListButton />,
+          }}
+        />
+        
+        <Tabs.Screen
+          name="AIteacherChat"
+          options={{
+            title: '',
+            headerLeft: () => <ChatListButton />,
+          }}
+        />
+
     </Tabs>
   );
 }

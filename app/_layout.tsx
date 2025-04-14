@@ -1,38 +1,24 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+//app\_layout.tsx
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { Platform, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-import { useColorScheme } from '@/components/useColorScheme';
-
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// スプラッシュスクリーンをアセット読み込み完了まで非表示にする
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
+    console.log('[RootLayout] loaded, font loaded:', loaded);
     if (loaded) {
       SplashScreen.hideAsync();
     }
@@ -42,18 +28,33 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <>
+      <NavigationThemeProvider value={DarkTheme}>
+        <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+        {/* <Stack.Screen
+            name="question"
+            options={({ navigation }) => ({
+              headerTransparent: true,
+              headerTitle: '',
+              headerShadowVisible: false,
+              headerStyle: {
+                backgroundColor: 'transparent',
+                ...(Platform.OS === 'android' && { elevation: 0 }),
+                ...(Platform.OS === 'ios' && { shadowOpacity: 0 }),
+              } as React.CSSProperties,
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>
+                  <Ionicons name="chevron-back" size={28} color="#777" />
+                </TouchableOpacity>
+              ),
+            })}
+          /> */}
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="auto" />
+      </NavigationThemeProvider>
+    </>
   );
 }
