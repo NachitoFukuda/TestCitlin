@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import LottieView from 'lottie-react-native';  // Lottie のインポート
 import { LinearGradient } from 'expo-linear-gradient'; // LinearGradient のインポート
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 
 interface JsonData {
   id: number;

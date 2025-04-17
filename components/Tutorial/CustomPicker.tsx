@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 import LottieView from 'lottie-react-native';
 import * as Haptics from 'expo-haptics';
 

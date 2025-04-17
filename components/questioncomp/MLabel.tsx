@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 
 interface MLabelProps {
   mValue: number | null | undefined;

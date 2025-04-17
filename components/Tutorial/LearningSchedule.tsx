@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import CustomPicker from './CustomPicker';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 
 interface LearningScheduleProps {
   dailyWordCount: number;

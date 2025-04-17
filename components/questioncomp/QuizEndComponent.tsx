@@ -10,7 +10,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
 import { router } from 'expo-router';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 import EndLabel from '../questioncomp/EndLabel'; // EndLabelコンポーネントのインポート
 // 他のインポートは省略
 

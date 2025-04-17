@@ -15,7 +15,7 @@ import { Audio } from 'expo-av';
 import { sampleQuestions, passageText } from '../../constants/1_5/questions15';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import NeomorphBox from '@/components/NeomorphBox';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 

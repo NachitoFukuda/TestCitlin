@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import type { MemoryLevelProps } from '../types';
-import NeomorphBox from '../NeomorphBox';
+import type { MemoryLevelProps } from '../etc/types';
+import NeomorphBox from '../ui/NeomorphBox';
 import ProgressBarVertical from './ProgressBarVertical';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

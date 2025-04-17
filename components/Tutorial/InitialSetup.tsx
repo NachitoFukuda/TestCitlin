@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LearningSchedule from './LearningSchedule';
 import CalendarView from './CalendarView';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 import LottieView from 'lottie-react-native';
 import LongWidget from './LongWidget';
 

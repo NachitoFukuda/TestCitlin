@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Switch, Text, TouchableOpacity, Alert, Linking, Dimensions, ActivityIndicator, Modal } from 'react-native';
+import { View, StyleSheet, Switch, Text, TouchableOpacity, Alert, Linking, Dimensions, ActivityIndicator, Modal, Button } from 'react-native';
 import { useRouter } from 'expo-router';
-import NeomorphBox from '@/components/NeomorphBox';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 //import useSubscription from '@/hooks/useSubscriptionStatus';
 //import { PurchaseScreen } from '@/components/PurchaseScreen';
@@ -95,6 +95,18 @@ export default function SettingsScreen() {
   //     Alert.alert("購入エラー", String(error));
   //   }
   // };
+  const clearCorrectData = async () => {
+    try {
+      await AsyncStorage.removeItem('correctData');
+      Alert.alert('リセット完了', '正解データを削除しました');
+      // もし画面上で correctData を参照している state があれば同時にクリア
+      // setCorrectData({}); など
+    } catch (e) {
+      console.error('AsyncStorage リセットエラー:', e);
+      Alert.alert('エラー', '正解データの削除に失敗しました');
+    }
+  };
+  
   const handlePress = () => {
     // ボタンが押された場合のアクション
     Alert.alert(
@@ -125,7 +137,13 @@ export default function SettingsScreen() {
         {/* <TouchableOpacity style={styles.purchaseButton} onPress={handlePurchase}>
           <Text style={styles.purchaseButtonText}>citlinplus を購入する</Text>
         </TouchableOpacity> */}
-
+      <View style={{ margin: 12 }}>
+        <Button
+          title="正解データをリセット"
+          onPress={clearCorrectData}
+          color="#cc0000"
+        />
+      </View>
         {/* EULA・プライバシーポリシーリンク */}
         <TouchableOpacity onPress={handleOpenEULA} activeOpacity={0.7}>
           <Text style={styles.buttonText2}>利用規約 (EULA)</Text>

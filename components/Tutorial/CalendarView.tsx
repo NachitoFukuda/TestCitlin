@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NeomorphBox from '../NeomorphBox';
+import NeomorphBox from '../ui/NeomorphBox';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

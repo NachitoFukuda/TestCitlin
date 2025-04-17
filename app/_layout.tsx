@@ -33,24 +33,32 @@ export default function RootLayout() {
       <NavigationThemeProvider value={DarkTheme}>
         <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        {/* <Stack.Screen
+        <Stack.Screen
             name="question"
             options={({ navigation }) => ({
-              headerTransparent: true,
-              headerTitle: '',
-              headerShadowVisible: false,
+              headerShown: true, // ヘッダー自体は表示
+              headerTransparent: true, // ヘッダーの背景を透明に
+              headerTitle: '', // タイトルは空文字で非表示
+              headerShadowVisible: false, // 影を非表示に
+              // デフォルトの戻るボタンを非表示にする（React Navigation 6 以降）
+              headerBackVisible: false,
+              // ヘッダー背景が自動的に描画されないようにする
+              headerBackground: () => <></>,
               headerStyle: {
                 backgroundColor: 'transparent',
                 ...(Platform.OS === 'android' && { elevation: 0 }),
                 ...(Platform.OS === 'ios' && { shadowOpacity: 0 }),
-              } as React.CSSProperties,
+              },
+              // 独自の戻るボタンを表示（必要ならここでカスタマイズ）
               headerLeft: () => (
                 <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>
                   <Ionicons name="chevron-back" size={28} color="#777" />
                 </TouchableOpacity>
               ),
+              headerRight: () => null,
             })}
-          /> */}
+          />
+
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

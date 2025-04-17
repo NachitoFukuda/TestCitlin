@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import NeomorphBox from '@/components/NeomorphBox';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 
 interface Chat {
   id: string;

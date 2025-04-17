@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { QuestionData } from '../../types'; // 先ほど定義した型をインポート
+import { QuestionData } from '../../types'; // 型定義のインポート
 
-
-const useQuestionData = (): QuestionData | null => {
+const useQuestionData = (): { questionData: QuestionData | null; level: string | null } => {
   const [questionData, setQuestionData] = useState<QuestionData | null>(null);
   const [level, setLevel] = useState<string | null>(null);
 
-  // AsyncStorageから選択された級を取得
+  // AsyncStorageから選択された級を取得し、"1_5" → "1.5" のように変換して保持する
   useEffect(() => {
     AsyncStorage.getItem('@selected_levels')
       .then((data) => {
         let parsedData = data ? JSON.parse(data) : '1';
         if (Array.isArray(parsedData)) {
           parsedData = parsedData[0];
+        }
+        // もしアンダースコアが含まれていたらドットに置換する
+        if (typeof parsedData === 'string' && parsedData.includes('_')) {
+          parsedData = parsedData.replace('_', '.');
         }
         console.log('[useQuestionData] AsyncStorageから取得した級:', parsedData);
         setLevel(parsedData);
@@ -37,7 +40,7 @@ const useQuestionData = (): QuestionData | null => {
             questions1 = mod1.default;
             questions2 = mod2.default;
             questions3 = mod3.default;
-          } else if (level === '1_5') {
+          } else if (level === '1.5') {  // 1_5 を 1.5 に変換
             const mod1 = await import('../../constants/1_5/1_5_1');
             const mod2 = await import('../../constants/1_5/1_5_2');
             const mod3 = await import('../../constants/1_5/1_5_3');
@@ -51,7 +54,7 @@ const useQuestionData = (): QuestionData | null => {
             questions1 = mod1.default;
             questions2 = mod2.default;
             questions3 = mod3.default;
-          } else if (level === '2_5') {
+          } else if (level === '2.5') {  // 2_5 を 2.5 に変換
             const mod1 = await import('../../constants/2_5/2_5_1');
             const mod2 = await import('../../constants/2_5/2_5_2');
             const mod3 = await import('../../constants/2_5/2_5_3');
@@ -69,7 +72,7 @@ const useQuestionData = (): QuestionData | null => {
           const loadedData: QuestionData = {
             questions1: questions1 ?? [],
             questions2: questions2 ?? [],
-            questions3: questions3 ?? []
+            questions3: questions3 ?? [],
           };
           setQuestionData(loadedData);
         } catch (error) {
@@ -80,13 +83,14 @@ const useQuestionData = (): QuestionData | null => {
     }
   }, [level]);
 
-  // questionData 更新時にログ出力
+  // questionData 更新時のログ（必要なら）
   useEffect(() => {
     if (questionData) {
+      console.log('[useQuestionData] 問題データが更新されました');
     }
   }, [questionData]);
 
-  return questionData;
+  return { questionData, level };
 };
 
 export default useQuestionData;

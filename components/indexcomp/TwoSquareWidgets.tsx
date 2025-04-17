@@ -10,8 +10,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TodayMission from './TodayMission'; // 読み込み先のパスに合わせて調整
 import MemoryLevel from './MemoryLevel';
-import {JsonData } from '../types';
-import NeomorphBox from '../NeomorphBox';
+import {JsonData } from '../etc/types';
+import NeomorphBox from '../ui/NeomorphBox';
 
 interface TwoSquareWidgetsProps {
   todayLearnedCount: number;

@@ -9,18 +9,16 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Animated,
   ScrollView,
   SafeAreaView,
-  Button,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import KeyboardExample from '../components/questioncomp/KeyboardExample';
-
 import HanahubukiAnimation from '../assets/lottie/Hanahubuki.json';
-import NeomorphBox from '../components/NeomorphBox'; // ニューモフィズム用コンポーネント
+import NeomorphBox from '../components/ui/NeomorphBox'; // ニューモフィズム用コンポーネント
 import { Audio } from 'expo-av';
 import Countdown from '@/components/questioncomp/Countdown';
 import QuizEndComponent from '@/components/questioncomp/QuizEndComponent';
@@ -28,6 +26,8 @@ import correctSound from '../assets/sound/button25.mp3'; // 正解音
 import beepSound from '../assets/sound/beepSound.mp3'; // 不正解音
 import LottieView from 'lottie-react-native';
 import MLabel from '@/components/questioncomp/MLabel';
+import { getOrSaveImageFileUrlRTDB } from '../utils/getOrSaveImageFileUrlRTDB';
+import AnimatedRemoteImage from '../components/questioncomp/AnimatedRemoteImage';
 
 //import useSoundFiles from '../components/questioncomp/useSoundFiles'
 import useQuestionData from '../components/questioncomp/useQuestionData'; // パスは実際の配置に合わせて調整
@@ -89,6 +89,9 @@ export default function QuestionScreen() {
   const [displayedQuestion, setDisplayedQuestion] = useState(null);
   const [risaltQuestion, setRisaltQuestion] = useState(null);
   const [showNextButton, setShowNextButton] = useState(false);
+  const [showImage, setShowImage] = useState(false);
+  const [imageData, setImageData] = useState(null);
+
   // Countdown
 
   // ✅ createStylesを呼び出して「テーマ対応した styles オブジェクト」を取得
@@ -96,7 +99,7 @@ export default function QuestionScreen() {
   const isDark = isDarkMode === true;
   const styles = createStyles(isDark);
 
-  const questionData = useQuestionData();
+  const { questionData, level } = useQuestionData();
 
   // questionDataが取得された後で分割代入する
   const questions1 = questionData?.questions1 ?? [];
@@ -188,34 +191,34 @@ export default function QuestionScreen() {
 
 
 
-  // 正解音・個別音を順次再生
+  // 正解音・不正解音を再生
   const playSoundAsync = useCallback(async (sound) => {
     try {
       const { sound: playbackSound } = await Audio.Sound.createAsync(sound);
   
-      let isResolved = false; // 解決済みフラグ
-  
       return new Promise((resolve, reject) => {
-        playbackSound.setOnPlaybackStatusUpdate((status) => {
+        let resolved = false;
+        // イベントハンドラ
+        const onPlaybackStatusUpdate = (status) => {
           if (status.didJustFinish) {
             playbackSound.unloadAsync();
-            if (!isResolved) {
-              isResolved = true;
+            if (!resolved) {
+              resolved = true;
               resolve();
             }
           } else if (!status.isLoaded) {
-            // もし既に解決されていれば無視する
-            if (!isResolved) {
-              console.error('[playSoundAsync] サウンドの読み込みに失敗しました。');
-              isResolved = true;
+            if (!resolved) {
+              resolved = true;
               reject(new Error('Sound failed to load'));
             }
           }
-        });
+        };
+  
+        playbackSound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
+        // 再生開始
         playbackSound.playAsync().catch((error) => {
-          console.error('[playSoundAsync] 再生開始時のエラー:', error);
-          if (!isResolved) {
-            isResolved = true;
+          if (!resolved) {
+            resolved = true;
             reject(error);
           }
         });
@@ -224,8 +227,7 @@ export default function QuestionScreen() {
       console.error('[playSoundAsync] エラー:', error);
     }
   }, []);
-  
-  
+
 
   useEffect(() => {
     if (uniqueQuestions.length > 0) {
@@ -352,8 +354,6 @@ export default function QuestionScreen() {
   };
   
 
-
-
   // Update displayedQuestion whenever filteredQuestions or currentQuestionIndex changes
   useEffect(() => {
     if (filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
@@ -412,54 +412,26 @@ export default function QuestionScreen() {
     }
   };
   
-  
   const showCorrectAnimation1 = async () => {
     try {
       await playSoundAsync(beepSound);
-      playSound()
-
     } catch (error) {
       console.error('[showCorrectAnimation1] エラー:', error);
     }
   };
   
 
-  // useEffect(() => {
-  //   let soundObj = null; // 生成したサウンドオブジェクトを保持する変数
-  
-  //   const preloadSound = async () => {
-  //     if (currentQuestion?.id) {
-  //       const soundPath = soundFiles[currentQuestion.id];
-  //       if (soundPath) {
-  //         try {
-  //           const { sound } = await Audio.Sound.createAsync(soundPath, {}, null, false);
-  //           soundObj = sound; // 生成したサウンドを保持
-  //         } catch (error) {
-  //           console.error('Error preloading sound:', error);
-  //         }
-  //       }
-  //     }
-  //   };
-  //   preloadSound();
-  
-  //   // コンポーネントがアンマウントまたは依存値が変更される際にサウンドを解放
-  //   return () => {
-  //     if (soundObj) {
-  //       soundObj.unloadAsync();
-  //     }
-  //   };
-  // }, [currentQuestion?.id]);
-
   // 答えをチェックする関数内（handleAnswer）
   const handleAnswer = async (choice = null) => {
+    setShowImage(true)//画像表示
     const currentQuestion = displayedQuestion; // state から取得
     if (!currentQuestion || !currentQuestion.correctAnswer) {
       return;
     }
   
-    const answer = choice !== null ? choice : userAnswer.trim();
+    const Useranswer = choice !== null ? choice : userAnswer.trim();
   
-    if (!answer) {
+    if (!Useranswer) {
       // 回答が空欄の場合、不正解と同様の処理を実行
       await handleIncorrectAnswer(currentQuestion.correctAnswer, currentQuestion.id);
       // データがない場合は保存せずに、タイムスタンプも保存しない
@@ -469,8 +441,23 @@ export default function QuestionScreen() {
     let updatedData = { ...correctData };
     let newScore = score;
     const currentCorrectCount = updatedData[currentQuestion.id]?.C || 0;
-  
-    if (answer === currentQuestion.correctAnswer.trim()) {
+    const answer = currentQuestion.correctAnswer.trim();
+
+    // 認める語尾
+    const optionalEndings = ['な', 'の', 'する','して','は','である'];
+    
+    const candidates = [answer];
+    
+    // 語尾を取り除いたバージョンを候補に追加
+    optionalEndings.forEach(ending => {
+      if (answer.endsWith(ending)) {
+        candidates.push(answer.slice(0, -ending.length));
+      }
+    });
+    
+    const isCorrect = candidates.includes(Useranswer);
+    
+    if (isCorrect) {
       // 正解の場合
       setIsAnswerCorrect(true);
       setIsTransitioning(true);
@@ -485,7 +472,7 @@ export default function QuestionScreen() {
       setCorrectData(updatedData);
       await saveCorrectData(updatedData);
       await showCorrectAnimation();
-          setShowNextButton(true);
+      setShowNextButton(true);
     } else {
       // 不正解
       await handleIncorrectAnswer(currentQuestion.correctAnswer, currentQuestion.id);
@@ -509,7 +496,7 @@ export default function QuestionScreen() {
   }, [isAnswerCorrect]);
 
   //不正解時の処理
-  const handleIncorrectAnswer = useCallback(async (correctAnswer, questionId) => {
+  const handleIncorrectAnswer = useCallback(async (questionId) => {
     setIsTransitioning(true);  // 即座にフィードバック表示
     let updatedData = { ...correctData };
     let currentCorrectCount = updatedData[questionId]?.count || 0;
@@ -533,15 +520,14 @@ export default function QuestionScreen() {
     setIsAnswerCorrect(false);
     setIsTransitioning(true);
     await showCorrectAnimation1();
-  
     setShowNextButton(true);
   
   }, [correctData, saveCorrectData]);
   
-  
   const timeoutRef = useRef(null);
 
   const handleNextQuestion = () => {
+    setShowImage(false)
     setShowNextButton(false);
     Animated.timing(fadeAnim, {
       toValue: 0,
@@ -589,36 +575,6 @@ export default function QuestionScreen() {
       },
     ],
   };
-
-  // const handlePlaySound = useCallback(async (questionId) => {
-  //   const soundPath = soundFiles[questionId];
-  //   if (!soundPath) {
-  //     console.warn(`No sound found for questionId: ${questionId}`);
-  //     return;
-  //   }
-  
-  //   try {
-  //     // 既存のサウンドがあれば解放
-  //     if (soundRef.current) {
-  //       await soundRef.current.unloadAsync();
-  //       soundRef.current = null;
-  //     }
-  //     const { sound } = await Audio.Sound.createAsync(soundPath);
-  //     soundRef.current = sound;
-  //     await sound.playAsync();
-  
-  //     // 再生終了時に解放
-  //     sound.setOnPlaybackStatusUpdate((status) => {
-  //       if (status.didJustFinish) {
-  //         sound.unloadAsync();
-  //         soundRef.current = null;
-  //       }
-  //     });
-  //   } catch (error) {
-  //     console.error("Error playing sound:", error);
-  //   }
-  // }, [soundFiles]);
-  
 
   // コンポーネントのアンマウント時にsoundRefを解放する処理
   useEffect(() => {
@@ -679,49 +635,68 @@ export default function QuestionScreen() {
   const [loadedSound, setLoadedSound] = useState(null);
   const [reloading, setReloading] = useState(false);
   const [queuedPlay, setQueuedPlay] = useState(false);
+
   
   useEffect(() => {
     if (filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
       const question = filteredQuestions[currentQuestionIndex];
       setDisplayedQuestion(question);
-      // 現在の問題のIDをコンソールに出力
-      console.log('現在の問題ID:', question.id);
-      // 例として、question プロパティが存在する場合
       setRisaltQuestion(question.question);
-      // 表示中の問題を引数として reloadSound 関数を呼び出す
-      reloadSound(question);
+  
+      // 音声と画像をそれぞれ読み込む
+      loadAudio(question);
+      loadImage(question);
     }
   }, [filteredQuestions, currentQuestionIndex]);
-  
-  
 
-  // 音声リロードボタンで呼び出す関数
-  const reloadSound = async (question) => {
+
+    // 🖼️ 画像読み込み処理
+    const loadImage = async (question) => {
+      try {
+        // 例: レベル＋ID をキーにしたいなら
+        const currentLevel = level || "3";
+        const imageKey = `${currentLevel}-${question.id}`;
+        // getOrSaveImageUrlRTDB の戻り値を受け取る
+        const url = await getOrSaveImageFileUrlRTDB(imageKey, question.question);
+        if (url) {
+          // state にセットして画面に反映
+          setImageData({
+            src: { large: url },
+            photographer: 'Unknown',  // もしDBにphotographer情報が入っていれば使う
+          });
+          console.log('画像URL保存成功',url)
+        } else {
+          console.warn('画像URLの取得に失敗しました');
+          setImageData(null);
+        }
+      } catch (error) {
+        console.error('画像取得エラー:', error);
+        setImageData(null);
+      }
+    };
+    
+  
+  // 🔊 音声読み込み処理
+  const loadAudio = async (question) => {
     setReloading(true);
-    console.log('音声リロード開始');
     try {
-      // 例として Firebase Storage 内の "3/1.mp3" の URL を取得
-      const url = await getDownloadURL(ref(storage, `1.5/${question.id}.mp3`));
-      console.log('取得したURL:', url);
-      
-      const source = { uri: url };
+      if (loadedSound) {
+        await loadedSound.unloadAsync();
+        setLoadedSound(null);
+      }
+  
+      const currentLevel = level || "3";
+      const Soundurl = await getDownloadURL(ref(storage, `${currentLevel}/${question.id}.mp3`));
+      const source = { uri: Soundurl };
       const sound = new Audio.Sound();
-      
-      // downloadFirst: true で完全ダウンロードしてロードする
       await sound.loadAsync(source, { shouldPlay: false }, true);
-      
-      // 内部状態が安定するように少し待機（300ms; 必要に応じて調整）
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // ロード状態を確認
+      await new Promise(resolve => setTimeout(resolve, 100));
+  
       const status = await sound.getStatusAsync();
-      console.log('ロード後のサウンドステータス:', status);
       if (!status.isLoaded || !status.durationMillis) {
         throw new Error('Sound failed to load properly');
       }
-      
-      console.log('音声リロード完了');
-      // ロード完了したら、loadedSound に格納
+  
       setLoadedSound(sound);
     } catch (error) {
       console.error('音声リロードエラー:', error);
@@ -729,13 +704,17 @@ export default function QuestionScreen() {
     }
     setReloading(false);
   };
+  
+  
+  const [isLoading, setIsLoading] = useState(false);
 
   // 音声再生ボタンで呼び出す関数
   const playSound = async () => {
     // もしまだリロード中または音声がロードされていない場合は、
-    // 再生リクエストをキューに登録して終了する
+    setIsLoading(true);    
     if (reloading || !loadedSound) {
       console.warn('音声がまだロードされていません。再生をキューに追加します。');
+      setIsLoading(false); // キューへ登録したらローディング状態を解除
       setQueuedPlay(true);
       return;
     }
@@ -743,7 +722,7 @@ export default function QuestionScreen() {
       // 先頭に再生位置をリセットしてから再生
       await loadedSound.setPositionAsync(0);
       await loadedSound.playAsync();
-      console.log('音声再生開始');
+      setIsLoading(false);
     } catch (error) {
       console.error('音声再生エラー:', error);
     }
@@ -752,11 +731,12 @@ export default function QuestionScreen() {
   // reloading が終了したタイミングで、もし queuedPlay が true なら再生を自動で実行
   useEffect(() => {
     if (!reloading && queuedPlay && loadedSound) {
-      console.log('キュー登録された再生を自動実行');
       playSound();
       setQueuedPlay(false);
     }
   }, [reloading, queuedPlay, loadedSound]);
+
+
   // カウントダウン画面
   if (isCountingDown) {
     return (
@@ -799,9 +779,6 @@ export default function QuestionScreen() {
   const L = correctData[currentQuestion.id]?.L
     ? new Date(correctData[currentQuestion.id].L)
     : null;
-  const minutesElapsed = L
-    ? Math.floor((new Date() - L) / (60 * 1000))
-    : 'N/A';
 
   const showKeyboardExample = [3, 4, 5, 6, 8, 9].includes(correctCount);
 
@@ -882,7 +859,6 @@ export default function QuestionScreen() {
         >
           <Animated.View style={[animatedStyles, { width: '100%', alignItems: 'center' }]}>
             {/* 右上に M のラベルを表示 */}
-
             <View style={styles.questionSection}>
               {!isTransitioning ? (
                 <>
@@ -900,21 +876,26 @@ export default function QuestionScreen() {
                   )}
                   {/* 音声再生ボタン（correctCount===5） */}
                   {correctCount === 5 && (
-              <TouchableOpacity
-                 onPress={() => handlePlaySound(currentQuestion.id)}
-                 accessibilityLabel="音声再生ボタン"
-                 accessibilityHint="タップすると聞こえた単語の音声が再生されます"
-              >
-                  <NeomorphBox
-                    width={SCREEN_WIDTH * 0.60}
-                    height={60}
-                    forceTheme={forceTheme}
+                    <TouchableOpacity
+                    onPress={playSound}
+                    accessibilityLabel="音声再生ボタン"
+                    accessibilityHint="タップすると聞こえた単語の音声が再生されます"
                   >
-                  <Text style={styles.playButtonText}>
-                     タップして聞こえた単語を入力
-                  </Text>
-                   </NeomorphBox>
-                 </TouchableOpacity>
+                    <NeomorphBox
+                      width={SCREEN_WIDTH * 0.60}
+                      height={60}
+                      forceTheme={forceTheme}
+                    >
+                      { 
+                        isLoading ? (
+                          // ローディング中は ActivityIndicator を表示
+                          <ActivityIndicator size="small" color="#000" style={styles.loadingIndicator} />
+                        ) : (
+                          <Text style={styles.playButtonText}>タップして聞こえた単語を入力</Text>
+                        )
+                      }
+                    </NeomorphBox>
+                  </TouchableOpacity>
                   )}
                 </>
               ) : (
@@ -998,12 +979,23 @@ export default function QuestionScreen() {
             </>
           )}
 
-          {/* フィードバック表示 (isTransitioning時) */}
-          {isTransitioning && (
+            {showImage && 
             <>
-
-              </>
-        )}
+            <NeomorphBox
+              width={SCREEN_WIDTH * 0.85}
+              height={SCREEN_WIDTH * 0.85 * (2 / 3)}
+              forceTheme={forceTheme}
+              style={styles.ImageBox}
+            >
+              <AnimatedRemoteImage
+                imageData={imageData}
+                width={SCREEN_WIDTH * 0.85}
+                height={SCREEN_WIDTH * 0.85 * (2 / 3)}
+                forceTheme={forceTheme}
+              />
+              </NeomorphBox>
+            </>
+            }
             {/* 1秒後に表示される次へボタン */}
             {showNextButton && (
               <View style={styles.nextButtoncontainer}>
@@ -1095,6 +1087,13 @@ function createStyles(isDark) {
     alignItems: 'center',
     padding: 50,
     zIndex:3
+  },  
+  ImageBox: {
+    position: 'absolute',
+    top: 430,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex:4,
   },
   questionSection: {
     alignItems: 'center',

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import CustomButton from '@/components/indexcomp/CustomButton';
 import TwoSquareWidgets from '@/components/indexcomp/TwoSquareWidgets';
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
-import NeomorphBox from '@/components/NeomorphBox';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 

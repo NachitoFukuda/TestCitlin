@@ -117,15 +117,12 @@ function trimMessageHistory(messages: Message[]): Message[] {
 // -----------------------------------
 async function callOpenAIGPT(messages: Message[], maxTokens: number = 300): Promise<Message | null> {
 
-  const [apiKey, setApiKey] = useState('');
-
-
 
   if (!OPENAI_API_KEY) {
     throw new Error('No OpenAI API key found in environment variables.');
   }
   const payload = {
-    model: 'gpt-4o',
+    model: 'gpt-4.1-nano',
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
     max_tokens: maxTokens,
   };

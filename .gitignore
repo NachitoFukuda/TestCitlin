@@ -37,4 +37,3 @@ yarn-error.*
 
 # .env ファイルを無視する
 .env
-.env

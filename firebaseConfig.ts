@@ -1,31 +1,36 @@
 import Constants from 'expo-constants';
 import { initializeApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
+import { getDatabase } from 'firebase/database';
 
-// 型アサーションを利用して extra 部分の型を指定する
-const extra = Constants.expoConfig?.extra as { [key: string]: string };
+interface AppConfigExtra {
+  FIREBASE_API_KEY: string;
+  FIREBASE_AUTH_DOMAIN: string;
+  FIREBASE_PROJECT_ID: string;
+  FIREBASE_STORAGE_BUCKET: string;
+  FIREBASE_MESSAGING_SENDER_ID: string;
+  FIREBASE_APP_ID: string;
+  FIREBASE_MEASUREMENT_ID: string;
+}
 
-const {
-  FIREBASE_API_KEY,
-  FIREBASE_AUTH_DOMAIN,
-  FIREBASE_PROJECT_ID,
-  FIREBASE_STORAGE_BUCKET,
-  FIREBASE_MESSAGING_SENDER_ID,
-  FIREBASE_APP_ID,
-  FIREBASE_MEASUREMENT_ID
-} = extra;
+const extra = Constants.expoConfig?.extra as AppConfigExtra;
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
-  authDomain: FIREBASE_AUTH_DOMAIN,
-  projectId: FIREBASE_PROJECT_ID,
-  storageBucket: FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
-  appId: FIREBASE_APP_ID,
-  measurementId: FIREBASE_MEASUREMENT_ID
+  apiKey: extra.FIREBASE_API_KEY,
+  authDomain: extra.FIREBASE_AUTH_DOMAIN,
+  projectId: extra.FIREBASE_PROJECT_ID,
+  storageBucket: extra.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: extra.FIREBASE_MESSAGING_SENDER_ID,
+  appId: extra.FIREBASE_APP_ID,
+  measurementId: extra.FIREBASE_MEASUREMENT_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const storage = getStorage(app);
+if (!getApps().length) {
+  initializeApp(firebaseConfig);
+}
 
-export { app, storage };
+// 既存のエクスポート
+export const storage = getStorage();
+export const rtdb = getDatabase();
+
+// Firestore インスタンスを db としてエクスポート
