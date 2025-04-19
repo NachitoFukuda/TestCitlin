@@ -1,14 +1,23 @@
-// utils/getOrSaveImageFileUrlRTDB.js
 import { rtdb } from '../firebaseConfig';
 import { ref, get, set } from 'firebase/database';
 import Constants from 'expo-constants';
 
 // モジュール読み込み時に一度だけ出るログ
 const PEXELS_API_KEY = (Constants.expoConfig?.extra as any)['PEXELS_API_KEY'];
+console.log('[getOrSaveImageFileUrlRTDB] PEXELS_API_KEY:', PEXELS_API_KEY);
 
 export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
+  // ネットワーク疎通テスト
+  try {
+    const ping = await fetch('https://example.com');
+    console.log('🌐 ネットワーク OK:', ping.status);
+  } catch (e) {
+    console.error('🛑 ネットワークエラー:', e);
+  }
+
   const nodePath = `citlinimage/${problemId}`;
   const nodeRef = ref(rtdb, nodePath);
+
   // 1) 既存の imageUrl をチェック
   let snap;
   try {
@@ -17,7 +26,6 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
     console.error('[getOrSaveImageFileUrlRTDB] データベース取得エラー:', e);
     throw e;
   }
-
   if (snap.exists() && snap.val().imageUrl) {
     return snap.val().imageUrl;
   }
@@ -26,10 +34,18 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
   const effective = query?.trim() || 'default';
   let data;
   try {
-    const res = await fetch(
-      `https://api.pexels.com/v1/search?per_page=1&query=${encodeURIComponent(effective)}`,
-      { headers: { Authorization: PEXELS_API_KEY } }
-    );
+    const url = `https://api.pexels.com/v1/search?per_page=1&query=${encodeURIComponent(effective)}`;
+    console.log('[getOrSaveImageFileUrlRTDB] Fetch URL:', url);
+    console.log('[getOrSaveImageFileUrlRTDB] Using API Key:', PEXELS_API_KEY);
+
+    const res = await fetch(url, {
+      headers: { Authorization: PEXELS_API_KEY || '' },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[getOrSaveImageFileUrlRTDB] HTTP Error ${res.status}:`, text);
+      return null;
+    }
     data = await res.json();
   } catch (e) {
     console.error('[getOrSaveImageFileUrlRTDB] Pexels API 呼び出しエラー:', e);
@@ -41,8 +57,12 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
     return null;
   }
 
+  // 返ってきた photo と src 情報をログ
   const photo = data.photos[0];
+  console.log('[getOrSaveImageFileUrlRTDB] photo object:', photo);
+  console.log('[getOrSaveImageFileUrlRTDB] src keys:', Object.keys(photo.src), photo.src);
   const imageUrl = photo.src.large;
+  console.log('[getOrSaveImageFileUrlRTDB] 画像 URL:', imageUrl);
   const photographer = photo.photographer;
 
   // 3) DB に保存
@@ -50,7 +70,7 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
     await set(nodeRef, { imageUrl, photographer });
   } catch (e) {
     console.error('[getOrSaveImageFileUrlRTDB] DB保存エラー:', e);
-    // 保存失敗でも画像URLは返却
   }
+
   return imageUrl;
 }

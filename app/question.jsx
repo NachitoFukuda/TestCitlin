@@ -92,8 +92,6 @@ export default function QuestionScreen() {
   const [showImage, setShowImage] = useState(false);
   const [imageData, setImageData] = useState(null);
 
-  // Countdown
-
   // ✅ createStylesを呼び出して「テーマ対応した styles オブジェクト」を取得
   const [isDarkMode, setIsDarkMode] = useState(null);
   const isDark = isDarkMode === true;
@@ -654,7 +652,11 @@ export default function QuestionScreen() {
     const loadImage = async (question) => {
       try {
         // 例: レベル＋ID をキーにしたいなら
-        const currentLevel = level || "3";
+        let currentLevel = level || "3";
+        // ドットが含まれていたらアンダースコアに置換
+        if (currentLevel.includes('.')) {
+          currentLevel = currentLevel.replace(/\./g, '_');
+        }    
         const imageKey = `${currentLevel}-${question.id}`;
         // getOrSaveImageUrlRTDB の戻り値を受け取る
         const url = await getOrSaveImageFileUrlRTDB(imageKey, question.question);
@@ -685,19 +687,30 @@ export default function QuestionScreen() {
         setLoadedSound(null);
       }
   
-      const currentLevel = level || "3";
-      const Soundurl = await getDownloadURL(ref(storage, `${currentLevel}/${question.id}.mp3`));
-      const source = { uri: Soundurl };
+      // ① 元のレベル文字列をそのまま取得（ドットもアンダースコアも変換しない）
+      const folder = level || "3";  // 例: "1.5"
+  
+      console.log('🛠️ using folder:', folder);
+  
+      // ② そのままパスを組み立て
+      const filePath = `${folder}/${question.id}.mp3`;  // => "1.5/2.mp3"
+      console.log('🛠️ fetching from path:', filePath);
+  
+      // ③ ダウンロードURLを取得
+      const soundUrl = await getDownloadURL(ref(storage, filePath));
+      console.log('🛠️ soundUrl:', soundUrl);
+  
+      // ④ Audio をロード＆準備
+      const source = { uri: soundUrl };
       const sound = new Audio.Sound();
       await sound.loadAsync(source, { shouldPlay: false }, true);
       await new Promise(resolve => setTimeout(resolve, 100));
-  
       const status = await sound.getStatusAsync();
       if (!status.isLoaded || !status.durationMillis) {
         throw new Error('Sound failed to load properly');
       }
-  
       setLoadedSound(sound);
+  
     } catch (error) {
       console.error('音声リロードエラー:', error);
       setLoadedSound(null);

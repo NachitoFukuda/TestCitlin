@@ -39,8 +39,8 @@ export default function AnimatedRemoteImage({
   const colors = {
     background: isDark ? '#303030' : '#E3E5F3',
     overlayBackground: isDark
-      ? 'rgba(0,0,0,0.6)'
-      : 'rgba(255,255,255,0.7)',
+      ? '#303030'
+      : '#E3E5F3',
     textPrimary: isDark ? '#FFFFFF' : '#000000',
     textSecondary: isDark ? '#BFC2CF' : '#555555',
   };

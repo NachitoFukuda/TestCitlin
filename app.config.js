@@ -1,7 +1,7 @@
 // app.config.js
-require('dotenv').config(); // .env ファイルから環境変数を読み込みます
+require('dotenv').config(); // .env から読み込み
 
-export default {
+module.exports = {
   expo: {
     name: "testcitlin",
     slug: "testcitlin",
@@ -16,9 +16,21 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
-    ios: {
-      supportsTablet: true
-    },
+      // app.config.js の expo.ios.infoPlist 部分
+      ios: {
+        supportsTablet: true,
+        infoPlist: {
+          NSAppTransportSecurity: {
+            NSAllowsArbitraryLoads: true,
+            NSExceptionDomains: {
+              "pexels.com": {
+                NSIncludesSubdomains: true,
+                NSAllowsArbitraryLoads: true
+              }
+            }
+          }
+        }
+      },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon.png",
@@ -31,12 +43,11 @@ export default {
       favicon: "./assets/images/favicon.png"
     },
     plugins: [
-      "expo-router"
+      "expo-router" // ← ここだけで OK
     ],
     experiments: {
       typedRoutes: true
     },
-    // extra フィールドに .env ファイルから読み込んだ環境変数を注入します
     extra: {
       PEXELS_API_KEY: process.env.PEXELS_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -46,7 +57,8 @@ export default {
       FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
       FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
       FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
-      FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID
+      FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
+      FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL
     }
   }
 };
