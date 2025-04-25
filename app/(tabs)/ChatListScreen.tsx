@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import NeomorphBox from '@/components/ui/NeomorphBox';
+import Footer from '@/components/ui/Footer';
 
 interface SessionListItem {
   id: string;
@@ -160,60 +161,14 @@ const ChatListScreen: React.FC = () => {
       </SafeAreaView>
 
       {/* 画面下部の固定ボタン群 */}
-      <View style={styles.mask} />
-      <View style={styles.messegeContainer}>
-        <NeomorphBox
-          width={60}
-          height={60}
-          forceTheme="light"
-          style={{ justifyContent: 'center', alignItems: 'center' }}
-        >
-          <TouchableOpacity
-            onPress={() => router.push('/ChatListScreen')}
-            accessibilityLabel="チャット一覧"
-          >
-            <Ionicons name="chatbubble-outline" size={30} color="#4169e1" />
-          </TouchableOpacity>
-        </NeomorphBox>
-      </View>
+          <Footer />
       
-      <TouchableOpacity
-        onPress={() => router.push('/')}
-        accessibilityLabel="ホームへ"
-      >
-        <View style={styles.hoomButtonContainer}>
-          <NeomorphBox
-            width={60}
-            height={60}
-            forceTheme="light"
-            style={{ justifyContent: 'center', alignItems: 'center' }}
-          >
-            <Ionicons name="home-outline" size={30} color="#666" />
-          </NeomorphBox>
-        </View>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        onPress={() => router.push('/SettingsScreen')}
-        accessibilityLabel="設定画面へ"
-      >
-        <View style={styles.settingsButtonContainer}>
-          <NeomorphBox
-            width={60}
-            height={60}
-            forceTheme="light"
-            style={{ justifyContent: 'center', alignItems: 'center' }}
-          >
-            <Ionicons name="settings-outline" size={30} color="#666" />
-          </NeomorphBox>
-        </View>
-      </TouchableOpacity>
     </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#E3E5F3' },
+  container: { flex: 1, backgroundColor: '#EBF3FF' },
   headerContainer: {
     backgroundColor: '#ffffff',
     paddingVertical: 15,
@@ -242,7 +197,7 @@ const styles = StyleSheet.create({
   },
   chatItemNeumorphism: {
     marginVertical: 10,
-    backgroundColor: '#E3E5F3',
+    backgroundColor: '#EBF3FF',
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 7,
@@ -271,35 +226,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#333',
     textAlign: 'left',
-  },
-  messegeContainer: {
-    position: 'absolute',
-    left: 40,
-    bottom: 70,
-    zIndex: 2,
-  },
-  settingsButtonContainer: {
-    position: 'absolute',
-    right: 40,
-    bottom: 70,
-    zIndex: 1,
-  },
-  mask: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 150,
-    backgroundColor: '#E3E5F3',
-    zIndex: 0,
-  },
-  hoomButtonContainer: {
-    position: 'absolute',
-    bottom: 70,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1,
   },
   addButtonContainer: {
     alignItems: 'center',

@@ -11,6 +11,7 @@ import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableItem from '../../components/uistore/Indexwiget';
 import { Dimensions } from 'react-native';
+import Footer from '@/components/ui/Footer';
 
 const windowWidth = Dimensions.get('window').width;
 const smallCell = windowWidth / 4;
@@ -236,7 +237,7 @@ export default function HomeScreen() {
       <View
         style={[
           styles.scrollContainer,
-          { backgroundColor: isDarkMode ? '#303030' : '#E3E5F3' },
+          { backgroundColor: isDarkMode ? '#303030' : '#EBF3FF' },
         ]}
       >
         {/* テーマ情報を各兄弟要素に渡す */}
@@ -301,91 +302,8 @@ export default function HomeScreen() {
       }}
     </UIConfigContext.Consumer>
       </View>
-
-          </View>
-            <View style={styles.messegeContainer}>
-            {isPremiumPlusUser && 
-            <TouchableOpacity onPress={handlePress}>
-              <NeomorphBox
-                width={60} // 実際のバナー広告の幅
-                height={60} // 実際のバナー広告の高さ
-                forceTheme={isDarkMode ? 'dark' : 'light'}
-                style={{ justifyContent: 'center', alignItems: 'center'}}
-              >
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={30}
-                  color={isDarkMode ? '#dddddd' : '#666666'}
-                />
-                  <Text style={[styles.vipText, { color: isDarkMode ? '#dddddd' : '#666666' }]}>
-                    VIP
-                  </Text>
-                  </NeomorphBox>
-              </TouchableOpacity>
-                }
-                  <TouchableOpacity
-                  onPress={() => router.push('/ChatListScreen')}
-                  accessibilityLabel="VIP"
-                  accessibilityHint="AIchatに遷移"
-                >
-                <NeomorphBox
-                  width={60} // 実際のバナー広告の幅
-                  height={60} // 実際のバナー広告の高さ
-                  forceTheme={isDarkMode ? 'dark' : 'light'}
-                  style={{ justifyContent: 'center', alignItems: 'center'}}
-                >
-                  <Ionicons
-                    name="chatbubble-outline" // 吹き出しアイコンに変更
-                    size={30}
-                    color={isDarkMode ? '#dddddd' : '#666666'}
-                  />
-                </NeomorphBox>
-                </TouchableOpacity>
-
-                </View>
-                <TouchableOpacity
-                onPress={() => router.push('/UIstore')}
-                accessibilityLabel="shopへ"
-                accessibilityHint="アイコンをタップするとshopに移動します"
-              >
-                <View style={styles.UIstoreButtonContainer}>
-              <NeomorphBox
-                width={60} 
-                height={60} 
-                forceTheme={isDarkMode ? 'dark' : 'light'}
-                style={{ justifyContent: 'center', alignItems: 'center'}}
-              >
-                <Ionicons
-                  name="cart-outline"
-                  size={30}
-                  color={isDarkMode ? '#dddddd' : '#666666'}
-                />
-              </NeomorphBox>
-              </View>
-
-            </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => router.push('/SettingsScreen')}
-                accessibilityLabel="設定画面へ"
-                accessibilityHint="歯車アイコンをタップすると設定画面に移動します"
-              >
-              <View style={styles.settingsButtonContainer}>
-              <NeomorphBox
-                width={60} 
-                height={60} 
-                forceTheme={isDarkMode ? 'dark' : 'light'}
-                style={{ justifyContent: 'center', alignItems: 'center'}}
-              >
-                <Ionicons
-                  name="settings-outline"
-                  size={30}
-                  color={isDarkMode ? '#dddddd' : '#666666'}
-                />
-              </NeomorphBox>
-            </View>
-            </TouchableOpacity>
-
+    </View>
+    <Footer />
             </>
       )}
     </>
@@ -404,11 +322,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  settingsButtonContainer: {
-    position: 'absolute',
-    right: 40,
-    bottom: 70,
-  },
   UIstoreButtonContainer: {
     position: 'absolute',
     bottom: 70,
@@ -416,11 +329,7 @@ const styles = StyleSheet.create({
     // ボタン幅(60)の半分(30)だけ左にずらす
     transform: [{ translateX: -30 }],
   },
-  messegeContainer: {
-    position: 'absolute',
-    left: 40,
-    bottom: 70,
-  },
+
   vipText: {
     position: 'absolute',
     top: 16,      // この値を調整して上下の位置を微調整

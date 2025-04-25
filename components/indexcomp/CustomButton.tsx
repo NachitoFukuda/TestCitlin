@@ -32,7 +32,7 @@ const RotatingNeumorphicButton: React.FC<RotatingNeumorphicButtonProps> = ({
   const themeColors = useMemo(() => {
     const isDark = forceTheme === 'dark';
     return {
-      backgroundColor: isDark ? '#303030' : '#E3E5F3', // ボタン背景色
+      backgroundColor: isDark ? '#303030' : '#EBF3FF', // ボタン背景色
       outerShadowColor: isDark ? '#555' : '#FFF',     // 外側のシャドウ
       innerShadowColor: isDark ? '#000' : '#A3A5B5',  // 内側のシャドウ
       ringGradientColors: isDark

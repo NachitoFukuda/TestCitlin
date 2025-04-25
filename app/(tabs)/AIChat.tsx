@@ -173,6 +173,7 @@ async function callOpenAIGPT(messages: Message[], maxTokens: number = 300): Prom
   return null;
 }
 
+
 // -----------------------------------
 // 6) メインのチャットコンポーネント
 // -----------------------------------
@@ -636,7 +637,7 @@ export default AIChat;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E3E5F3',
+    backgroundColor: '#EBF3FF',
   },
   header: {
     flexDirection: 'row',

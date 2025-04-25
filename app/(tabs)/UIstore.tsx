@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useRouter } from 'expo-router';
+import Footer from '@/components/ui/Footer';
 
 // 画面サイズとセル数の計算
 const windowWidth = Dimensions.get('window').width;
@@ -87,6 +88,7 @@ export default function UILayout() {
   };
 
   return (
+    <>
     <View style={styles.container}>
       <Text style={styles.header}>あなたのポイント: {points} pt</Text>
 
@@ -124,6 +126,8 @@ export default function UILayout() {
         ListEmptyComponent={<Text>ショップアイテムがありません</Text>}
       />
     </View>
+    <Footer />
+    </>
   );
 }
 

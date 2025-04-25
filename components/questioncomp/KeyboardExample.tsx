@@ -17,9 +17,9 @@ const KeyboardExample: React.FC<KeyboardExampleProps> = ({ onKeyPress, userAnswe
   // forceTheme に応じた色設定
   const isDark = forceTheme === 'dark';
   const themeColors = useMemo(() => ({
-    keyboardWrapperBg: isDark ? '#303030' : '#E3E5F3',
+    keyboardWrapperBg: isDark ? '#303030' : '#EBF3FF',
     borderColor: isDark ? '#555' : '#ddd',
-    inputDisplayBg: isDark ? '#424242' : '#E3E5F3',
+    inputDisplayBg: isDark ? '#424242' : '#EBF3FF',
     inputTextColor: isDark ? '#fff' : '#666',
     keyBg: isDark ? '#666' : '#eee',
     keyTextColor: isDark ? '#fff' : '#666', // キーの文字色は固定の場合

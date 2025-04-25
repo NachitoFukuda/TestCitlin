@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 //import useSubscription from '@/hooks/useSubscriptionStatus';
 //import { PurchaseScreen } from '@/components/PurchaseScreen';
 import { Ionicons } from '@expo/vector-icons';
+import Footer from '@/components/ui/Footer';
 // import Purchases from 'react-native-purchases';
 
 const windowWidth = Dimensions.get('window').width;
@@ -131,7 +132,7 @@ export default function SettingsScreen() {
       };
   return (
     <>
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#303030' : '#E3E5F3' }]}>
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#303030' : '#EBF3FF' }]}>
         {/* ダークモード設定 */}
         <NeomorphBox 
           width={300} 
@@ -179,92 +180,8 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={{ color: '#000', marginTop: 8 }}>処理中...</Text>
-        </View>
-      )} */}
-                <View style={styles.messegeContainer}>
-                <NeomorphBox
-                    width={60} // 実際のバナー広告の幅
-                    height={60} // 実際のバナー広告の高さ
-                    forceTheme={isDarkMode ? 'dark' : 'light'}
-                    style={{ justifyContent: 'center', alignItems: 'center'}}
-                  >
-                {!isAnySubscribed && 
-                  <TouchableOpacity onPress={handlePress}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={30}
-                      color={isDarkMode ? '#dddddd' : '#666666'}
-                    />
-                      <Text style={[styles.vipText, { color: isDarkMode ? '#dddddd' : '#666666' }]}>
-                        VIP
-                      </Text>
-                  </TouchableOpacity>
-                    }
-                {isAnySubscribed && (
-                      <TouchableOpacity
-                      onPress={() => router.push('/ChatListScreen')}
-                      accessibilityLabel="VIP"
-                      accessibilityHint="AIchatに遷移"
-                    >
-                      <Ionicons
-                        name="chatbubble-outline" // 吹き出しアイコンに変更
-                        size={30}
-                        color={isDarkMode ? '#dddddd' : '#666666'}
-                      />
-                    </TouchableOpacity>
-                )}
-    
-                      </NeomorphBox>
-                    </View>
+    <Footer />
 
-
-                  <TouchableOpacity
-                    onPress={() => router.push('/SettingsScreen')}
-                    accessibilityLabel="設定画面へ"
-                    accessibilityHint="歯車アイコンをタップすると設定画面に移動します"
-                  >
-                    <View style={styles.settingsButtonContainer}>
-                  <NeomorphBox
-                    width={60} // 実際のバナー広告の幅
-                    height={60} // 実際のバナー広告の高さ
-                    forceTheme={isDarkMode ? 'dark' : 'light'}
-                    style={{ justifyContent: 'center', alignItems: 'center'}}
-                  >
-
-                    <Ionicons
-                      name="settings-outline"
-                      size={30}
-                      color={isDarkMode ? '#dddddd' : '#4169e1'}
-                    />
-                  </NeomorphBox>
-                </View>
-              </TouchableOpacity>
-
-
-                <TouchableOpacity
-                    onPress={() => router.push('/')}
-                    accessibilityLabel="homeへ"
-                    accessibilityHint="homeに移動します"
-                  >
-                  <View style={styles.hoomButtonContainer}>
-                  <NeomorphBox
-                    width={60} // 実際のバナー広告の幅
-                    height={60} // 実際のバナー広告の高さ
-                    forceTheme={isDarkMode ? 'dark' : 'light'}
-                    style={{ justifyContent: 'center', alignItems: 'center'}}
-                  >
-                    <Ionicons
-                      name="home-outline"
-                      size={30}
-                      color={isDarkMode ? '#dddddd' : '#666'}
-                    />
-                  </NeomorphBox>
-                </View>
-                </TouchableOpacity>
       {/* 下からスライドして表示されるモーダル */}
       <Modal
         visible={modalVisible}
@@ -310,23 +227,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1000,
   },
-  messegeContainer: {
-    position: 'absolute',
-    left: 40,
-    bottom: 70,
-  },
-  settingsButtonContainer: {
-    position: 'absolute',
-    right: 40,
-    bottom: 70,
-  },
-  hoomButtonContainer: {
-    position: 'absolute',
-    bottom: 70,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
+
   vipText: {
     position: 'absolute',
     top: 16,      // この値を調整して上下の位置を微調整

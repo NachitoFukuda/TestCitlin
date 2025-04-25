@@ -32,7 +32,7 @@ const TodayMission: React.FC<TodayMissionProps> = ({
       sectionTitle: isDark ? '#E0E0E0' : '#777',
       neededAnswers: isDark ? '#CCC' : '#666',
       loadingIndicator: isDark ? '#DDD' : '#000',
-      progressBarBG: isDark ? '#303030' : '#E3E5F3',
+      progressBarBG: isDark ? '#303030' : '#EBF3FF',
       progressBarFill: isDark ? '#AAA' : '#888',
       clearedText: 'rgb(0, 227, 117)', // CLEAR表示の色
     };

@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     margin: 15,
   },
   neomorphBoxStyle: {
-    backgroundColor: '#E3E5F3',
+    backgroundColor: '#EBF3FF',
     borderRadius: 10,
   },
   itemContent: {

@@ -55,7 +55,7 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   const themeColors = useMemo(() => {
     const isDark = forceTheme === 'dark';
     return {
-      containerBg: isDark ? '#303030' : '#E3E5F3',
+      containerBg: isDark ? '#303030' : '#EBF3FF',
       textColor: isDark ? '#ccc' : '#666',
       questionTextColor: isDark ? '#ddd' : '#666',
       buttonTextColor: isDark ? '#ccc' : '#666',

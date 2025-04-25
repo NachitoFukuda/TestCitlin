@@ -15,6 +15,7 @@ import { useWidgetConfig } from '../../components/uistore/useWidgetConfig';
 import type { WidgetId } from '../../components/uistore/widgetConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import Footer from '@/components/ui/Footer';
 
 // 画面サイズとセル数の計算
 const windowWidth = Dimensions.get('window').width;
@@ -162,6 +163,7 @@ export default function UIstore() {
   };
 
   return (
+    <>
     <View style={styles.container}>
       <Text style={styles.header}>あなたのポイント: {points} pt</Text>
       
@@ -332,6 +334,8 @@ export default function UIstore() {
        </>
      )}
       </View>
+    <Footer />
+      </>
   );
 }
 

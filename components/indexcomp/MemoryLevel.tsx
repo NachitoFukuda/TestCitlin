@@ -54,7 +54,7 @@ const MemoryLevel: React.FC<MemoryLevelProps> = ({
     loadingText: forceTheme === 'dark' ? '#CCCCCC' : '#777',
     noDataText: forceTheme === 'dark' ? '#BBBBBB' : '#999',
     progressBar: forceTheme === 'dark' ? '#999' : '#0005', // プログレスバー前景色
-    unfilledColor: forceTheme === 'dark' ? '#303030' : '#E3E5F3', // プログレスバー背景色
+    unfilledColor: forceTheme === 'dark' ? '#303030' : '#EBF3FF', // プログレスバー背景色
   }), [forceTheme]);
 
   const [savedLevels, setSavedLevels] = useState<string>();
