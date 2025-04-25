@@ -1,9 +1,9 @@
-//app\(tabs)\_layout.tsx
-import { Tabs, useRouter, useSegments } from 'expo-router';
+import { router, Tabs, useRouter, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UIConfigProvider } from '@/components/contexts/UIConfigContext';
 
 function ChatListButton() {
   const segments = useSegments();
@@ -45,35 +45,82 @@ export default function TabLayout() {
   }, []);
 
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: 'transparent' },
-        headerTransparent: true,
-        headerTitleStyle: { color: theme === 'dark' ? '#ccc' : '#555' },
-        tabBarStyle: { display: 'none' },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '',
-          headerShown: true,
+    <UIConfigProvider>
+      <Tabs
+        screenOptions={{
+          headerStyle: { backgroundColor: 'transparent' },
+          headerTransparent: true,
+          headerTitleStyle: { color: theme === 'dark' ? '#ccc' : '#555' },
+          tabBarStyle: { display: 'none' },
         }}
-      />
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: '',
+            headerShown: true,
+          }}
+        />
 
-      <Tabs.Screen
-        name="SettingsScreen"
-        options={{
-          title: '設定',
-        }}
-      />
+          <Tabs.Screen 
+            name="UIstore" 
+            options={{
+            headerShown: true,
+            headerTitle: 'ストア',
+            headerTransparent: false,
+                        // 左上にホーム戻るボタンを追加
+            headerLeft: () => (
+            <TouchableOpacity
+            onPress={() => router.push('/')}
+            accessibilityLabel="ホームに戻る"
+             style={{ marginLeft: 16 }}
+              >
+              <Ionicons
+                name="home-outline"
+               size={24}
+                color={theme === 'dark' ? '#ccc' : '#555'}
+              />
+            </TouchableOpacity>
+           ),
+           }} 
+          />
 
-      <Tabs.Screen
-        name="ChatListScreen"
-        options={{
-          title: '',
-        }}
-      />
+          <Tabs.Screen 
+            name="UILayout" 
+            options={{
+            headerShown: true,
+            headerTitle: 'レイアウト',
+            headerTransparent: false,
+                        // 左上にホーム戻るボタンを追加
+            headerLeft: () => (
+            <TouchableOpacity
+            onPress={() => router.push('/')}
+            accessibilityLabel="ホームに戻る"
+             style={{ marginLeft: 16 }}
+              >
+              <Ionicons
+                name="home-outline"
+               size={24}
+                color={theme === 'dark' ? '#ccc' : '#555'}
+              />
+            </TouchableOpacity>
+           ),
+           }} 
+          />
+
+        <Tabs.Screen
+          name="SettingsScreen"
+          options={{
+            title: '設定',
+          }}
+        />
+
+        <Tabs.Screen
+          name="ChatListScreen"
+          options={{
+            title: '',
+          }}
+        />
 
         <Tabs.Screen
           name="AIChat"
@@ -83,14 +130,8 @@ export default function TabLayout() {
           }}
         />
         
-        <Tabs.Screen
-          name="AIteacherChat"
-          options={{
-            title: '',
-            headerLeft: () => <ChatListButton />,
-          }}
-        />
 
-    </Tabs>
+      </Tabs>
+    </UIConfigProvider>
   );
 }

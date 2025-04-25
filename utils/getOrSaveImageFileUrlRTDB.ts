@@ -4,7 +4,6 @@ import Constants from 'expo-constants';
 
 // モジュール読み込み時に一度だけ出るログ
 const PEXELS_API_KEY = (Constants.expoConfig?.extra as any)['PEXELS_API_KEY'];
-console.log('[getOrSaveImageFileUrlRTDB] PEXELS_API_KEY:', PEXELS_API_KEY);
 
 export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
   // ネットワーク疎通テスト

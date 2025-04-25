@@ -1,4 +1,3 @@
-//app\_layout.tsx
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -8,6 +7,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // スプラッシュスクリーンをアセット読み込み完了まで非表示にする
 SplashScreen.preventAutoHideAsync();
@@ -18,7 +18,6 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    console.log('[RootLayout] loaded, font loaded:', loaded);
     if (loaded) {
       SplashScreen.hideAsync();
     }
@@ -29,7 +28,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <NavigationThemeProvider value={DarkTheme}>
         <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -63,6 +62,6 @@ export default function RootLayout() {
         </Stack>
         <StatusBar style="auto" />
       </NavigationThemeProvider>
-    </>
+    </GestureHandlerRootView>
   );
 }

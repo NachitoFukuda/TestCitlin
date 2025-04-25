@@ -91,7 +91,7 @@ export default function QuestionScreen() {
   const [showNextButton, setShowNextButton] = useState(false);
   const [showImage, setShowImage] = useState(false);
   const [imageData, setImageData] = useState(null);
-
+  const [QentionID, setQentionID] = useState(null);
   // ✅ createStylesを呼び出して「テーマ対応した styles オブジェクト」を取得
   const [isDarkMode, setIsDarkMode] = useState(null);
   const isDark = isDarkMode === true;
@@ -350,7 +350,13 @@ export default function QuestionScreen() {
       console.error('[loadCorrectDataAndFilterQuestions] エラー:', error);
     }
   };
-  
+  const [currentQuestionId, setCurrentQuestionId] = useState(null);
+
+  useEffect(() => {
+    if (displayedQuestion?.id != null) {
+      setCurrentQuestionId(displayedQuestion.id);
+    }
+  }, [displayedQuestion?.id]);
 
   // Update displayedQuestion whenever filteredQuestions or currentQuestionIndex changes
   useEffect(() => {
@@ -775,14 +781,13 @@ export default function QuestionScreen() {
       <QuizEndComponent
         score={score}
         total={filteredQuestions.length}
+        QentionID={currentQuestionId}
         onFinish={() => router.push('/')}
   //      isAnySubscribed={isAnySubscribed}
         forceTheme={isDarkMode === true ? 'dark' : 'light'}
       />
     );
   }
-
-
 
   // 現在の問題 (using displayedQuestion from state)
   const currentQuestion = displayedQuestion;

@@ -20,6 +20,7 @@ module.exports = {
       ios: {
         supportsTablet: true,
         infoPlist: {
+          NSPhotoLibraryUsageDescription: "ユーザーが写真を選択できるようにします",
           NSAppTransportSecurity: {
             NSAllowsArbitraryLoads: true,
             NSExceptionDomains: {

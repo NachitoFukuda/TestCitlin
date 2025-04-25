@@ -9,92 +9,117 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 
-interface Chat {
+interface SessionListItem {
   id: string;
   title: string;
+  imageUri?: string | null;
 }
-
+// @ts-ignore ts(6385)
 function getIconForChatId(chatId: string) {
   switch (chatId) {
-    case 'friend':
-      return require('../../assets/chatIcon/friend.jpg');
-    case 'boyfriend':
-      return require('../../assets/chatIcon/boy.jpg');
-    case 'girlfriend':
-      return require('../../assets/chatIcon/girl.jpg');
-    case 'office':
-      return require('../../assets/chatIcon/office.jpg');
-    case 'eiken3':
-      return require('../../assets/chatIcon/3.jpg');
-    case 'eiken25':
-      return require('../../assets/chatIcon/25.jpg');
-    case 'eiken2':
-      return require('../../assets/chatIcon/2.jpg');
-    case 'eiken15':
-      return require('../../assets/chatIcon/15.jpg');
-    case 'eiken1':
-      return require('../../assets/chatIcon/1.jpg');
     default:
       return require('../../assets/chatIcon/friend.jpg');
   }
 }
 
-
-
 const ChatListScreen: React.FC = () => {
   const router = useRouter();
 
-  const fixedChats: Chat[] = [
-    { id: 'friend', title: '友達' },
-    { id: 'boyfriend', title: '彼氏' },
-    { id: 'girlfriend', title: '彼女' },
-    { id: 'momo_beginner', title: 'Momo 　初心者さん向け🐤' },
-    { id: 'momo_intermediate', title: 'Momo 　中級者向け📚' },
-    { id: 'momo_advanced', title: 'Momo 　鬼モード👹' },
-    { id: 'eiken3', title: '英検3級    模擬面接' },
-    { id: 'eiken25', title: '英検準2級 模擬面接' },
-    { id: 'eiken2', title: '英検2級    模擬面接' },
-    { id: 'eiken15', title: '英検準1級 模擬面接' },
-    { id: 'eiken1', title: '英検1級    模擬面接' },
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
-  ];
-
-
-  const handleChatSelect = (chatId: string) => {
-    if (chatId === 'eiken3') {
-      router.push('/Eiken3');
-    } else if (chatId === 'eiken25') {
-      router.push('/Eiken25');
-    } else if (chatId === 'eiken2') {
-      router.push('/Eiken2');
-    } else if (chatId === 'eiken15') {
-      router.push('/Eiken15');
-    } else if (chatId === 'eiken1') {
-      router.push('/Eiken1');
-    } else if (chatId === 'momo_beginner' || chatId === 'momo_intermediate' || chatId === 'momo_advanced') {
-      router.push(`/AIteacherChat?level=${chatId}`);
-    } else {
-      router.push(`/AIChat?chatId=${chatId}`);
+  // 新規チャット作成（必要  // --- 追加 ---
+  const deleteChat = async (id: string) => {
+    try {
+      // 消すキーを列挙
+      const keys = [
+        `@chat_prompt:${id}`,
+        `@chat_image:${id}`,
+        `@chat_name:${id}`,
+        `chat_${id}`,
+      ];
+      await AsyncStorage.multiRemove(keys);
+      // 画面からも除外
+      setSessions(prev => prev.filter(item => item.id !== id));
+    } catch (e) {
+      Alert.alert('Error', '削除に失敗しました');
     }
   };
+  // --- ここまで ---があればストレージ保存処理を追加）
+  const handleAddChat = () => {
+    // ここで必要なら AsyncStorage.setItem(`@chat_prompt:${newId}`, 初期タイトル) などを行う
+    router.push('/chat/newAI');  };
 
-  const renderItem = ({ item }: { item: Chat }) => {
-    const iconSource = getIconForChatId(item.id);
-    return (
-      <NeomorphBox
+  // AsyncStorage からセッション一覧をロード
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const promptKeys = keys.filter(k => k.startsWith('@chat_prompt:'));
+        const sessionsData = await Promise.all(
+          promptKeys.map(async key => {
+            const id = key.split(':')[1];
+            const title = (await AsyncStorage.getItem(`@chat_name:${id}`)) || `チャット ${id.slice(-4)}`;
+
+            const imageUri = await AsyncStorage.getItem(`@chat_image:${id}`);
+            return { id, title, imageUri };
+          })
+        );
+        setSessions(sessionsData);
+      } catch (e) {
+        Alert.alert('Error', 'セッションの読み込みに失敗しました');
+      }
+    };
+    loadSessions();
+  }, []);
+
+  // リストの各アイテムレンダリング
+     const renderItem = ({ item }: { item: SessionListItem }) => {
+        // 削除ボタンをスワイプ後に表示
+        const renderRightActions = () => (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() =>
+              Alert.alert('確認', '本当に削除しますか？', [
+                { text: 'キャンセル', style: 'cancel' },
+                {
+                  text: '削除',
+                  style: 'destructive',
+                  onPress: () => deleteChat(item.id),
+               },
+            ])
+            }
+          >
+           <Text style={styles.deleteText}>削除</Text>
+          </TouchableOpacity>
+        );
+            const iconSource = item.imageUri
+              ? { uri: item.imageUri }
+              : getIconForChatId(item.id);
+
+            console.log(`Chat ID: ${item.id}, Image URI: ${item.imageUri}`);
+
+    const handleChatSelect = () => {
+      router.push(`/AIChat?chatId=${item.id}`);
+    };
+
+      return (
+        <Swipeable renderRightActions={renderRightActions}> 
+         <NeomorphBox
         width={Dimensions.get('window').width * 0.95}
         height={60}
-        forceTheme={'light'}
+        forceTheme="light"
         style={styles.chatItemNeumorphism}
       >
         <TouchableOpacity
           style={styles.chatItemTouchable}
-          onPress={() => handleChatSelect(item.id)}
+          onPress={handleChatSelect}
         >
           <View style={styles.iconTitleContainer}>
             <Image source={iconSource} style={styles.chatIcon} />
@@ -102,7 +127,7 @@ const ChatListScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
       </NeomorphBox>
-
+      </Swipeable>
     );
   };
 
@@ -110,74 +135,83 @@ const ChatListScreen: React.FC = () => {
     <>
       <SafeAreaView style={styles.container}>
         <View style={styles.headerContainer}>
-        <Text style={styles.headerText}>
-          <Text style={styles.aiText}>AI</Text>Chat
-        </Text>
+          <Text style={styles.headerText}>
+            <Text style={styles.aiText}>AI</Text>Chat
+          </Text>
         </View>
-        <Text style={styles.sectionTitle}>ともだち</Text>
+        <Text style={styles.sectionTitle}>おしゃべり一覧</Text>
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            onPress={handleAddChat}
+            style={styles.addButtonTouchable}
+          >
+            <Text style={styles.addButtonText}>+ 新しいチャットを追加</Text>
+          </TouchableOpacity>
+        </View>
         <FlatList
-          data={fixedChats}
-          keyExtractor={(item) => item.id}
+          data={sessions}
+          keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={{
-            alignItems: 'center', // ← 追加：中央揃え
+            alignItems: 'center',
             paddingBottom: 150,
           }}
         />
-
       </SafeAreaView>
+
+      {/* 画面下部の固定ボタン群 */}
       <View style={styles.mask} />
       <View style={styles.messegeContainer}>
         <NeomorphBox
           width={60}
           height={60}
-          forceTheme={'light'}
+          forceTheme="light"
           style={{ justifyContent: 'center', alignItems: 'center' }}
         >
           <TouchableOpacity
             onPress={() => router.push('/ChatListScreen')}
-            accessibilityLabel="VIP"
-            accessibilityHint="AIchatに遷移"
+            accessibilityLabel="チャット一覧"
           >
-            <Ionicons name="chatbubble-outline" size={30} color={'#4169e1'} />
+            <Ionicons name="chatbubble-outline" size={30} color="#4169e1" />
           </TouchableOpacity>
         </NeomorphBox>
       </View>
+      
       <TouchableOpacity
         onPress={() => router.push('/')}
-        accessibilityLabel="homeへ"
-        accessibilityHint="homeに移動します"
+        accessibilityLabel="ホームへ"
       >
         <View style={styles.hoomButtonContainer}>
           <NeomorphBox
             width={60}
             height={60}
-            forceTheme={'light'}
+            forceTheme="light"
             style={{ justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="home-outline" size={30} color={'#666'} />
+            <Ionicons name="home-outline" size={30} color="#666" />
           </NeomorphBox>
         </View>
       </TouchableOpacity>
+      
       <TouchableOpacity
         onPress={() => router.push('/SettingsScreen')}
         accessibilityLabel="設定画面へ"
-        accessibilityHint="歯車アイコンをタップすると設定画面に移動します"
       >
         <View style={styles.settingsButtonContainer}>
           <NeomorphBox
             width={60}
             height={60}
-            forceTheme={'light'}
+            forceTheme="light"
             style={{ justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="settings-outline" size={30} color={'#666'} />
+            <Ionicons name="settings-outline" size={30} color="#666" />
           </NeomorphBox>
         </View>
       </TouchableOpacity>
     </>
   );
 };
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#E3E5F3' },
   headerContainer: {
@@ -195,8 +229,8 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   aiText: {
-    color: 'rgba(0, 89, 255, 0.8)', // AIの文字の色
-    fontWeight: 'bold', // 太字にしたい場合
+    color: 'rgba(0, 89, 255, 0.8)',
+    fontWeight: 'bold',
   },
   sectionTitle: {
     fontSize: 18,
@@ -216,15 +250,15 @@ const styles = StyleSheet.create({
   chatItemTouchable: {
     flex: 1,
     width: '100%',
-    alignItems: 'flex-start',  // 横方向は左寄せ
-    justifyContent: 'center',  // 垂直方向を中央揃え
-    paddingLeft: 10,           // 左側に余白を追加（値はお好みで調整）
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingLeft: 10,
   },
   iconTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start', // 左寄せ
-    width: '100%',                // 内部コンテナも100%に
+    justifyContent: 'flex-start',
+    width: '100%',
   },
   chatIcon: {
     width: 40,
@@ -236,7 +270,7 @@ const styles = StyleSheet.create({
   chatTitle: {
     fontSize: 18,
     color: '#333',
-    textAlign: 'left', // テキストを左寄せ
+    textAlign: 'left',
   },
   messegeContainer: {
     position: 'absolute',
@@ -267,7 +301,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,
   },
+  addButtonContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  addButtonTouchable: {
+    backgroundColor: '#4A90E2',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    backgroundColor: 'red',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+  },
+  deleteText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
 });
-
 
 export default ChatListScreen;

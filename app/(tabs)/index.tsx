@@ -1,16 +1,20 @@
-// index.tsx
-import React, { useState, useCallback, useEffect, useContext } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { UIConfigContext } from '@/components/contexts/UIConfigContext';
 import { View, Alert, ScrollView, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialSetup from '@/components/Tutorial/InitialSetup';
 import * as Haptics from 'expo-haptics';
-import CustomButton from '@/components/indexcomp/CustomButton';
-import TwoSquareWidgets from '@/components/indexcomp/TwoSquareWidgets';
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableItem from '../../components/uistore/Indexwiget';
+import { Dimensions } from 'react-native';
+
+const windowWidth = Dimensions.get('window').width;
+const smallCell = windowWidth / 4;
+// If the file does not exist, create it or update the import path to the correct location
 
 const STORAGE_KEY_CORRECT_DATA = 'correctData';
 
@@ -63,26 +67,29 @@ const triggerVibration = (style: Haptics.ImpactFeedbackStyle) => {
 export default function HomeScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
   const router = useRouter(); // ✅ ルーターを取得（ホームに戻るため）
+  const uiCtx = React.useContext(UIConfigContext); // 🔥 UIConfigContextからコンテキストを取得
 
   // ストレージからテーマを取得し、スイッチの状態を同期
   useFocusEffect(
     useCallback(() => {
-      const loadTheme = async () => {
+      const handleFocus = async () => {
+        // テーマ読み込み
         try {
           const storedTheme = await AsyncStorage.getItem('theme');
-          if (storedTheme === 'dark') {
-            setIsDarkMode(true);
-          } else {
-            setIsDarkMode(false);
-          }
+          setIsDarkMode(storedTheme === 'dark');
         } catch (error) {
           console.error('❌ テーマの読み込みに失敗しました:', error);
           setIsDarkMode(false);
         }
-      };
-      loadTheme();
+        // 所持UI座標の再読み込み
+       if (uiCtx) {
+          await uiCtx.reloadData();
+         }
+                 };
+      handleFocus();
     }, [])
   );
+
   
   // テーマに合わせて背景色やテキスト色を動的に変更
   const [todayLearnedCount, setTodayLearnedCount] = useState<number>(0);
@@ -203,6 +210,8 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
+  // コンテキストから購入データを取得 is now handled via Consumer below
+
   const handlePress = () => {
     // ボタンが押された場合のアクション
     Alert.alert(
@@ -221,46 +230,79 @@ export default function HomeScreen() {
         <InitialSetup onSetupComplete={handleSetupComplete} />
       ) : (
         <>
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContainer,
-            {backgroundColor: isDarkMode ? '#303030' : '#E3E5F3' },
-          ]}
-        >
-          <View style={styles.container}>
-            {/* テーマ情報を各兄弟要素に渡す */}
-            {!isPremiumUser && <BannerAdComponent />}
-            {isPremiumUser && (
-              <NeomorphBox
-                width={320} // 実際のバナー広告の幅
-                height={50} // 実際のバナー広告の高さ
-                forceTheme={isDarkMode ? 'dark' : 'light'}
-                style={{ justifyContent: 'center', alignItems: 'center'}}
-              >
-                <Text style={{ color: 'silver', fontSize: 16, fontWeight: 'bold' }}>
-                  citlin+
-                </Text>
-                </NeomorphBox>
-            )}
 
-            <TwoSquareWidgets 
-              todayLearnedCount={todayLearnedCount} 
-              daysSinceStart={daysSinceStart} 
-              daysLeft={daysLeft} 
-              forceTheme={isDarkMode === true ? 'dark' : 'light'}
-            />
-            <CustomButton
-              title="start"
-              onPress={() => {
-                triggerVibration(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/question');
-              }}
-              today={0}
-              forceTheme={isDarkMode === true ? 'dark' : 'light'}
-            />
+      
+      
+      <View
+        style={[
+          styles.scrollContainer,
+          { backgroundColor: isDarkMode ? '#303030' : '#E3E5F3' },
+        ]}
+      >
+        {/* テーマ情報を各兄弟要素に渡す */}
+        <BannerAdComponent />
+      
+
+        <View style={styles.widgetArea}>
+          {/* デバッグ用グリッド */}
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: smallCell * 4,
+            height: smallCell * 6,  // 行数に合わせて調整
+          }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <View key={`v${i}`} style={{
+                position: 'absolute',
+                left: i * smallCell,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                backgroundColor: 'rgba(255,0,0,0.5)',
+              }} />
+            ))}
+            {Array.from({ length: 7 }).map((_, i) => (
+              <View key={`h${i}`} style={{
+                position: 'absolute',
+                top: i * smallCell,
+                left: 0,
+                right: 0,
+                height: 1,
+                backgroundColor: 'rgba(255,0,0,0.5)',
+              }} />
+            ))}
           </View>
-        </ScrollView>
+          {/* ここだけをプロバイダーで囲む */}
+          <UIConfigContext.Consumer>
+      {ctx => {
+        if (!ctx) return null;
+        // ポジションがなければ何も表示しない
+        if (Object.keys(ctx.positions).length === 0) return null;
 
+        return Object.values(ctx.purchases).map(item => {
+          const pos = ctx.positions[item.id] || { gridX: 0, gridY: 0 };
+          const x = pos.gridX * smallCell;
+          const y = pos.gridY * smallCell;
+
+          return (
+            <DraggableItem
+              key={item.id}
+              item={item}
+              initialPos={{ x, y }}
+              draggable={true}
+              // 移動完了時にコンテキストを通じて更新
+              onDragEnd={(newGridX, newGridY) =>
+                ctx.updatePosition(item.id, newGridX, newGridY)
+              }
+            />
+          );
+        });
+      }}
+    </UIConfigContext.Consumer>
+      </View>
+
+          </View>
             <View style={styles.messegeContainer}>
             {isPremiumPlusUser && 
             <TouchableOpacity onPress={handlePress}>
@@ -301,6 +343,27 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 </View>
+                <TouchableOpacity
+                onPress={() => router.push('/UIstore')}
+                accessibilityLabel="shopへ"
+                accessibilityHint="アイコンをタップするとshopに移動します"
+              >
+                <View style={styles.UIstoreButtonContainer}>
+              <NeomorphBox
+                width={60} 
+                height={60} 
+                forceTheme={isDarkMode ? 'dark' : 'light'}
+                style={{ justifyContent: 'center', alignItems: 'center'}}
+              >
+                <Ionicons
+                  name="cart-outline"
+                  size={30}
+                  color={isDarkMode ? '#dddddd' : '#666666'}
+                />
+              </NeomorphBox>
+              </View>
+
+            </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => router.push('/SettingsScreen')}
@@ -309,8 +372,8 @@ export default function HomeScreen() {
               >
               <View style={styles.settingsButtonContainer}>
               <NeomorphBox
-                width={60} // 実際のバナー広告の幅
-                height={60} // 実際のバナー広告の高さ
+                width={60} 
+                height={60} 
                 forceTheme={isDarkMode ? 'dark' : 'light'}
                 style={{ justifyContent: 'center', alignItems: 'center'}}
               >
@@ -346,6 +409,13 @@ const styles = StyleSheet.create({
     right: 40,
     bottom: 70,
   },
+  UIstoreButtonContainer: {
+    position: 'absolute',
+    bottom: 70,
+    left: '50%',
+    // ボタン幅(60)の半分(30)だけ左にずらす
+    transform: [{ translateX: -30 }],
+  },
   messegeContainer: {
     position: 'absolute',
     left: 40,
@@ -359,5 +429,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 8,
     fontWeight: 'bold',
+  },
+  widgetArea: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    flexGrow: 1,
+    width: '100%',
+    marginBottom: 130,
+  },
+  startButtonContainer: {
+    position: 'absolute',
+    bottom: 150,      // Adjust distance from bottom as desired
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
 });

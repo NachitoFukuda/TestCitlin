@@ -83,7 +83,6 @@ export default function AnimatedRemoteImage({
               { color: colors.textPrimary },
             ]}
           >
-            画像を読み込み中…
           </Text>
         </View>
       )}

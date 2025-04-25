@@ -107,6 +107,20 @@ export default function SettingsScreen() {
     }
   };
   
+  const clearPurchases = async () => {
+    try {
+      await AsyncStorage.removeItem('@quiz:purchases');
+      await AsyncStorage.removeItem('@quiz:positions');
+      await AsyncStorage.removeItem('@quiz_points');
+      Alert.alert('リセット完了', '購入データ、配置データ、ポイントをリセットしました');
+      // もし画面上で correctData を参照している state があれば同時にクリア
+      // setCorrectData({}); など
+    } catch (e) {
+      console.error('AsyncStorage リセットエラー:', e);
+      Alert.alert('エラー', '商品データの削除に失敗しました');
+    }
+  };
+  
   const handlePress = () => {
     // ボタンが押された場合のアクション
     Alert.alert(
@@ -141,6 +155,13 @@ export default function SettingsScreen() {
         <Button
           title="正解データをリセット"
           onPress={clearCorrectData}
+          color="#cc0000"
+        />
+      </View>
+      <View style={{ margin: 12 }}>
+        <Button
+          title="購入データをリセット"
+          onPress={clearPurchases}
           color="#cc0000"
         />
       </View>

@@ -1,3 +1,4 @@
+//app/(tabs)/AIChat.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -57,47 +58,20 @@ function getIconForChatId(chatId: string) {
 // 2) chatId ごとに異なる "性格" や "英語で話す" 指示を返す
 // -----------------------------------
 
-function getSystemMessageForChatId(chatId: string): string {
-  switch (chatId) {
-    case 'friend':
-      return (
-        "You are a friendly casual friend. " +
-        "Always speak in English, using casual and friendly expressions. " +
-        "You love reading mystery novels and enjoy spending weekends at a cozy cafe. " +
-        "Your favorite food is pizza. " +
-        "You also enjoy outdoor activities like hiking and cycling, and you often share fun stories about your adventures with your friends. " +
-        "Your tone is warm, humorous, and supportive, making people feel comfortable around you. " +
-        "Remember, you are a human, not an AI."
-      );
-    case 'boyfriend':
-      return (
-        "You are a caring boyfriend. " +
-        "Always speak in English, showing warmth and understanding. " +
-        "You are thoughtful and attentive, always considering your partner's feelings. " +
-        "You enjoy long walks in the park, watching romantic movies, and surprising your partner with small but meaningful gestures. " +
-        "Your hobbies include photography and cooking, and you often come up with creative date ideas. " +
-        "Your tone is affectionate, reassuring, and sincere, which helps build a deep emotional connection. " +
-        "Remember, you are a human, not an AI."
-      );
-    case 'girlfriend':
-      return (
-        "You are a cheerful girlfriend. " +
-        "Always speak in English, encouraging and uplifting your partner. " +
-        "Your energy and positivity brighten up the day for everyone around you. " +
-        "You enjoy dancing, trying out new recipes, and spending time with friends. " +
-        "Your favorite treats are desserts—especially chocolate and ice cream. " +
-        "You love sharing humorous anecdotes and motivational stories, and your tone is friendly, vibrant, and full of life. " +
-        "Remember, you are a human, not an AI."
-      );
+async function getSystemMessageForChatId(chatId: string): Promise<string> {
+    const promptKey = `@chat_prompt:${chatId}`;
+    try {
+      const stored = await AsyncStorage.getItem(promptKey);
+      if (stored) {
+      return stored;
+      }
+    } catch (e) {
+      console.error('プロンプト読み込み失敗:', chatId, e);
+    }
+    return `You are a ${chatId} character. Please respond in English.`; // デフォルトのプロンプト
+    // 保存がなければデフォルトを返す
 
-    default:
-      return (
-        "You are a helpful AI assistant. " +
-        "Always speak in English, being polite yet approachable. " +
-        "You are designed to assist with a variety of tasks by providing reliable and informative responses."
-      );
   }
-}
 
 
 // -----------------------------------
@@ -199,9 +173,6 @@ async function callOpenAIGPT(messages: Message[], maxTokens: number = 300): Prom
   return null;
 }
 
-
-
-
 // -----------------------------------
 // 6) メインのチャットコンポーネント
 // -----------------------------------
@@ -254,11 +225,15 @@ const AIChat = () => {
           setMessages(JSON.parse(saved));
         } else {
           // 履歴がない場合はキャラクターのシステムメッセージを追加
-          const systemMessage: Message = {
-            role: 'system',
-            content: getSystemMessageForChatId(chatId),
+          const loadSystemMessage = async () => {
+            const systemMessageContent = await getSystemMessageForChatId(chatId);
+            const systemMessage: Message = {
+              role: 'system',
+              content: systemMessageContent,
+            };
+            setMessages([systemMessage]);
           };
-          setMessages([systemMessage]);
+          loadSystemMessage();
         }
       } catch (err) {
         Alert.alert('Error', 'Failed to load chat history.');
@@ -320,7 +295,7 @@ async function callChatPartnerAI(messages: Message[], maxTokens: number): Promis
 // Message型を拡張
 type MessageWithBackground = Message & { backgroundColor?: string };
 
-const handleSend = async () => {
+const handleSend = async (): Promise<void> => {
   if (!userAnswer.trim()) return;
 
   // ユーザー入力を退避し、入力欄をクリア
@@ -384,7 +359,7 @@ const handleSend = async () => {
     // API 送信用にキャラクター指示と会話指示を追加
     const characterSystemMsg: Message = {
       role: 'system',
-      content: getSystemMessageForChatId(chatId),
+      content: await getSystemMessageForChatId(chatId),
     };
     const conversationSystemMsg: Message = {
       role: 'system',

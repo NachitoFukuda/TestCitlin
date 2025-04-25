@@ -4,8 +4,6 @@ import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore'; // ← 追加
 
-// firebaseConfig.ts の一番上あたり
-console.log('🛠️ Expo extra:', Constants.expoConfig?.extra);
 interface AppConfigExtra {
   FIREBASE_API_KEY: string;
   FIREBASE_AUTH_DOMAIN: string;

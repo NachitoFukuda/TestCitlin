@@ -39,7 +39,7 @@ const Countdown: React.FC<CountdownProps> = ({
           return 0;
         }
       });
-    }, 1000);
+    }, 700);
 
     return () => clearInterval(interval);
   }, []);
@@ -50,7 +50,7 @@ const Countdown: React.FC<CountdownProps> = ({
       setShowCircle(true);
       Animated.timing(circleScale, {
         toValue: 1,
-        duration: 2000,
+        duration: 1500,
         useNativeDriver: true,
       }).start(() => {
         setShowCircle(false);
