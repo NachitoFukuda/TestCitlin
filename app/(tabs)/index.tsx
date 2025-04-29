@@ -244,38 +244,8 @@ export default function HomeScreen() {
         <BannerAdComponent />
       
 
-        <View style={styles.widgetArea}>
-          {/* デバッグ用グリッド */}
-          <View style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: smallCell * 4,
-            height: smallCell * 6,  // 行数に合わせて調整
-          }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <View key={`v${i}`} style={{
-                position: 'absolute',
-                left: i * smallCell,
-                top: 0,
-                bottom: 0,
-                width: 1,
-                backgroundColor: 'rgba(255,0,0,0.5)',
-              }} />
-            ))}
-            {Array.from({ length: 7 }).map((_, i) => (
-              <View key={`h${i}`} style={{
-                position: 'absolute',
-                top: i * smallCell,
-                left: 0,
-                right: 0,
-                height: 1,
-                backgroundColor: 'rgba(255,0,0,0.5)',
-              }} />
-            ))}
-          </View>
-          {/* ここだけをプロバイダーで囲む */}
-          <UIConfigContext.Consumer>
+        <View style={[styles.widgetArea, { marginTop: -smallCell }]}>
+                    <UIConfigContext.Consumer>
       {ctx => {
         if (!ctx) return null;
         // ポジションがなければ何も表示しない
@@ -303,7 +273,7 @@ export default function HomeScreen() {
     </UIConfigContext.Consumer>
       </View>
     </View>
-    <Footer />
+    <Footer activeIcon="home" />
             </>
       )}
     </>
@@ -340,7 +310,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   widgetArea: {
-    backgroundColor: '#f0f0f0',
     padding: 12,
     borderRadius: 8,
     flexGrow: 1,

@@ -22,9 +22,6 @@ type DraggableItemProps = {
 
 export default function DraggableItem({
   item,
-  initialPos = { x: 20, y: 100 },
-  draggable = true,
-  onDragEnd,
 }: DraggableItemProps) {
   const ctx = useContext(UIConfigContext)!;
   const router = useRouter();

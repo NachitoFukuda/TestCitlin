@@ -6,22 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useRouter } from 'expo-router';
 import Footer from '@/components/ui/Footer';
 
 // 画面サイズとセル数の計算
-const windowWidth = Dimensions.get('window').width;
-const { height } = Dimensions.get('window');
-// 画面両端の container.padding (16*2) と widgetArea.padding (12*2) を差し引き
-const availableWidth = windowWidth - 16 * 2 - 12 * 2;
-const smallCell = availableWidth / 4;
-const headerHeight = 60 + 20;                // ヘッダー余白（例）
-const footerHeight = 150 + 20;               // フッター余白（例）
-const availableHeight = height - headerHeight - footerHeight;
-const rowCount = Math.floor(availableHeight / smallCell);
+
 
 type ShopItem = {
   id: string;
@@ -43,7 +34,7 @@ const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
 const POSITIONS_KEY = '@quiz:positions';
 
-export default function UILayout() {
+export default function UIstore() {
   const [points,    setPoints]    = useState<number>(0);
   const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
   const [positions, setPositions] = useState<Record<string, { gridX: number; gridY: number }>>({});
@@ -53,22 +44,25 @@ export default function UILayout() {
       // ポイント読み込み
       const pts = await AsyncStorage.getItem(POINTS_KEY);
       const loadedPoints = pts ? JSON.parse(pts) : 0;
-      console.log('[UILayout] loaded points:', loadedPoints);
+      console.log('[UIL Store] loaded points:', loadedPoints);
       setPoints(loadedPoints);
 
       // 購入データ読み込み
       const pur = await AsyncStorage.getItem(PURCHASES_KEY);
       const loadedPurchases = pur ? JSON.parse(pur) : {};
-      console.log('[UILayout] loaded purchases:', loadedPurchases);
       setPurchases(loadedPurchases);
+      console.log('[UIstore] purchased items:', loadedPurchases);
 
       // 配置データ読み込み
       const pos = await AsyncStorage.getItem(POSITIONS_KEY);
       const loadedPositions = pos ? JSON.parse(pos) : {};
-      console.log('[UILayout] loaded positions:', loadedPositions);
       setPositions(loadedPositions);
     })();
   }, []);
+
+  useEffect(() => {
+    console.log('[UIstore] purchases state updated:', purchases);
+  }, [purchases]);
 
   // 購入処理
   const buyItem = async (item: ShopItem) => {
@@ -126,7 +120,7 @@ export default function UILayout() {
         ListEmptyComponent={<Text>ショップアイテムがありません</Text>}
       />
     </View>
-    <Footer />
+    <Footer activeIcon="shop" />
     </>
   );
 }

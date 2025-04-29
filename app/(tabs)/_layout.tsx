@@ -65,47 +65,17 @@ export default function TabLayout() {
           <Tabs.Screen 
             name="UIstore" 
             options={{
-            headerShown: true,
-            headerTitle: 'ストア',
-            headerTransparent: false,
-                        // 左上にホーム戻るボタンを追加
-            headerLeft: () => (
-            <TouchableOpacity
-            onPress={() => router.push('/')}
-            accessibilityLabel="ホームに戻る"
-             style={{ marginLeft: 16 }}
-              >
-              <Ionicons
-                name="home-outline"
-               size={24}
-                color={theme === 'dark' ? '#ccc' : '#555'}
-              />
-            </TouchableOpacity>
-           ),
-           }} 
+              title: '',
+              headerShown: true,
+            }}
           />
 
           <Tabs.Screen 
             name="UILayout" 
             options={{
-            headerShown: true,
-            headerTitle: 'レイアウト',
-            headerTransparent: false,
-                        // 左上にホーム戻るボタンを追加
-            headerLeft: () => (
-            <TouchableOpacity
-            onPress={() => router.push('/')}
-            accessibilityLabel="ホームに戻る"
-             style={{ marginLeft: 16 }}
-              >
-              <Ionicons
-                name="home-outline"
-               size={24}
-                color={theme === 'dark' ? '#ccc' : '#555'}
-              />
-            </TouchableOpacity>
-           ),
-           }} 
+              title: '',
+              headerShown: true,
+            }}
           />
 
         <Tabs.Screen

@@ -12,9 +12,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { useWidgetConfig } from '../../components/uistore/useWidgetConfig';
+import { useIsFocused } from '@react-navigation/native';
 import type { WidgetId } from '../../components/uistore/widgetConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import Footer from '@/components/ui/Footer';
 
 // 画面サイズとセル数の計算
@@ -23,12 +23,14 @@ const { height } = Dimensions.get('window');
 // 画面両端の container.padding (16*2) と widgetArea.padding (12*2) を差し引き
 const availableWidth = windowWidth - 16 * 2 - 12 * 2 ;
 const smallCell = availableWidth / 4 ;
-const GRID_SCALE = 0.7; // グリッド描画範囲を 80% に縮小
+const GRID_SCALE = 0.7; // グリッド描画範囲を 70% に縮小
 const smallCellScaled = smallCell * GRID_SCALE;
 const headerHeight = 60 + 20;                // ヘッダー余白（例）
-const footerHeight = 150 + 50;               // フッター余白（例）
+const footerHeight = 150 ;               // フッター余白（例）
 const availableHeight = height - headerHeight - footerHeight;
 const rowCount = Math.floor(availableHeight / smallCell);
+const EXTRA_ROW = 1.6;  // 視覚的に追加する空行の数
+
 type ShopItem = {
   id: string;
   name: string;
@@ -41,25 +43,32 @@ type Position = { gridX: number; gridY: number; };
 const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
 
-export default function UIstore() {
-  const [points,    setPoints]    = useState<number>(0);
-  const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
+export default function UILayout() {
   const [positions, setPositions] = useState<Record<string, Position | null>>({});
+  const isFocused = useIsFocused();
+  const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
   const [gridReady, setGridReady] = useState(false);
   const [positionsLoaded, setPositionsLoaded] = useState(false);
   const [removedWidgets, setRemovedWidgets] = useState<ShopItem[]>([]);
   const isFirstLoad = useRef(true);
-  const router = useRouter();
 
+useEffect(() => {
+  if (isFocused && positionsLoaded) {
+    console.log('[UILayout] purchases:', purchases);
+    console.log('[UILayout] positions:', positions);
+  }
+}, [isFocused, purchases, positions, positionsLoaded]);
   // ポイント・購入履歴ロード
   // useEffect でポイント・購入履歴を読み込んだ直後に
   useEffect(() => {
+    if (!isFocused || positionsLoaded) return;
     (async () => {
       const hJson = await AsyncStorage.getItem(PURCHASES_KEY);
       const loaded: Record<string, ShopItem> = hJson
         ? (JSON.parse(hJson) as Record<string, ShopItem>)
         : {};
       setPurchases(loaded);
+      console.log('[UILayout] loaded and set purchases:', loaded);
       if (Object.keys(loaded).length === 0) {
         await AsyncStorage.removeItem('@quiz:positions');
         setPositions({});
@@ -69,8 +78,13 @@ export default function UIstore() {
       // 位置も同時にチェック
       const posJson = await AsyncStorage.getItem('@quiz:positions');
       const parsed = posJson ? JSON.parse(posJson) : {};
+      console.log('[UILayout] raw parsed positions data:', parsed);
       const rawPositions: Record<string, Position> = {};
       Object.entries(parsed).forEach(([key, p]) => {
+        if (p == null) {
+          // no stored position, skip
+          return;
+        }
         const posObj: any = p;
         // If stored as pixels, convert to grid; otherwise assume grid coords
         const pixelX = typeof posObj.x === 'number' ? posObj.x : NaN;
@@ -79,16 +93,19 @@ export default function UIstore() {
         const gridY = !isNaN(pixelY) ? Math.round(pixelY / smallCell) : (typeof posObj.gridY === 'number' ? posObj.gridY : 0);
         rawPositions[key] = { gridX, gridY };
       });
+      console.log('[UILayout] rawPositions after mapping:', rawPositions);
       // Ensure every purchase ID appears; missing entries become null
       const loadedPositions: Record<string, Position | null> = {};
       Object.values(loaded).forEach(item => {
         loadedPositions[item.id] = rawPositions[item.id] ?? null;
       });
+      console.log('[UILayout] final loadedPositions to set:', loadedPositions);
       setPositions(loadedPositions);
+      console.log('[UILayout] loaded and set positions:', loadedPositions);
       setPositionsLoaded(true);
       // Removed overwriting storage with cleaned positions on initial load
     })();
-  }, []);
+  }, [isFocused, positionsLoaded]);
 
   // positions state が更新されるたびにストレージに保存
   useEffect(() => {
@@ -165,21 +182,13 @@ export default function UIstore() {
   return (
     <>
     <View style={styles.container}>
-      <Text style={styles.header}>あなたのポイント: {points} pt</Text>
-      
-      <TouchableOpacity
-        style={[styles.button, { marginBottom: 12 }]}
-        onPress={() => router.push('/UIstore')}
-      >
-        <Text style={styles.buttonText}>shop画面へ移動</Text>
-      </TouchableOpacity>
-
-          {/* --- ここから：商品リストの下に小さめグリッドを描画 --- */}
+        <View style={styles.outerBorder}>
+        <View style={styles.topBezel} />
           <View
             key={JSON.stringify(positions)}
             style={[
               styles.smallGridContainer,
-              { width: smallCellScaled * 4, height: smallCellScaled * rowCount, position: 'relative',},
+              { width: smallCellScaled * 4 +12, height: smallCellScaled * (rowCount + EXTRA_ROW), position: 'relative',},
             ]}
             onLayout={e => {
               const { x, y, width, height } = e.nativeEvent.layout;
@@ -187,33 +196,52 @@ export default function UIstore() {
             }}
           >
             {/* 縦線 */}
-            {[...Array(4)].map((_, i) => (
-              <View
-                key={`sv${i}`}
-                style={[
-                  styles.gridLineVertical,
-                  { left: i * smallCellScaled, height: smallCellScaled * rowCount },
-                ]}
-              />
-            ))}
-            {/* 横線 */}
-            {[...Array(rowCount + 1)].map((_, i) => (
-              <View
-                key={`sh${i}`}
-                style={[
-                  styles.gridLineHorizontal,
-                  { top: i * smallCellScaled, width: smallCellScaled * 4 },
-                ]}
-              />
-            ))}
-            
-            {/* Purchased widgets on grid */}
+            {[...Array(5)].map((_, i) => {
+              if (i === 0 || i === 4) return null;
+              return (
+                <View
+                  key={`sv${i}`}
+                  style={[
+                    styles.gridLineVertical,
+                    {
+                      left: i * smallCellScaled,
+                      top: smallCellScaled,
+                      height: smallCellScaled * (rowCount - 1),
+                    },
+                  ]}
+                />
+              );
+            })}
+            {[...Array(rowCount + 1)].map((_, i) => {
+              if (i === 0 || i === rowCount ) return null;
+              return (
+                <View
+                  key={`sh${i}`}
+                  style={[
+                    styles.gridLineHorizontal,
+                    {
+                      top: i * smallCellScaled,
+                      width: smallCellScaled * 4,
+                    },
+                  ]}
+                />
+              );
+            })
+          }
+          {/* Purchased widgets on grid */}
             {gridReady &&
               purchasedList
-                .filter(item => positions[item.id] != null)
+                .filter(item => {
+                  // null または undefined のみ除外し、配置されているウィジェットのみ描画
+                  const pos = positions[item.id];
+                  const ok = pos != null;
+                  if (ok) console.log('[UILayout] will render widget:', item.id);
+                  return ok;
+                })
                 .map(item => {
                 // Log saved positions and current pan values for re-render debugging
                 const pan = panRefs.current[item.id];
+                console.log('[UILayout] rendering widget:', item.id, item);
                 // 設定がなければ空オブジェクトでフォールバック
                 const config = useWidgetConfig(item.id as WidgetId) ?? {};
                 const WidgetComponent = config.component;
@@ -288,18 +316,12 @@ export default function UIstore() {
                       pan.getLayout(),
                       {
                         position: 'absolute',
+                        zIndex: 10,
                         width: item.widthCells * smallCellScaled,
                         height: item.heightCells * smallCellScaled,  // 高さをセル数×smallCellに変更
                       },
                     ]}
                   >
-                    {/* Remove button */}
-                    <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => removeWidget(item)}
-                    >
-                      <Text style={styles.removeButtonText}>×</Text>
-                    </TouchableOpacity>
                     {WidgetComponent ? (
                       <WidgetComponent {...(config.getDefaultProps ? config.getDefaultProps(item) : {})} />
                     ) : (
@@ -307,56 +329,73 @@ export default function UIstore() {
                         <Text style={config.textStyle}>{item.name}</Text>
                       </View>
                     )}
+                    {/* Remove button */}
+                    <TouchableOpacity style={styles.removeButton} onPress={() => removeWidget(item)}>
+                      <Text style={styles.removeButtonText}>×</Text>
+                    </TouchableOpacity>
                   </Animated.View>
                 );
               })}
-          </View>
-          {/* --- ここまで：小さいグリッド --- */}
 
-     {positionsLoaded && (
-       <>
-         <Text style={styles.bottomBarLabel}>Removed & Purchased:</Text>
-         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bottomScroll}>
-           {Object.values(purchases)
-             .filter(item => positions[item.id] === null)
-             .map(item => (
-               <View key={item.id} style={{ marginRight: 8, alignItems: 'center' }}>
-                 <Text numberOfLines={1} style={styles.bottomItemText}>{item.name}</Text>
-                 <TouchableOpacity
-                   style={styles.addButton}
-                   onPress={() => addItemToGrid(item)}
-                 >
-                   <Text style={styles.addButtonText}>追加</Text>
-                 </TouchableOpacity>
-               </View>
-           ))}
-         </ScrollView>
-       </>
-     )}
+            <Footer activeIcon="layoutdemo" />
+          </View>
+        </View>          
+      {/* --- ここまで：小さいグリッド --- */}
+      {positionsLoaded && (() => {
+        const available = Object.values(purchases).filter(item => positions[item.id] == null);
+        console.log('[UILayout] DEBUG available widget IDs:', available.map(i => i.id));
+        return (
+          <>
+            <Text style={styles.bottomBarLabel}>配置可能なウィジェット</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bottomScroll}>
+              {available.map(item => (
+                <View key={item.id} style={{ marginRight: 8, alignItems: 'center' }}>
+                  <Text numberOfLines={1} style={styles.bottomItemText}>{item.name}</Text>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => addItemToGrid(item)}
+                  >
+                    <Text style={styles.addButtonText}>追加</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        );
+      })()}
       </View>
-    <Footer />
+      <Footer activeIcon="layout" />
       </>
   );
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, padding: 16, backgroundColor: '#F5F5F5', alignItems: 'center' },
-  header:             { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
+  container:          { flex: 1, paddingTop: 70, backgroundColor: '#EBF3FF', alignItems: 'center' },
   item:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#FFF', marginBottom: 8, borderRadius: 8 },
   name:               { fontSize: 16 },
   price:              { fontSize: 14, color: '#888' },
   button:             { backgroundColor: '#4CAF50', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 4 },
   buttonDisabled:     { backgroundColor: '#AAA' },
   buttonText:         { color: '#FFF', fontWeight: 'bold' },
-  smallGridContainer: { marginTop: 0, overflow: 'visible', alignSelf: 'center' },
-  gridLineVertical:   { position: 'absolute', width: 1, backgroundColor: 'rgb(255, 0, 0)' },
-  gridLineHorizontal: { position: 'absolute', height: 1, backgroundColor: 'rgb(50, 0, 252)' },
+  smallGridContainer: {
+    backgroundColor: '#EBF3FF',
+    marginTop: 0,
+    overflow: 'visible',
+    alignSelf: 'center',
+    borderWidth: 6,
+    borderColor: 'rgb(0, 0, 0)',
+    borderRadius: 35,
+    zIndex: 15,
+  },
+  gridLineVertical:   { position: 'absolute', width: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
+  gridLineHorizontal: { position: 'absolute', height: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   widget:             { flex: 1, backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' },
   removeButton: {
     position: 'absolute',
     top: 4,
     right: 4,
-    zIndex: 20,
+    zIndex: 999,
+    elevation: 999,
     backgroundColor: 'rgba(255,0,0,0.8)',
     borderRadius: 12,
     width: 24,
@@ -403,4 +442,20 @@ const styles = StyleSheet.create({
       fontSize: 12,
       fontWeight: 'bold',
    },
+   outerBorder: {
+    alignSelf: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 37,
+  },
+  topBezel: {
+    position: 'absolute',
+    top: 11,
+    left: 90,
+    right: 90,
+    height: 26,
+    backgroundColor: '#000',
+    borderRadius: 13,
+    zIndex: 16,
+  },
 });

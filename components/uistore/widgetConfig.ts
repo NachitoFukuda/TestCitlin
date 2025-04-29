@@ -24,7 +24,7 @@ export interface WidgetSettings {
 // レジストリ本体
 export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
   sticker01: {
-    containerStyle: { backgroundColor: '#f00', padding: 12,},
+    containerStyle: { backgroundColor: '#f00', padding: 12, zIndex: 99, },
     textStyle:     { fontSize: 16, fontWeight: '600' },
     actions: [
       {
@@ -42,7 +42,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     ],
   },
   themeA: {
-    containerStyle: { backgroundColor: '#fff8e1', padding: 10, borderRadius: 8 },
+    containerStyle: { backgroundColor: '#fff8e1', padding: 10, borderRadius: 8, zIndex: 3 },
     textStyle:      { fontSize: 14, color: '#333' },
     actions: [
       {
@@ -60,7 +60,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     ],
   },
   questionbuttons: {
-    containerStyle: { backgroundColor: '#d0e8ff', padding: 12,},
+    containerStyle: { backgroundColor: '#d0e8ff', padding: 12, zIndex: 3, },
     textStyle: { fontSize: 16, fontWeight: '600', color: '#007aff' },
     actions: [
       {

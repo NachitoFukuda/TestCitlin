@@ -180,7 +180,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-    <Footer />
+      <Footer activeIcon="settings" />
 
       {/* 下からスライドして表示されるモーダル */}
       <Modal

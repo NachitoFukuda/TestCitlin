@@ -55,7 +55,7 @@ const ChatListScreen: React.FC = () => {
   // --- ここまで ---があればストレージ保存処理を追加）
   const handleAddChat = () => {
     // ここで必要なら AsyncStorage.setItem(`@chat_prompt:${newId}`, 初期タイトル) などを行う
-    router.push('/chat/newAI');  };
+    router.push('/newAI');  };
 
   // AsyncStorage からセッション一覧をロード
   useEffect(() => {
@@ -161,7 +161,7 @@ const ChatListScreen: React.FC = () => {
       </SafeAreaView>
 
       {/* 画面下部の固定ボタン群 */}
-          <Footer />
+      <Footer activeIcon="chat" />
       
     </>
   );
