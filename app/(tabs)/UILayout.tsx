@@ -257,54 +257,60 @@ useEffect(() => {
                     { useNativeDriver: false }
                   ),
                   onPanResponderRelease: (_, gesture) => {
+                    // 1. 現在のピクセル位置とウィジェットサイズを取得
                     pan.flattenOffset();
-                    // グリッド50%にスナップ＆グリッド外に出さないようクランプ
-                    const rawX = (pan.x as any)._value;
-                    const rawY = (pan.y as any)._value;
-                    let snappedX = Math.round(rawX / smallCellScaled) * smallCellScaled;
-                    let snappedY = Math.round(rawY / smallCellScaled) * smallCellScaled;
-                    // X軸クランプ
-                    const minX = 0;
-                    const maxX = smallCellScaled * (4 - item.widthCells);
-                    snappedX = Math.max(minX, Math.min(snappedX, maxX));
-                    // Y軸クランプ
-                    const minY = 0;
-                    const maxY = smallCellScaled * (rowCount - item.heightCells);
-                    snappedY = Math.max(minY, Math.min(snappedY, maxY));
-                    // 位置セット（ピクセル）
-                    pan.setValue({ x: snappedX, y: snappedY });
-                    // グリッド座標に変換して state 保存
-                    const newGridX = Math.round(snappedX / smallCellScaled);
-                    const newGridY = Math.round(snappedY / smallCellScaled);
-                    // 重なり判定（バウンディングボックス方式）
+                    const widgetWidthPx = item.widthCells * smallCellScaled;
+                    const widgetHeightPx = item.heightCells * smallCellScaled;
+                    const widgetX = (pan.x as any)._value;
+                    const widgetY = (pan.y as any)._value;
+
+                    // 2. 各セルとの重なり率を計算し、最大のセルを選択
+                    let bestCell = { gridX: 0, gridY: 0 };
+                    let maxOverlap = 0;
+                    for (let y = 0; y <= rowCount - item.heightCells; y++) {
+                      for (let x = 0; x <= 4 - item.widthCells; x++) {
+                        const cellX = x * smallCellScaled;
+                        const cellY = y * smallCellScaled;
+                        // 重なり幅を計算
+                        const ix = Math.max(0, Math.min(widgetX + widgetWidthPx, cellX + widgetWidthPx) - Math.max(widgetX, cellX));
+                        const iy = Math.max(0, Math.min(widgetY + widgetHeightPx, cellY + widgetHeightPx) - Math.max(widgetY, cellY));
+                        const overlapArea = ix * iy;
+                        const overlapRatio = overlapArea / (widgetWidthPx * widgetHeightPx);
+                        if (overlapRatio > maxOverlap) {
+                          maxOverlap = overlapRatio;
+                          bestCell = { gridX: x, gridY: y };
+                        }
+                      }
+                    }
+
+                    // Prevent placement in the very top row (gridY = 0)
+                    bestCell.gridY = Math.max(bestCell.gridY, 1);
+
+                    // 3. 衝突チェック：他ウィジェットとの重なりがなければ確定
+                    const { gridX: newGridX, gridY: newGridY } = bestCell;
                     let overlaps = false;
                     Object.entries(positions).forEach(([otherId, pos]) => {
                       if (otherId === item.id) return;
                       const other = purchases[otherId];
-                      if (!other) return;
-                      const ax1 = newGridX;
-                      const ay1 = newGridY;
-                      const ax2 = newGridX + item.widthCells;
-                      const ay2 = newGridY + item.heightCells;
-                      const bx1 = pos?.gridX ?? 0;
-                      const by1 = pos?.gridY ?? 0;
-                      const bx2 = bx1 + other.widthCells;
-                      const by2 = by1 + other.heightCells;
-                      // 矩形が重ならない場合の条件
+                      if (!pos || !other) return;
+                      const ax1 = newGridX, ay1 = newGridY;
+                      const ax2 = newGridX + item.widthCells, ay2 = newGridY + item.heightCells;
+                      const bx1 = pos.gridX, by1 = pos.gridY;
+                      const bx2 = bx1 + other.widthCells, by2 = by1 + other.heightCells;
                       if (!(ax2 <= bx1 || bx2 <= ax1 || ay2 <= by1 || by2 <= ay1)) {
                         overlaps = true;
                       }
                     });
                     if (overlaps) {
-                      // 重なっている場合は元の位置にリセット
-                      if (positions[item.id]) {
-                        pan.setValue({ x: positions[item.id]!.gridX * smallCellScaled, y: positions[item.id]!.gridY * smallCellScaled });
-                      }
+                      // 衝突時は元の位置へ戻す
+                      const prevPos = positions[item.id]!;
+                      pan.setValue({ x: prevPos.gridX * smallCellScaled, y: prevPos.gridY * smallCellScaled });
                       return;
                     }
-                    // 重なっていなければ state 更新
-                    const updated = { ...positions, [item.id]: { gridX: newGridX, gridY: newGridY } };
-                    setPositions(updated);
+
+                    // 4. 最終的なピクセル位置をセットし、state を更新
+                    pan.setValue({ x: newGridX * smallCellScaled, y: newGridY * smallCellScaled });
+                    setPositions({ ...positions, [item.id]: { gridX: newGridX, gridY: newGridY } });
                   },
                 });
 
