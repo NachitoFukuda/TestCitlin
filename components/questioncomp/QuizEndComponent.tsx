@@ -20,15 +20,12 @@ function calculateCompletionRates(
 ): (number | null)[] {
   return results.map((target, index) => {
     const actual = counts[index] ?? 0;
-    console.log(`[calculateCompletionRates] index=${index}, target=${target}, actual=${actual}`);
     if (target <= 0) {
       // 目標値が0の場合はデータ無しとみなす
-      console.log(`[calculateCompletionRates] index=${index}, target<=0, returning null`);
       return null;
     }
     // 達成率を計算し、小数点以下2桁に丸め、100%を上限
     const rate = parseFloat(((actual / target) * 100).toFixed(2));
-    console.log(`[calculateCompletionRates] index=${index}, computed rate=${rate}`);
     return Math.min(rate, 100);
   });
 }
@@ -80,7 +77,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     [0, 0, 0, 0, 0, 0, 0],
   ];
   const [Data, setData] = useState<number[][]>(defaultHeatmapData);
-    console.log('Data', Data);
 
   // テーマに応じた色を一元管理
   const themeColors = useMemo(() => {
@@ -92,10 +88,8 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
       buttonTextColor: isDark ? '#ccc' : '#666',
     };
   }, [forceTheme]);
-  console.log('[Heatmap] effect fired, TodayaverageRate=', TodayaverageRate);
 
   useEffect(() => {
-    console.log('[Heatmap] effect fired, TodayaverageRate=', TodayaverageRate);
     (async () => {
       try {
         // 既存の heatmap データと日付を取得
@@ -140,7 +134,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
               weekBucket = '3週間前';
             }
           }
-          console.log(`[Heatmap] 保存日が属する週: ${weekBucket}`);
         // 初期値設定 (4行×7列)
         const defaultHeatmapData: number[][] = [
           [0, 0, 0, 0, 0, 0, 0],
@@ -151,7 +144,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
         let matrix: number[][];
         if (weekBucket === '過去4週間以上') {
           matrix = defaultHeatmapData;
-          console.log('[Heatmap] weekBucketが過去4週間以上なのでデフォルト使用');
         } else if (weekBucket === '3週間前') {
           // 3週間前は4行目を先頭に移動し、他行を0で初期化
           const row4 = Array.isArray(stored?.matrix) && stored.matrix.length >= 4
@@ -163,7 +155,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
           ];
-          console.log('[Heatmap] weekBucket=3週間前なので4行目を先頭に移動');
         } else if (weekBucket === '2週間前') {
           // 2週間前は3行目(旧 index2)と4行目(旧 index3)を先頭に移動、残りを0で初期化
           const row3 = Array.isArray(stored?.matrix) && stored.matrix.length >= 3
@@ -178,7 +169,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
             [0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0],
           ];
-          console.log('[Heatmap] weekBucket=2週間前なので3行目と4行目を先頭に移動');
         } else if (weekBucket === '先週') {
           // 先週は2行目(index1)〜4行目(index3)を先頭に移動し、最後の行を0で初期化
           const row2 = Array.isArray(stored?.matrix) && stored.matrix.length >= 2
@@ -196,7 +186,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
             row4,
             [0, 0, 0, 0, 0, 0, 0],
           ];
-          console.log('[Heatmap] weekBucket=先週なので2-4行目を上にシフト');
         }else if (
           Array.isArray(stored?.matrix) &&
           stored.matrix.length === 4 &&
@@ -210,18 +199,14 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
             : defaultHeatmapData;
           } else {
           matrix = defaultHeatmapData;
-          console.log('[Heatmap] stored.matrixの形式不正なのでデフォルト使用');
         }
         // 日付がない場合は今日の日付を保存
         const dateStr = stored?.date ?? new Date().toISOString();
         // 更新する列インデックス (曜日 0-6)
         const todayDayNumber = new Date().getDay();
-        console.log(todayDayNumber)
         if (matrix[3] && todayDayNumber < matrix[3].length) {
           matrix[3][todayDayNumber] = TodayaverageRate;
-          console.log(`[Heatmap] matrix[3][${todayDayNumber}] を ${TodayaverageRate} に設定`);
         } else {
-          console.log('[Heatmap] matrix[3] が存在しないか index 範囲外です', matrix);
         }
         // 保存
         await AsyncStorage.setItem(
@@ -229,7 +214,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
           JSON.stringify({ matrix, date: dateStr })
         );
         // UI 更新
-        console.log('[Heatmap] setData(matrix) を実行, matrix:', matrix);
         setData(matrix);
       } catch (err) {
         console.error('[Heatmap] heatmap_data 更新エラー:', err);
@@ -241,7 +225,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     AsyncStorage.getItem('@deadline_days')
       .then(json => {
         const deadlineData = json ? JSON.parse(json) : null;
-        console.log('[QuizEndComponent] Loaded @deadline_days:', deadlineData);
         if (deadlineData && deadlineData.savedAt) {
           const savedDate = new Date(deadlineData.savedAt);
           // 正午をまたいでも日付差分を正しく取るため00:00にリセット
@@ -252,7 +235,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
           // 日数を算出（保存日を1日目とする）
           const dayCount = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
           setDayCount(dayCount)
-          console.log('[QuizEndComponent] Days since savedAt:', dayCount);
         }
       })
       .catch(err => {
@@ -272,7 +254,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
         } else if (typeof generatedData === 'object') {
           matched = (generatedData as Record<number, any>)[dayCount];
         }
-        console.log('[QuizEndComponent] matched data for dayCount:', matched);
         setTodayGeneratedData(matched);
       } catch (err) {
         console.error('[QuizEndComponent] Error loading @generated_data:', err);
@@ -298,14 +279,10 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
         const count6_7 = values.filter(obj => obj.C === 6 || obj.C === 7).length;
         // C が 8 or 9 の数
         const count8_9 = values.filter(obj => obj.C === 8 || obj.C === 9).length;
-        console.log('[QuizEndComponent] C=2or3 の数:', count2_3);
-        console.log('[QuizEndComponent] C=4or5 の数:', count4_5);
-        console.log('[QuizEndComponent] C=6or7 の数:', count6_7);
-        console.log('[QuizEndComponent] C=8or9 の数:', count8_9);
+
         const results = todayGeneratedData?.result ?? [];
         const counts = [count2_3, count4_5, count6_7, count8_9];
         const completionRates = await Promise.resolve(calculateCompletionRates(results, counts));
-        console.log('[QuizEndComponent] 各カテゴリの達成率 (%):', completionRates);
         const nonNullRates = completionRates.filter((r): r is number => r !== null);
         const averageRate =
           nonNullRates.length > 0
@@ -316,7 +293,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
                 ).toFixed(2)
               )
             : 0;
-        console.log('[QuizEndComponent] 全カテゴリ平均達成率 (%):', averageRate);
         setTodayaverageRate(averageRate)
       } catch (err) {
         console.error('[QuizEndComponent] Error loading correctData:', err);

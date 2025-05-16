@@ -83,17 +83,7 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
   const valueFontSize = fromShop ? 12 : 20;
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          width,
-          height,
-          alignSelf: 'center',
-          borderRadius: borderRadiusValue,
-        },
-      ]}
-    >
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       {shape === 'numo' ? (
         <NeomorphBox
           width={width}
@@ -106,9 +96,21 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
           </View>
         </NeomorphBox>
       ) : (
+        <View
+        style={[
+          styles.container,
+          {
+            width,
+            height,
+            alignSelf: 'center',
+            borderRadius: borderRadiusValue,
+          },
+        ]}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[styles.label, { fontSize: labelFontSize }]}>₵</Text>
           <Text style={[styles.value, { fontSize: valueFontSize }]}>{displayPoints}</Text>
+        </View>
         </View>
       )}
     </View>
@@ -117,10 +119,8 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
     borderWidth: 1,
   },
   label: {

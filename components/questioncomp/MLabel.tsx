@@ -94,23 +94,19 @@ const MLabel: React.FC<MLabelProps> = ({ mValue, questionId, forceTheme }) => {
   useEffect(() => {
     if (!randomMessage) return;
 
-    // 表示をリセット
     setDisplayedText('');
+    let currentIndex = 0;
 
-    // 1文字ずつ表示（タイピング風）
-    setTimeout(() => {
-      setDisplayedText(randomMessage.charAt(0));
-      let currentIndex = 0;
+    const interval = setInterval(() => {
+      if (currentIndex < randomMessage.length) {
+        setDisplayedText(randomMessage.slice(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 50);
 
-      const interval = setInterval(() => {
-        if (currentIndex < randomMessage.length) {
-          setDisplayedText((prev) => prev + randomMessage.charAt(currentIndex));
-          currentIndex++;
-        } else {
-          clearInterval(interval);
-        }
-      }, 50);
-    }, 0);
+    return () => clearInterval(interval);
   }, [randomMessage]);
 
   // showConfetti が false のときは表示しない

@@ -149,7 +149,7 @@ const ChatListScreen: React.FC = () => {
             <Text style={styles.aiText}>AI</Text>Chat
           </Text>
         </View>
-        <Text style={styles.sectionTitle}>おしゃべり一覧</Text>
+        <Text style={styles.sectionTitle}>教師一覧</Text>
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             onPress={handleAddChat}
@@ -184,12 +184,10 @@ const ChatListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EBF3FF' },
   headerContainer: {
-    backgroundColor: '#ffffff',
     paddingVertical: 15,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
   headerText: {
