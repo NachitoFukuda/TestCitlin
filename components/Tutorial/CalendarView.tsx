@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NeomorphBox from '../ui/NeomorphBox';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -65,14 +64,27 @@ const getTotalWordsByLevel = (level: string | null): number => {
       return 1000; // デフォルトの値
   }
 };
+interface CalendarViewProps {
+    dailyWordCount: number;
+    learningDays: number;
+    deadlineDays: number;
+    selectedLevel: string | null;
+  }
 
-const CalendarView: React.FC = () => {
+const CalendarView: React.FC<CalendarViewProps> = ({
+    dailyWordCount,
+    learningDays,
+    deadlineDays,
+    selectedLevel,
+  }) => {  
   const [jsonData, setJsonData] = useState<JsonData[]>([]);
   const [daysSinceStart, setDaysSinceStart] = useState<number | null>(null);
   const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
   // 学習開始日を表示用に保持
   const [savedAtDate, setSavedAtDate] = useState<Date | null>(null);
   const [savedLevels, setSavedLevels] = useState<string[]>([]);
+
+
   
 
   useEffect(() => {
@@ -148,6 +160,7 @@ const CalendarView: React.FC = () => {
             }
 
             await AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData));
+            console.log('[CalendarView] generatedData:', generatedData);
           }
         }
 
@@ -158,87 +171,15 @@ const CalendarView: React.FC = () => {
           setJsonData(parsedData);
         }
       } catch (error) {
-        console.error('Error generating or loading data:', error);
+        console.error('[CalendarView] Error generating or loading data:', error);
       }
     };
 
     generateAndLoadData();
   }, []);
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {deadlineDate && (
-        <Text style={{ marginTop: 60, fontSize: 24, color: '#666' }}>
-           {formatDate(deadlineDate)}日まで頑張ろう！
-        </Text>
-      )}
-
-      {jsonData.length > 0 && savedAtDate ? (
-        jsonData.map((item) => {
-          const dateObj = new Date(savedAtDate);
-          dateObj.setDate(dateObj.getDate() + item.id - 1);
-          const dayStr = formatDate(dateObj);
-
-          const currentSum = item.result.reduce((acc, num) => acc + num, 0);
-          let previousSum = 0;
-          if (item.id > 0) {
-            const previousItem = jsonData.find((data) => data.id === item.id - 1);
-            if (previousItem) {
-              previousSum = previousItem.result.reduce((acc, num) => acc + num, 0);
-            }
-          }
-          const difference =  currentSum - previousSum;
-
-          return (
-            <View key={item.id} style={styles.itemContainer}>
-              <NeomorphBox
-                width={SCREEN_WIDTH * 0.6}
-                height={60}
-                style={styles.neomorphBoxStyle}
-                forceTheme={'light'}
-              >
-                <View style={styles.itemContent}>
-                  <Text style={styles.itemTitle}>{dayStr}</Text>
-                  <Text style={styles.itemText}>
-                    {difference * 2}問 正解しよう！
-                  </Text>
-                </View>
-              </NeomorphBox>
-            </View>
-          );
-        })
-      ) : (
-        <Text>データがありません。</Text>
-      )}
-    </ScrollView>
-  );
+  return null;
 };
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  itemContainer: {
-    margin: 15,
-  },
-  neomorphBoxStyle: {
-    backgroundColor: '#EBF3FF',
-    borderRadius: 10,
-  },
-  itemContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  itemText: {
-    fontSize: 14,
-    color: '#555',
-  },
-});
 
 export default CalendarView;

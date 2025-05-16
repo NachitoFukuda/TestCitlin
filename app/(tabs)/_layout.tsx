@@ -28,7 +28,6 @@ function ChatListButton() {
 
 export default function TabLayout() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  console.log('[TabLayout] loaded!'); // ← これ入れるだけ！
 
   useEffect(() => {
     const loadTheme = async () => {
@@ -96,6 +95,7 @@ export default function TabLayout() {
           name="AIChat"
           options={{
             title: '',
+            headerShown: true,
             headerLeft: () => <ChatListButton />,
           }}
         />

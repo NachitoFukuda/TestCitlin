@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import CustomPicker from './CustomPicker';
-import NeomorphBox from '../ui/NeomorphBox';
 
 interface LearningScheduleProps {
   dailyWordCount: number;
@@ -12,7 +11,6 @@ interface LearningScheduleProps {
   selectedLevel: string | null; // 新たに追加
 }
 
-const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
 
 /** selectedLevel に応じた totalWords を設定する関数 */
 const getTotalWordsByLevel = (level: string | null) => {
@@ -67,17 +65,13 @@ const LearningSchedule: React.FC<LearningScheduleProps> = ({
       </View>
 
       {/* 計算結果の表示 */}
-      <NeomorphBox width={SCREEN_WIDTH * 0.75} height={40} style={styles.neomorphStyle} forceTheme={'light'}>
         <View style={styles.resultContainer}>
           <Text style={styles.resultText}>一日の出題数: {dailyWordCount*2}問 ～ {dailyWordCount*2 *5 }問</Text>
         </View>
-      </NeomorphBox>
 
-      <NeomorphBox width={SCREEN_WIDTH * 0.75} height={40} forceTheme={'light'}>
         <View style={styles.resultContainer}>
           <Text style={styles.resultText}>必要日数: {learningDays} 日</Text>
         </View>
-      </NeomorphBox>
     </View>
   );
 };
@@ -97,6 +91,7 @@ const styles = StyleSheet.create({
   resultContainer: {
     width: '100%',
     alignItems: 'center',
+    margin: 20,
   },
   resultText: {
     fontSize: 16,

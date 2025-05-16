@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import Footer from '@/components/ui/Footer';
+import { useFocusEffect } from '@react-navigation/native';
 
 interface SessionListItem {
   id: string;
@@ -58,27 +59,36 @@ const ChatListScreen: React.FC = () => {
     router.push('/newAI');  };
 
   // AsyncStorage からセッション一覧をロード
-  useEffect(() => {
-    const loadSessions = async () => {
-      try {
-        const keys = await AsyncStorage.getAllKeys();
-        const promptKeys = keys.filter(k => k.startsWith('@chat_prompt:'));
-        const sessionsData = await Promise.all(
-          promptKeys.map(async key => {
-            const id = key.split(':')[1];
-            const title = (await AsyncStorage.getItem(`@chat_name:${id}`)) || `チャット ${id.slice(-4)}`;
+  // セッション一覧をロードする関数
+  const loadSessions = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const promptKeys = keys.filter(k => k.startsWith('@chat_prompt:'));
+      const sessionsData = await Promise.all(
+        promptKeys.map(async key => {
+          const id = key.split(':')[1];
+          const title = (await AsyncStorage.getItem(`@chat_name:${id}`)) || `チャット ${id.slice(-4)}`;
+          const imageUri = await AsyncStorage.getItem(`@chat_image:${id}`);
+          return { id, title, imageUri };
+        })
+      );
+      setSessions(sessionsData);
+    } catch (e) {
+      Alert.alert('Error', 'セッションの読み込みに失敗しました');
+    }
+  };
 
-            const imageUri = await AsyncStorage.getItem(`@chat_image:${id}`);
-            return { id, title, imageUri };
-          })
-        );
-        setSessions(sessionsData);
-      } catch (e) {
-        Alert.alert('Error', 'セッションの読み込みに失敗しました');
-      }
-    };
+  // 初回マウント時にロード
+  useEffect(() => {
     loadSessions();
   }, []);
+
+  // 画面フォーカス時にも再ロード
+  useFocusEffect(
+    useCallback(() => {
+      loadSessions();
+    }, [])
+  );
 
   // リストの各アイテムレンダリング
      const renderItem = ({ item }: { item: SessionListItem }) => {
@@ -104,7 +114,6 @@ const ChatListScreen: React.FC = () => {
               ? { uri: item.imageUri }
               : getIconForChatId(item.id);
 
-            console.log(`Chat ID: ${item.id}, Image URI: ${item.imageUri}`);
 
     const handleChatSelect = () => {
       router.push(`/AIChat?chatId=${item.id}`);
@@ -144,9 +153,14 @@ const ChatListScreen: React.FC = () => {
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             onPress={handleAddChat}
-            style={styles.addButtonTouchable}
+          >
+        <NeomorphBox
+          width={200}
+          height={40}
+          variant="AI"
           >
             <Text style={styles.addButtonText}>+ 新しいチャットを追加</Text>
+            </NeomorphBox>
           </TouchableOpacity>
         </View>
         <FlatList
@@ -231,14 +245,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 10,
   },
-  addButtonTouchable: {
-    backgroundColor: '#4A90E2',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
+
   addButtonText: {
-    color: '#fff',
+    color: '#666',
     fontSize: 16,
     fontWeight: 'bold',
   },

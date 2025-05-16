@@ -99,6 +99,8 @@ export default function SettingsScreen() {
   const clearCorrectData = async () => {
     try {
       await AsyncStorage.removeItem('correctData');
+      await AsyncStorage.removeItem('@deadline_days');
+
       Alert.alert('リセット完了', '正解データを削除しました');
       // もし画面上で correctData を参照している state があれば同時にクリア
       // setCorrectData({}); など
@@ -113,12 +115,23 @@ export default function SettingsScreen() {
       await AsyncStorage.removeItem('@quiz:purchases');
       await AsyncStorage.removeItem('@quiz:positions');
       await AsyncStorage.removeItem('@quiz_points');
+      await AsyncStorage.removeItem('@quiz:tutorialDone');
       Alert.alert('リセット完了', '購入データ、配置データ、ポイントをリセットしました');
       // もし画面上で correctData を参照している state があれば同時にクリア
       // setCorrectData({}); など
     } catch (e) {
       console.error('AsyncStorage リセットエラー:', e);
       Alert.alert('エラー', '商品データの削除に失敗しました');
+    }
+  };
+
+  const clearMissionProgress = async () => {
+    try {
+      await AsyncStorage.removeItem('@mission_progress:');
+      Alert.alert('リセット完了', 'ミッション進捗をリセットしました');
+    } catch (e) {
+      console.error('ミッション進捗リセットエラー:', e);
+      Alert.alert('エラー', 'ミッション進捗の削除に失敗しました');
     }
   };
   
@@ -163,6 +176,13 @@ export default function SettingsScreen() {
         <Button
           title="購入データをリセット"
           onPress={clearPurchases}
+          color="#cc0000"
+        />
+      </View>
+      <View style={{ margin: 12 }}>
+        <Button
+          title="ミッション進捗をリセット"
+          onPress={clearMissionProgress}
           color="#cc0000"
         />
       </View>

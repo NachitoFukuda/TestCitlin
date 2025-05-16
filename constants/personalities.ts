@@ -24,7 +24,9 @@ export const defaultPersonalities: Personality[] = [
     verbalTics: [
       'なんといいますか…',
       '信じられないかもしれませんが、',
-      'ここだけの話、'
+      '〜ですね',
+      '〜だね'
+
     ],
     age: 0, // Add a default age value
     background: '', // Add a default background value

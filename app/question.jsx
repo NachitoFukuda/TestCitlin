@@ -106,7 +106,7 @@ export default function QuestionScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const loadThemeAndInitSDK = async () => {
+      const loadstart02ndInitSDK = async () => {
         // テーマの読み込み処理
         try {
           const storedTheme = await AsyncStorage.getItem('theme');
@@ -122,7 +122,7 @@ export default function QuestionScreen() {
         // RevenueCat SDK の初期化処
       };
 
-      loadThemeAndInitSDK();
+      loadstart02ndInitSDK();
     }, [])
   );
 
@@ -392,7 +392,7 @@ export default function QuestionScreen() {
           return prevCount; // 0 のまま維持
         }
       });
-    }, 1000);
+    }, 700);
   
     return () => clearInterval(interval); // クリーンアップ
   }, [isCountingDown]);
@@ -437,8 +437,7 @@ export default function QuestionScreen() {
   
     if (!Useranswer) {
       // 回答が空欄の場合、不正解と同様の処理を実行
-      await handleIncorrectAnswer(currentQuestion.correctAnswer, currentQuestion.id);
-      // データがない場合は保存せずに、タイムスタンプも保存しない
+      await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
       return;
     }
   
@@ -479,7 +478,7 @@ export default function QuestionScreen() {
       setShowNextButton(true);
     } else {
       // 不正解
-      await handleIncorrectAnswer(currentQuestion.correctAnswer, currentQuestion.id);
+      await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
     }
   };
 
@@ -500,7 +499,8 @@ export default function QuestionScreen() {
   }, [isAnswerCorrect]);
 
   //不正解時の処理
-  const handleIncorrectAnswer = useCallback(async (questionId) => {
+  const [missedQuestions, setMissedQuestions] = useState([]);
+  const handleIncorrectAnswer = useCallback(async (questionId, correctAnswer) => {
     setIsTransitioning(true);  // 即座にフィードバック表示
     let updatedData = { ...correctData };
     let currentCorrectCount = updatedData[questionId]?.count || 0;
@@ -521,12 +521,24 @@ export default function QuestionScreen() {
   
     setCorrectData(updatedData);
     await saveCorrectData(updatedData);
+
+    // 不正解・空白時にmissedQuestionsへ追加
+    const missedQuestionObj = {
+      id: questionId,
+      question: displayedQuestion?.question,
+      correctAnswer: correctAnswer,
+    };
+    setMissedQuestions(prev => {
+      if (prev.some(q => q.id === questionId)) return prev;
+      return [...prev, missedQuestionObj];
+    });
+
     setIsAnswerCorrect(false);
     setIsTransitioning(true);
     await showCorrectAnimation1();
     setShowNextButton(true);
   
-  }, [correctData, saveCorrectData]);
+  }, [correctData, saveCorrectData, displayedQuestion]);
   
   const timeoutRef = useRef(null);
 
@@ -672,7 +684,6 @@ export default function QuestionScreen() {
             src: { large: url },
             photographer: 'Unknown',  // もしDBにphotographer情報が入っていれば使う
           });
-          console.log('画像URL保存成功',url)
         } else {
           console.warn('画像URLの取得に失敗しました');
           setImageData(null);
@@ -696,15 +707,12 @@ export default function QuestionScreen() {
       // ① 元のレベル文字列をそのまま取得（ドットもアンダースコアも変換しない）
       const folder = level || "3";  // 例: "1.5"
   
-      console.log('🛠️ using folder:', folder);
   
       // ② そのままパスを組み立て
       const filePath = `${folder}/${question.id}.mp3`;  // => "1.5/2.mp3"
-      console.log('🛠️ fetching from path:', filePath);
   
       // ③ ダウンロードURLを取得
       const soundUrl = await getDownloadURL(ref(storage, filePath));
-      console.log('🛠️ soundUrl:', soundUrl);
   
       // ④ Audio をロード＆準備
       const source = { uri: soundUrl };
@@ -782,8 +790,8 @@ export default function QuestionScreen() {
         score={score}
         total={filteredQuestions.length}
         QentionID={currentQuestionId}
+        missedQuestions={missedQuestions}
         onFinish={() => router.push('/')}
-  //      isAnySubscribed={isAnySubscribed}
         forceTheme={isDarkMode === true ? 'dark' : 'light'}
       />
     );

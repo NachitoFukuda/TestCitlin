@@ -32,7 +32,6 @@ const PexelsImage: React.FC<Props> = ({ uri, photographer, photographerUrl }) =>
 const openLink = (url: string) => {
   // Linking を使いたいなら import { Linking } from 'react-native';
   // Linking.openURL(url);
-  console.log('リンクを開く: ', url);
 };
 
 const styles = StyleSheet.create({

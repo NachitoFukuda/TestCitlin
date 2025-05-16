@@ -32,10 +32,19 @@ export function useSessionStorage() {
 
   const createSession = useCallback(async (session: ChatSession): Promise<string> => {
     const sessions = await getSessions();
-    const newSession = { ...session, id: `${Date.now()}` }; // Example ID generation
+    // セッションIDは既に呼び出し元で生成されているので上書きしない
+    const newSession = { ...session };
     sessions.push(newSession);
     await storage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-    return newSession.id; // Return the new session ID
+    // 保存したセッションに付随するデータを個別キーで保存
+    await storage.setItem(`@chat_prompt:${newSession.id}`, session.prompt);
+    if (session.nickname) {
+      await storage.setItem(`@chat_name:${newSession.id}`, session.nickname);
+    }
+    if (session.imageUri) {
+      await storage.setItem(`@chat_image:${newSession.id}`, session.imageUri);
+    }
+    return session.id; // Return the original session ID
   }, []);
 
   const updateSession = useCallback(async (id: string, updates: Partial<ChatSession>): Promise<void> => {

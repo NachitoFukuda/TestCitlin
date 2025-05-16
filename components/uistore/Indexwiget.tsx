@@ -1,17 +1,19 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import {
     Animated,
-    PanResponder,
-    View,
     Text,
     TouchableOpacity,
     StyleSheet,
     Dimensions,
-  } from 'react-native';import { UIConfigContext } from '../contexts/UIConfigContext';
-import { ViewStyle } from 'react-native';
+  } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { UIConfigContext } from '../contexts/UIConfigContext';
 import { useWidgetConfig } from '../uistore/useWidgetConfig';
 import type { WidgetId } from '../uistore/widgetConfig';
+import type { Position } from '../contexts/UIConfigContext'; // adjust import path
+
 
 type DraggableItemProps = {
   item: { id: string; name: string; widthCells: number; heightCells: number };
@@ -19,66 +21,118 @@ type DraggableItemProps = {
   draggable?: boolean;
   onDragEnd?: (x: number, y: number) => void;
 };
+const PURCHASES_KEY = '@quiz:purchases';
+const POINTS_KEY = '@quiz_points';  // もし別キーならそちらを
 
+type ShopItem = {
+  id: string;
+  name: string;
+  price: number;
+  widthCells: number;
+  heightCells: number;
+};
 export default function DraggableItem({
   item,
 }: DraggableItemProps) {
+  const [loadedPurchases, setLoadedPurchases] = useState<Record<string, ShopItem>>({});
+  const [loadedPositions, setLoadedPositions] = useState<Record<string, Position | null>>({});
+  const [points, setPoints] = useState<number>(0);
+
+
+  useEffect(() => {
+    AsyncStorage.getItem(POINTS_KEY).then(value => {
+      if (value !== null) {
+        setPoints(Number(value));
+      }
+    });
+  }, []);
+  
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        // ① 購入情報ロード
+        const purJson = await AsyncStorage.getItem(PURCHASES_KEY);
+        const purchasesData: Record<string, ShopItem> = purJson ? JSON.parse(purJson) : {};
+        setLoadedPurchases(purchasesData);
+
+        // ② 位置情報ロード
+        if (Object.keys(purchasesData).length === 0) {
+          await AsyncStorage.removeItem('@quiz:positions');
+          setLoadedPositions({});
+        } else {
+          const posJson = await AsyncStorage.getItem('@quiz:positions');
+          const parsed: Record<string, any> = posJson ? JSON.parse(posJson) : {};
+
+          const smallCell = Dimensions.get('window').width / 4;
+          const rawPos: Record<string, Position> = {};
+          Object.entries(parsed).forEach(([key, p]) => {
+            if (!p) return;
+            const x = typeof p.x === 'number' ? p.x : NaN;
+            const y = typeof p.y === 'number' ? p.y : NaN;
+            rawPos[key] = {
+              gridX: !isNaN(x) ? Math.round(x / smallCell) : (p.gridX || 0),
+              gridY: !isNaN(y) ? Math.round(y / smallCell) : (p.gridY || 0),
+            };
+          });
+
+          const finalPositions: Record<string, Position | null> = {};
+          Object.values(purchasesData).forEach(item => {
+            finalPositions[item.id] = rawPos[item.id] ?? null;
+          });
+          setLoadedPositions(finalPositions);
+        }
+      })();
+    }, [])
+  );
+
   const ctx = useContext(UIConfigContext)!;
   const router = useRouter();
   // ウィジェットごとの設定を取得
   const config = useWidgetConfig(item.id as WidgetId);
-  const WidgetComponent = config?.component;
-  const widgetProps = config?.getDefaultProps ? config.getDefaultProps(item) : {};
+
+  // 購入済みでなければ描画しない
+  if (!loadedPurchases[item.id]) {
+    return null;
+  }
 
   // セルサイズとウィジェットサイズを計算
   const cellSize = Dimensions.get('window').width / 4;
   const widgetWidth = cellSize * item.widthCells;
   const widgetHeight = cellSize * item.heightCells;
 
-  // ストレージから位置を取得しピクセル換算
-   const grid = ctx.positions[item.id] ?? { gridX: 0, gridY: 0 };
-   const safeInitialPos = {
-     x: grid.gridX * cellSize,
-     y: grid.gridY * cellSize,
-   };
-
-  // pan を初期化し、ポジション更新時にセット
-  const pan = useRef(new Animated.ValueXY(safeInitialPos)).current;
-  useEffect(() => {
-    pan.setValue(safeInitialPos);
-  }, [safeInitialPos]);
-
-  // positions がない場合は描画しない
-  if (!ctx.positions[item.id]) {
+  // 保存済み位置がない場合は描画しない
+  const savedPos = loadedPositions[item.id];
+  if (!savedPos) {
     return null;
   }
+  const safeInitialPos = {
+    x: savedPos.gridX * cellSize,
+    y: savedPos.gridY * cellSize,
+  };
 
   return (
     <Animated.View
-      // ドラッグ無効化のため panHandlers を削除
       style={[
         styles.widgetContainer,
-        config?.containerStyle,          // 追加
-        pan.getLayout() as ViewStyle,
+        config?.containerStyle,
+        // ストレージから取得した座標を使って配置
+        { left: safeInitialPos.x, top: safeInitialPos.y },
         { width: widgetWidth, height: widgetHeight },
       ]}
     >
-      {WidgetComponent ? (
-        <WidgetComponent {...widgetProps} />
-      ) : (
-        <Text style={[styles.text, config?.textStyle]}>{item.name}</Text>
-      )}
-      {config.actions?.map((act, idx) => (
+      {config?.component && (() => {
+        const Widget = config.component;
+        const props = config.getDefaultProps?.(item) || {};
+        return <Widget {...props} />;
+      })()}
+
+      {config?.actions?.map((act, idx) => (
         <TouchableOpacity
           key={idx}
           style={[styles.actionButton, act.buttonStyle]}
           onPress={() => {
-            console.log(
-              `[DraggableItem] action pressed: label=${act.label}, itemId=${item.id}, route=${act.route}`
-            );
             act.onPress?.();
             if (act.route) {
-              console.log(`[DraggableItem] navigating to ${act.route}`);
               router.push(act.route as any);
             } else {
               console.warn('[DraggableItem] no route defined for action', act);
@@ -92,13 +146,12 @@ export default function DraggableItem({
       ))}
     </Animated.View>
   );
+  
 }
 
 const styles = StyleSheet.create({
   widgetContainer: { 
     position: 'absolute', 
-    backgroundColor: '#fff', // 明るい背景色を追加
-
   },
   text: { 
     fontSize: 12, 

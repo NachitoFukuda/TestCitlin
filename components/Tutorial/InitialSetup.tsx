@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LearningSchedule from './LearningSchedule';
-import CalendarView from './CalendarView';
 import NeomorphBox from '../ui/NeomorphBox';
 import LottieView from 'lottie-react-native';
-import LongWidget from './LongWidget';
+import NotificationSetup from './NotificationSetup';
+import CalendarView from './CalendarView';
 
 interface InitialSetupProps {
   onSetupComplete: () => void;
@@ -17,45 +17,32 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [showButton, setShowButton] = useState(false);
-
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedTime, setSelectedTime] = useState(new Date());
   // メッセージ
   const messages = [
-    'シトリンへようこそ！！', 
-    '突然ですが知っていますか？', 
-    '人の脳は、1日で70%のことを忘れると言われています。',
-    'しかし、シトリンを使えば、記憶が消える前に復習できます。',
-    'そのカギとなるのが、忘却曲線です。',
-    '適切なタイミングで復習することで、記憶が長く定着します！',
-    'シトリンでは、あなたの学習データを記録し',
-    '適切なタイミングで出題されます。',
-    'さらにの目標に合わせて学習スケジュールを自動作成します。',
-    '1日の学習量を決めるだけでOK！',
-    'まず級を選択してください。',  // ← ステップ10
-    'さっそく予定を立ててみましょう！！',  // 11
-    '',  // 12
-    '',  // 13
+    'こんにちは', 
+    'citlinでは、\n英検3級から\n1級までを、\n最後まで『無料』で\n学習することができます！！✨',
+    'AIが最適な\nタイミングで復習するべき問題を\n出題！',
+    'どの級を学習する？',  // ← ステップ10
+    '',  // 11
+    '学習時間を通知で知らせる？',  // 12
+    '学習を始めよう！！',  // 13
   ];
 
   // 各ステップに応じたフォントサイズ・位置
-  const fontSizes = [30, 30, 30, 30, 30, 24, 24, 24, 30, 30, 24, 30, 24, 24];
-  const fontTop   = [50, 30, 30, 30, 30, 24, 24, 24, 50, 50, 50, 50, 50, 50];
+  const fontSizes = [46, 30, 40, 30, 30, 24, 40, 24, 30, 30, 24, 30, 24, 24];
+  const fontTop   = [220, 90, 100, 30, 30, 24, 150, 24, 50, 50, 50, 50, 50, 50];
 
   // NeomorphBox の高さ
   const neomorphHeights = [
-    250, // 0
-    550, // 1
-    550, // 2
-    550, // 3
-    550, // 4
-    550, // 5
-    550, // 6
-    550, // 7
-    250, // 8
-    250, // 9
-    200, // 10: 学習級選択
-    250, // 11
-    600, // 12
-    600, // 13
+    600, // 0
+    600, // 1
+    600, // 2
+    600, // 3
+    600, // 4
+    600, // 5
+    600, // 6
   ];
 
   // 予定設定用ステート
@@ -117,7 +104,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   // 次へ or 決定ボタン
   const handleNext = () => {
     // ステップ10で何も選択されていない場合はアラートを出して進行を止める
-    if (currentStep === 10 && !selectedLevel) {
+    if (currentStep === 3 && !selectedLevel) {
       Alert.alert('学習級が未選択', '学習する級を選択してください。');
       return;
     }
@@ -176,7 +163,7 @@ const handleSelectLevel = (level: string) => {
 
   // ボタンのラベルを切り替える
   let buttonLabel = '';
-  if (currentStep === 10) {
+  if (currentStep === 6) {
     buttonLabel = '決定';
   } else if (currentStep < messages.length - 1) {
     buttonLabel = '次へ';
@@ -187,69 +174,6 @@ const handleSelectLevel = (level: string) => {
   // LottieView参照
   const confettiRef = useRef<LottieView>(null);
 
-  // 以下は例の通り
-  const getCorrectCount = (step: number) => {
-    switch (step) {
-      case 1:
-        return 1;
-      case 2:
-        return 2;
-      case 3:
-        return 3;
-      case 4:
-        return 4;
-      case 5:
-        return 5;
-      case 6:
-        return 6;
-      case 7:
-        return 7;
-      default:
-        return 0;
-    }
-  };
-
-  const getQuestionId = (step: number) => {
-    switch (step) {
-      case 1:
-        return 1;
-      case 2:
-        return 2;
-      case 3:
-        return 2;
-      case 4:
-        return 3;
-      case 5:
-        return 3;
-      case 6:
-        return 4;
-      case 7:
-        return 4;
-      default:
-        return 0;
-    }
-  };
-
-  const getIsAnswerCorrect = (step: number) => {
-    switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return false;
-      case 3:
-        return true;
-      case 4:
-        return false;
-      case 5:
-        return true;
-      case 6:
-        return false;
-      case 7:
-        return true;
-      default:
-        return false;
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -287,7 +211,7 @@ const handleSelectLevel = (level: string) => {
           </Animated.Text>
 
           {/* ★★★ ステップ10: 学習級の選択 ★★★ */}
-          {currentStep === 10 && (
+          {currentStep === 3 && (
             <View style={styles.levelcontainer}>
               {/* 3級 */}
               <View style={{ marginVertical: 5 }}>
@@ -413,7 +337,7 @@ const handleSelectLevel = (level: string) => {
           )}
 
           {/* ステップ12: 学習スケジュール */}
-          {currentStep === 12 && (
+          {currentStep === 4 && (
             <LearningSchedule
               dailyWordCount={dailyWordCount}
               setDailyWordCount={setDailyWordCount}
@@ -424,21 +348,21 @@ const handleSelectLevel = (level: string) => {
             />
           )}
 
-          {/* ステップ13: カレンダー */}
-          {currentStep === 13 && (
-            <CalendarView/>
-          )}
+          {currentStep === 5 &&
+          <>
+              <CalendarView
+              dailyWordCount={dailyWordCount}
+              learningDays={learningDays}
+              deadlineDays={deadlineDays}
+              selectedLevel={selectedLevel}
+            />
+           <NotificationSetup />
+           </>
+           }
+
 
           {/* 小テストUI（LongWidget）の例：ステップ1～7で表示 */}
-          {currentStep >= 1 && currentStep < 8 && (
-            <View style={styles.LongWidgetcontainer}>
-              <LongWidget
-                correctCount={getCorrectCount(currentStep)}
-                questionId={getQuestionId(currentStep)}
-                isAnswerCorrect={getIsAnswerCorrect(currentStep)}
-              />
-            </View>
-          )}
+
         </View>
       </NeomorphBox>
 
@@ -446,7 +370,7 @@ const handleSelectLevel = (level: string) => {
       {showButton && (
         <TouchableOpacity
           style={styles.button}
-          onPress={currentStep === 12 ? handleSave : handleNext}
+          onPress={currentStep === 6 ? handleSave : handleNext}
         >
           <NeomorphBox
             width={SCREEN_WIDTH * 0.85}

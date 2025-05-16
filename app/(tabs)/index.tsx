@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { UIConfigContext } from '@/components/contexts/UIConfigContext';
 import { View, Alert, ScrollView, StyleSheet, Button, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -6,17 +6,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialSetup from '@/components/Tutorial/InitialSetup';
 import * as Haptics from 'expo-haptics';
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
-import NeomorphBox from '@/components/ui/NeomorphBox';
-import { Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import DraggableItem from '../../components/uistore/Indexwiget';
 import { Dimensions } from 'react-native';
 import Footer from '@/components/ui/Footer';
+
 
 const windowWidth = Dimensions.get('window').width;
 const smallCell = windowWidth / 4;
 // If the file does not exist, create it or update the import path to the correct location
 
+const TUTORIAL_KEY = '@quiz:tutorialDone';
 const STORAGE_KEY_CORRECT_DATA = 'correctData';
 
 interface CorrectData {
@@ -69,7 +68,23 @@ export default function HomeScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
   const router = useRouter(); // ✅ ルーターを取得（ホームに戻るため）
   const uiCtx = React.useContext(UIConfigContext); // 🔥 UIConfigContextからコンテキストを取得
+  const [tutorialDone, setTutorialDone] = useState<boolean>(false);
+  useFocusEffect(
+    useCallback(() => {
+      const fetchTutorialStatus = async () => {
+        try {
+          const value = await AsyncStorage.getItem(TUTORIAL_KEY);
+          if (value === 'true') {
+            setTutorialDone(true);
+          }
+        } catch (e) {
+          console.error('❌ チュートリアル状態の取得に失敗:', e);
+        }
+      };
 
+      fetchTutorialStatus();
+    }, [])
+  );
   // ストレージからテーマを取得し、スイッチの状態を同期
   useFocusEffect(
     useCallback(() => {
@@ -147,7 +162,6 @@ export default function HomeScreen() {
     }
   };
 
-
   const [isPremiumUser, setIsPremiumUser] = useState(false); // 🔥 追加
   const [isPremiumPlusUser, setIsPremiumPlusUser] = useState(false); // 🔥 追加
 
@@ -199,7 +213,6 @@ export default function HomeScreen() {
     }
   };
 
-  // 画面フォーカス時と60秒ごとにデータを更新
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -211,19 +224,6 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
-  // コンテキストから購入データを取得 is now handled via Consumer below
-
-  const handlePress = () => {
-    // ボタンが押された場合のアクション
-    Alert.alert(
-      'citlinPremiumPlus',
-      'この機能はプレミアムプラン専用です。アップグレードすると、追加の特典や機能がご利用いただけます。今すぐアップグレードしますか？',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: 'アップグレード', onPress: () => {router.push('/SettingsScreen')} }
-      ]
-    );
-      };
 
   return (
     <>
@@ -232,8 +232,7 @@ export default function HomeScreen() {
       ) : (
         <>
 
-      
-      
+
       <View
         style={[
           styles.scrollContainer,
@@ -273,8 +272,8 @@ export default function HomeScreen() {
     </UIConfigContext.Consumer>
       </View>
     </View>
-    <Footer activeIcon="home" />
-            </>
+    <Footer activeIcon="home" tutorialDone={tutorialDone} />
+    </>
       )}
     </>
   );

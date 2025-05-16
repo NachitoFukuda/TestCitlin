@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Colors from '@/constants/Colors';
+import { Picker } from '@react-native-picker/picker';
 
 export interface AgePickerProps {
     value: number;
@@ -51,78 +52,32 @@ const AgePicker: React.FC<AgePickerProps> = ({
     }
   }, [ages, value]);
 
-  const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / itemHeight);
-    const newValue = ages[index];
-    if (newValue !== value) {
-      onChange(newValue);
-    }
-  };
 
   return (
     <View style={{ width: '100%' }}>
-
-      <View style={[styles.container, { height: itemHeight * 5 }, style]}>
-        {/* 既存の FlatList と selection ビュー */}
-        <FlatList
-          ref={flatListRef}
-          data={ages}
-          keyExtractor={(item) => item.toString()}
-          style={{ width: '100%' }}
-          contentContainerStyle={{
-            paddingTop: itemHeight * 2,
-            paddingBottom: itemHeight * 2,
-          }}
-          showsVerticalScrollIndicator={false}
-          snapToInterval={itemHeight}
-          snapToAlignment="center"
-          bounces={false}
-          overScrollMode="never"
-          decelerationRate="fast"
-          onMomentumScrollEnd={handleScrollEnd}
-          getItemLayout={(_, index) => ({
-            length: itemHeight,
-            offset: itemHeight * index,
-            index,
-          })}
-          renderItem={({ item }) => {
-            const isSelected = item === value;
-            return (
-              <View style={{ height: itemHeight, justifyContent: 'center', alignItems: 'center' }}>
-                <Text
-                  style={[
-                    styles.text,
-                    textStyle,
-                    isSelected && styles.selectedText,
-                  ]}
-                >
-                  {item}歳
-                </Text>
-              </View>
-            );
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.selection,
-            { top: itemHeight * 2, height: itemHeight },
-          ]}
-        />
-      </View>
-      <Text style={styles.radioTitle}>性別を選択してください</Text>
+    <Text style={styles.aegTitle}>推しの年齢を選ぼう⭐️</Text>
+    <Picker
+      selectedValue={String(value)} // ← ここをstringに変換
+      onValueChange={(itemValue) => onChange(Number(itemValue))} 
+      style={{ height: 150, width: '100%', marginBottom: 70 }} // ← marginBottom追加
+      itemStyle={[styles.text, textStyle]}
+    >
+    {ages.map((age) => (
+      <Picker.Item key={age} label={`${age}歳`} value={String(age)} />
+    ))}
+    </Picker>
+      <Text style={styles.aegTitle}>推しの性別は！</Text>
       <View style={styles.radioContainer}>
-        {['男性', '女性', 'どちらでもない', 'その他'].map(option => (
+        {['男性🚹', '女性🚺', 'どちらでもない', 'その他🦕'].map(option => (
           <TouchableOpacity
             key={option}
-            style={[styles.radioButton, gender === option && styles.radioButtonSelected]}
+            style={[styles.radioButton, gender === option && styles.radioButton]}
             onPress={() => onGenderChange && onGenderChange(option)}
           >
             <View style={styles.radioOuter}>
               {gender === option && <View style={styles.radioInner} />}
             </View>
-            <Text style={[styles.radioLabel, gender === option && styles.radioLabelSelected]}>
+            <Text style={[styles.radioLabel, gender === option && styles.radioButton]}>
               {option}
             </Text>
           </TouchableOpacity>
@@ -165,14 +120,11 @@ const styles = StyleSheet.create({
     color: Colors.gray[900],
   },
   radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
-  },
-  radioButton: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
+    justifyContent: 'center',
   },
+
   radioOuter: {
     width: 16,
     height: 16,
@@ -190,13 +142,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#333',
   },
   radioLabel: {
-    fontSize: 16,
+    fontSize: 18,           // ← 読みやすくアップ
     color: '#333',
   },
-  radioButtonSelected: {},
-  radioLabelSelected: {
-    fontWeight: 'bold',
-    color: '#000',
+  radioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,    // ← 上下に余白
+    paddingHorizontal: 8,  // ← 左右にもスペース
+    marginBottom: 4,        // ← ボタン同士の間隔
+  },
+  aegTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 24,
+    color: Colors.gray[900],
+    textAlign: 'center',
+    marginBottom: 12, // 追加して少し余白つける
   },
 });
 

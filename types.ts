@@ -29,15 +29,16 @@ export interface Personality {
 }
   
   
-  export interface ChatSession {
-    id: string;
-    personality: Personality;
-    messages: Message[];
-    createdAt: number;
-    lastModified: number;
-    imageUri?: string | null;  // ここを追加
-    prompt?: string; // Added the optional 'prompt' property
-  }
+export interface ChatSession {
+  id: string;
+  personality: Personality;
+  prompt: string;                  // プロンプトは必須
+  nickname?: string;               // ニックネームは任意
+  imageUri?: string | null;        // 画像URIは任意
+  messages: Message[];             // メッセージの配列
+  createdAt: number;               // 作成日時（ミリ秒）
+  lastModified: number;            // 最終更新日時（ミリ秒）
+}
   
   export interface ApiChatResponse {
     message: string;

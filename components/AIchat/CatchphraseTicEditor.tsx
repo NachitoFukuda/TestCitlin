@@ -18,10 +18,6 @@ interface Props {
 
 const CatchphraseTicEditor: React.FC<Props> = ({
   selectedPersonality,
-  newPhrase,
-  setNewPhrase,
-  handleAddCatchphrase,
-  handleRemoveCatchphrase,
   newTic,
   setNewTic,
   handleAddTic,
@@ -33,7 +29,7 @@ const CatchphraseTicEditor: React.FC<Props> = ({
   >
     {/* 口癖 */}
 
-    <Text style={styles.sectionTitle}>推しの口癖を追加</Text>
+    <Text style={styles.sectionTitle}>推しの口癖　語尾を追加</Text>
     <View style={styles.phrasesContainer}>
       {selectedPersonality.verbalTics.map((tic, idx) => (
         <View key={idx} style={styles.phraseItem}>

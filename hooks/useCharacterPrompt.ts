@@ -9,19 +9,42 @@ export const useCharacterPrompt = () => {
    * ユーザーの入力内容を受け取り、GPT API でキャラクタープロンプトを生成
    */
   const generateCharacterPrompt = useCallback(
-    async (personality: Personality & { gender?: string }, chatId: string, imageUri?: string): Promise<string> => {
+    async (
+      personality: Personality & { gender?: string },
+      chatId: string,
+      imageUri?: string,
+      parentPrompt?: string,
+    ): Promise<string> => {
       try {
+        // If a nickname is passed from parent, save it to storage
+
+        if (parentPrompt) {
+          // 親から渡されたプロンプトをそのまま保存して返す
+          await AsyncStorage.setItem(`@chat_prompt:${chatId}`, parentPrompt);
+          if (imageUri) {
+            await AsyncStorage.setItem(`@chat_image:${chatId}`, imageUri);
+          }
+          // Confirm storage by retrieving and logging
+          const storedPrompt = await AsyncStorage.getItem(`@chat_prompt:${chatId}`);
+          const storedName = await AsyncStorage.getItem(`@chat_name:${chatId}`);
+          if (storedName) {
+          }
+          if (imageUri) {
+            const storedImage = await AsyncStorage.getItem(`@chat_image:${chatId}`);
+          }
+          return parentPrompt.trim();
+        }
         if (!OPENAI_API_KEY) {
           console.error('[generateCharacterPrompt] API key missing');
           throw new Error('APIキーが見つかりません');
         }
         const systemContent = `
-          あなたはこれから「推しキャラクター生成アシスタント」です。ユーザーから渡された以下の情報をもとに、会話エンジン用のキャラクタープロンプトを作成してください。
+          ユーザーから渡された以下の情報をもとに、会話エンジン用のキャラクタープロンプトを作成してください。
           - ニックネーム: ${personality.nickname}
           - 年齢: ${personality.age}歳
           - 性別: ${personality.gender}
           - 性格の特徴: ${personality.traits.join('、')}
-          - 口癖: ${personality.catchphrases.join('、')}
+          - 口癖 語尾: ${personality.catchphrases.join('、')}
           - 一言フレーズ: ${personality.verbalTics.join('、')}
           - 好きなもの: ${personality.favorites?.join('、') || '情報なし'}
           - 嫌いなもの: ${personality.dislikes?.join('、') || '情報なし'}
@@ -63,6 +86,11 @@ export const useCharacterPrompt = () => {
         if (imageUri) {
           await AsyncStorage.setItem(`@chat_image:${chatId}`, imageUri);
         }
+        // Confirm storage by retrieving and logging
+         await AsyncStorage.getItem(`@chat_prompt:${chatId}`);
+         await AsyncStorage.getItem(`@chat_name:${chatId}`);
+         await AsyncStorage.getItem(`@chat_image:${chatId}`);
+
         return trimmed;
       } catch (error) {
         console.error('[generateCharacterPrompt] error:', error);

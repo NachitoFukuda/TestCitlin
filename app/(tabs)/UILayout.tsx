@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { useWidgetConfig } from '../../components/uistore/useWidgetConfig';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import type { WidgetId } from '../../components/uistore/widgetConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from '@/components/ui/Footer';
+import { useRouter } from 'expo-router';
+import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
+import TapIndicator from '../../components/ui/TapIndicator';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 
 // 画面サイズとセル数の計算
 const windowWidth = Dimensions.get('window').width;
@@ -40,82 +45,84 @@ type ShopItem = {
 };
 type Position = { gridX: number; gridY: number; };
 
-const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
+const TUTORIAL_KEY = '@quiz:tutorialDone';
 
 export default function UILayout() {
-  const [positions, setPositions] = useState<Record<string, Position | null>>({});
-  const isFocused = useIsFocused();
-  const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
-  const [gridReady, setGridReady] = useState(false);
-  const [positionsLoaded, setPositionsLoaded] = useState(false);
-  const [removedWidgets, setRemovedWidgets] = useState<ShopItem[]>([]);
-  const isFirstLoad = useRef(true);
+  const [tutorialDone, setTutorialDone] = useState(false);
 
-useEffect(() => {
-  if (isFocused && positionsLoaded) {
-    console.log('[UILayout] purchases:', purchases);
-    console.log('[UILayout] positions:', positions);
-  }
-}, [isFocused, purchases, positions, positionsLoaded]);
-  // ポイント・購入履歴ロード
-  // useEffect でポイント・購入履歴を読み込んだ直後に
   useEffect(() => {
-    if (!isFocused || positionsLoaded) return;
-    (async () => {
-      const hJson = await AsyncStorage.getItem(PURCHASES_KEY);
-      const loaded: Record<string, ShopItem> = hJson
-        ? (JSON.parse(hJson) as Record<string, ShopItem>)
-        : {};
-      setPurchases(loaded);
-      console.log('[UILayout] loaded and set purchases:', loaded);
-      if (Object.keys(loaded).length === 0) {
-        await AsyncStorage.removeItem('@quiz:positions');
-        setPositions({});
-        setRemovedWidgets([]);
-        return;
-      }
-      // 位置も同時にチェック
-      const posJson = await AsyncStorage.getItem('@quiz:positions');
-      const parsed = posJson ? JSON.parse(posJson) : {};
-      console.log('[UILayout] raw parsed positions data:', parsed);
-      const rawPositions: Record<string, Position> = {};
-      Object.entries(parsed).forEach(([key, p]) => {
-        if (p == null) {
-          // no stored position, skip
-          return;
-        }
-        const posObj: any = p;
-        // If stored as pixels, convert to grid; otherwise assume grid coords
-        const pixelX = typeof posObj.x === 'number' ? posObj.x : NaN;
-        const pixelY = typeof posObj.y === 'number' ? posObj.y : NaN;
-        const gridX = !isNaN(pixelX) ? Math.round(pixelX / smallCell) : (typeof posObj.gridX === 'number' ? posObj.gridX : 0);
-        const gridY = !isNaN(pixelY) ? Math.round(pixelY / smallCell) : (typeof posObj.gridY === 'number' ? posObj.gridY : 0);
-        rawPositions[key] = { gridX, gridY };
-      });
-      console.log('[UILayout] rawPositions after mapping:', rawPositions);
-      // Ensure every purchase ID appears; missing entries become null
-      const loadedPositions: Record<string, Position | null> = {};
-      Object.values(loaded).forEach(item => {
-        loadedPositions[item.id] = rawPositions[item.id] ?? null;
-      });
-      console.log('[UILayout] final loadedPositions to set:', loadedPositions);
-      setPositions(loadedPositions);
-      console.log('[UILayout] loaded and set positions:', loadedPositions);
-      setPositionsLoaded(true);
-      // Removed overwriting storage with cleaned positions on initial load
-    })();
-  }, [isFocused, positionsLoaded]);
+    AsyncStorage.getItem(TUTORIAL_KEY).then(value => {
+      if (value === 'true') setTutorialDone(true);
+    });
+  }, []);
 
-  // positions state が更新されるたびにストレージに保存
+  const [positions, setPositions] = useState<Record<string, Position | null>>({});
+  const isFirstLoad = useRef(true);
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
       return;
     }
+    // positions が更新されたらストレージに保存し、ログ出力
     AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
   }, [positions]);
+  const isFocused = useIsFocused();
+  const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
+  const [gridReady, setGridReady] = useState(false);
+  const [positionsLoaded, setPositionsLoaded] = useState(false);
+  const [removedWidgets, setRemovedWidgets] = useState<ShopItem[]>([]);
+  const router = useRouter();
 
+  // Always refresh purchases from storage when this screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        // ① 購入情報ロード
+        const purJson = await AsyncStorage.getItem(PURCHASES_KEY);
+        const loadedPurchases: Record<string, ShopItem> = purJson
+          ? JSON.parse(purJson)
+          : {};
+        setPurchases(loadedPurchases);
+  
+        // ② 位置情報ロード
+        if (Object.keys(loadedPurchases).length === 0) {
+          // 購入がないなら positions もクリア
+          await AsyncStorage.removeItem('@quiz:positions');
+          setPositions({});
+          setRemovedWidgets([]);
+        } else {
+          const posJson = await AsyncStorage.getItem('@quiz:positions');
+          const parsed = posJson ? JSON.parse(posJson) : {};
+  
+          const rawPositions: Record<string, Position> = {};
+          Object.entries(parsed).forEach(([key, p]) => {
+            if (p == null) return;
+            const posObj: any = p;
+            const pixelX = typeof posObj.x === 'number' ? posObj.x : NaN;
+            const pixelY = typeof posObj.y === 'number' ? posObj.y : NaN;
+            const gridX = !isNaN(pixelX)
+              ? Math.round(pixelX / smallCell)
+              : (typeof posObj.gridX === 'number' ? posObj.gridX : 0);
+            const gridY = !isNaN(pixelY)
+              ? Math.round(pixelY / smallCell)
+              : (typeof posObj.gridY === 'number' ? posObj.gridY : 0);
+            rawPositions[key] = { gridX, gridY };
+          });
+  
+          const loadedPositions: Record<string, Position | null> = {};
+          Object.values(loadedPurchases).forEach(item => {
+            loadedPositions[item.id] = rawPositions[item.id] ?? null;
+          });
+  
+          setPositions(loadedPositions);
+        }
+  
+        // ③ 一度だけ走らせるフラグ
+        setPositionsLoaded(true);
+      })();
+    }, [])
+  );
   // Remove handler
   const removeWidget = (item: ShopItem) => {
     // 1) positions に null を設定して「Removed & Purchased」欄に表示
@@ -150,7 +157,8 @@ useEffect(() => {
     const maxY = rowCount - item.heightCells;
     // 空きセル探索
     let foundPos: Position | null = null;
-    for (let y = 0; y <= maxY; y++) {
+    // Prevent placement in the top row (gridY = 0)
+    for (let y = 1; y <= maxY; y++) {
       for (let x = 0; x <= maxX; x++) {
         // 重なりチェック
         const overlap = Object.entries(positions).some(([otherId, pos]) => {
@@ -174,9 +182,16 @@ useEffect(() => {
       return;
     }
     // 位置を更新して即時描画
-    setPositions(prev => ({ ...prev, [item.id]: foundPos! }));
+    setPositions(prev => {
+      const next = { ...prev, [item.id]: foundPos! };
+      return next;
+    });
     // Removedリストから除外
     setRemovedWidgets(prev => prev.filter(w => w.id !== item.id));
+    // チュートリアル完了フラグを保存
+    AsyncStorage.setItem(TUTORIAL_KEY, 'true');
+    // ステートを更新して即座に再レンダー
+    setTutorialDone(true);
   };
 
   return (
@@ -213,7 +228,7 @@ useEffect(() => {
               );
             })}
             {[...Array(rowCount + 1)].map((_, i) => {
-              if (i === 0 || i === rowCount ) return null;
+              if (i === 0) return null;
               return (
                 <View
                   key={`sh${i}`}
@@ -241,10 +256,8 @@ useEffect(() => {
                 .map(item => {
                 // Log saved positions and current pan values for re-render debugging
                 const pan = panRefs.current[item.id];
-                console.log('[UILayout] rendering widget:', item.id, item);
                 // 設定がなければ空オブジェクトでフォールバック
                 const config = useWidgetConfig(item.id as WidgetId) ?? {};
-                const WidgetComponent = config.component;
                 if (!pan) return null;
                 const responder = PanResponder.create({
                   onStartShouldSetPanResponder: () => true,
@@ -310,7 +323,10 @@ useEffect(() => {
 
                     // 4. 最終的なピクセル位置をセットし、state を更新
                     pan.setValue({ x: newGridX * smallCellScaled, y: newGridY * smallCellScaled });
-                    setPositions({ ...positions, [item.id]: { gridX: newGridX, gridY: newGridY } });
+                    setPositions(prev => {
+                      const next = { ...prev, [item.id]: { gridX: newGridX, gridY: newGridY } };
+                      return next;
+                    });
                   },
                 });
 
@@ -328,13 +344,28 @@ useEffect(() => {
                       },
                     ]}
                   >
-                    {WidgetComponent ? (
-                      <WidgetComponent {...(config.getDefaultProps ? config.getDefaultProps(item) : {})} />
-                    ) : (
-                      <View style={[styles.widget, config.containerStyle]}>
-                        <Text style={config.textStyle}>{item.name}</Text>
-                      </View>
-                    )}
+
+                      {config.component ? (() => {
+                        const Widget = config.component;
+                        const props = config.getDefaultProps ? config.getDefaultProps(item) : {};
+                        return (
+                            <Animated.View
+                            pointerEvents="none"
+                            style={{
+                              flex: 1,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              transform: [{ scale: 0.6 }],
+                            }}
+                            >
+                            <Widget {...props} />
+                            </Animated.View>
+                        );
+                      })() : (
+                        <View style={[styles.widget, config.layoutStyle]}>
+                          <Text style={config.textStyle}>{config.title}</Text>
+                        </View>
+                      )}
                     {/* Remove button */}
                     <TouchableOpacity style={styles.removeButton} onPress={() => removeWidget(item)}>
                       <Text style={styles.removeButtonText}>×</Text>
@@ -342,14 +373,30 @@ useEffect(() => {
                   </Animated.View>
                 );
               })}
-
-            <Footer activeIcon="layoutdemo" />
+            <Footer
+              activeIcon="layoutdemo"
+            />
           </View>
         </View>          
       {/* --- ここまで：小さいグリッド --- */}
       {positionsLoaded && (() => {
         const available = Object.values(purchases).filter(item => positions[item.id] == null);
-        console.log('[UILayout] DEBUG available widget IDs:', available.map(i => i.id));
+        if (available.length === 0) {
+          return (
+            <TouchableOpacity
+              onPress={() => router.push('/UIstore')}
+            >
+                <NeomorphBox
+                  width={200}
+                  height={50} // isTransitioning の条件が同じ高さの場合は固定でも問題ありません
+                  style={styles.neomorphBox}
+                  forceTheme={'light'}
+                >
+              <Text style={styles.buttonText}>ウィジェットを購入</Text>
+              </NeomorphBox>
+            </TouchableOpacity>
+          );
+        }
         return (
           <>
             <Text style={styles.bottomBarLabel}>配置可能なウィジェット</Text>
@@ -358,10 +405,58 @@ useEffect(() => {
                 <View key={item.id} style={{ marginRight: 8, alignItems: 'center' }}>
                   <Text numberOfLines={1} style={styles.bottomItemText}>{item.name}</Text>
                   <TouchableOpacity
-                    style={styles.addButton}
+                    style={[styles.addButton, { position: 'relative' }]}
                     onPress={() => addItemToGrid(item)}
                   >
-                    <Text style={styles.addButtonText}>追加</Text>
+                    {item.id === 'start01' && (
+                      <View style={{
+                        position: 'absolute',
+                        top: -20,
+                        left: -20,
+                        right: -20,
+                        bottom: -20,
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <TapIndicator
+                          size={80}
+                          color="#000"
+                          strokeWidth={2}
+                          duration={800}
+                        />
+                      </View>
+                    )}
+                    <View
+                    pointerEvents="none" 
+                      style={{
+                        width: '100%',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        paddingTop: 0,
+                        marginTop: 0,
+                      }}
+                    >
+                      {(() => {
+                        const WidgetComponent = WIDGET_CONFIG[item.id as WidgetId]?.component;
+                        const widgetProps = WIDGET_CONFIG[item.id as WidgetId]?.getDefaultProps
+                          ? WIDGET_CONFIG[item.id as WidgetId]!.getDefaultProps!(item)
+                          : {};
+                        if (WidgetComponent) {
+                          return (
+                            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                              <WidgetComponent {...widgetProps} fromShop={true}/>
+                            </View>
+                          );
+                        }
+                        return (
+                          <View style={[ WIDGET_CONFIG[item.id as WidgetId]?.shopcontainerStyle]}>
+                            <Text style={WIDGET_CONFIG[item.id as WidgetId]?.titleText}>
+                              {WIDGET_CONFIG[item.id as WidgetId]?.title ?? item.name}
+                            </Text>
+                          </View>
+                        );
+                      })()}
+                    </View>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -370,7 +465,11 @@ useEffect(() => {
         );
       })()}
       </View>
-      <Footer activeIcon="layout" />
+           <Footer
+              activeIcon="layout"
+              purchasesLength={Object.keys(purchases).length}
+              tutorialDone={tutorialDone}
+            />
       </>
   );
 }
@@ -380,9 +479,18 @@ const styles = StyleSheet.create({
   item:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#FFF', marginBottom: 8, borderRadius: 8 },
   name:               { fontSize: 16 },
   price:              { fontSize: 14, color: '#888' },
-  button:             { backgroundColor: '#4CAF50', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 4 },
+  button: {
+    backgroundColor: '#EBF3FF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 2,
+    borderColor: '#666666',
+    borderRadius: 20,
+    marginTop:30
+  },
+  buttonText:         { color: '#666', fontWeight: 'bold' ,fontSize: 18 },
+
   buttonDisabled:     { backgroundColor: '#AAA' },
-  buttonText:         { color: '#FFF', fontWeight: 'bold' },
   smallGridContainer: {
     backgroundColor: '#EBF3FF',
     marginTop: 0,
@@ -440,7 +548,6 @@ const styles = StyleSheet.create({
        marginTop: 4,
        paddingVertical: 4,
        paddingHorizontal: 8,
-       backgroundColor: '#4CAF50',
        borderRadius: 4,
   },
   addButtonText: {
@@ -463,5 +570,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     borderRadius: 13,
     zIndex: 16,
+  },
+  neomorphBox: {
+    marginTop: 30,
   },
 });

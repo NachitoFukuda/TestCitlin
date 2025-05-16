@@ -5,16 +5,51 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Circle } from 'react-native-svg';
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+import TapIndicator from './TapIndicator';
+
+const TUTORIAL_KEY = '@quiz:tutorialDone';
 
 export default function Footer({
   activeIcon,
   layoutdemo,
+  purchasesLength = 0,
+  tutorialDone = true,
 }: {
   activeIcon: string;
   layoutdemo?: boolean;
+  purchasesLength?: number;
+  tutorialDone?: boolean;
 }) {
   const router = useRouter();
+
+  const [tutorialDoneState, setTutorialDone] = React.useState(tutorialDone);
+
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const loadTutorialDone = async () => {
+      try {
+        const value = await AsyncStorage.getItem(TUTORIAL_KEY);
+        if (isMounted && value === 'true') {
+          setTutorialDone(true);
+        }
+      } catch (error) {
+        console.error('❌ チュートリアル状態の読み込みに失敗しました:', error);
+      }
+    };
+    loadTutorialDone();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+
   const [isDarkMode, setIsDarkMode] = React.useState(false);
+  /**
+   * チュートリアル完了フラグと購入数から表示するボタン数を返す
+   */
 
   useFocusEffect(
     useCallback(() => {
@@ -81,65 +116,90 @@ export default function Footer({
         isDemoMode && { width: containerWidth, alignSelf: 'center' },
       ]}
     >
-
-      <TouchableOpacity
-        onPress={() => handlePress('shop', '/UIstore')}
-        style={styles.iconButton}
-        accessibilityLabel="Shop"
-        accessibilityHint="ショップに遷移"
-      >
-        <View style={styles.iconWithLabel}>
-            <Animated.View
-            style={[
-              styles.iconWrapper,
-              isDemoMode && { width: iconWrapperSize, height: iconWrapperSize },
-              { transform: [{ translateY: iconAnims.shop }] },
-            ]}
+      {/* 左エリア: shop と layout */}
+      <View style={styles.sideGroup}>
+        <TouchableOpacity
+          onPress={() => {
+            handlePress('shop', '/UIstore');
+          }}
+          style={styles.iconButton}
+          accessibilityLabel="Shop"
+          accessibilityHint="ショップに遷移"
+        >
+          <View style={styles.iconWithLabel}>
+              <Animated.View
+                style={[
+                  styles.iconWrapper,
+                  isDemoMode && { width: iconWrapperSize, height: iconWrapperSize },
+                  { transform: [{ translateY: iconAnims.shop }] },
+                ]}
+              >
+                {activeIcon !== 'shop' &&
+                activeIcon !== 'layoutdemo' &&
+                activeIcon !== 'layout' &&
+                !tutorialDone && (
+                    <TapIndicator
+                    size={iconWrapperSize * 1.4}
+                    color={'#000'}
+                    strokeWidth={2}
+                    duration={800}
+                  />
+                )}
+                <Ionicons
+                  name={activeIcon === 'shop' ? 'pricetag' : 'pricetag-outline'}
+                  size={iconSize}
+                  color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
+                />
+              </Animated.View>
+            <Text
+              style={[
+                styles.iconLabel,
+                { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
+                isDemoMode && { fontSize: 10 },
+              ]}
             >
-            <Ionicons
-              name={activeIcon === 'shop' ? 'pricetag' : 'pricetag-outline'}
-              size={iconSize}
-              color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
-            />
-            </Animated.View>
-          <Text
-            style={[
-              styles.iconLabel,
-              { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
-              isDemoMode && { fontSize: 10 },
-            ]}
+              Shop
+            </Text>
+          </View>
+        </TouchableOpacity>
+        {purchasesLength > 0 || tutorialDone || tutorialDoneState ? (
+          <TouchableOpacity
+            onPress={() => handlePress('layout', '/UILayout')}
+            style={styles.iconButton}
           >
-            Shop
-          </Text>
-        </View>
-      </TouchableOpacity>
+            <View style={styles.iconWithLabel}>
+              <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.layout }] }]}>
+              {activeIcon !== 'layout' && activeIcon !== 'layoutdemo'  && !tutorialDone && (
+                  <TapIndicator
+                    size={iconWrapperSize * 1.4}
+                    color={'#000'}
+                    strokeWidth={2}
+                    duration={800}
+                  />
+                )}
+                <Ionicons
+                  name={activeIcon === 'layout' ? 'grid' : 'grid-outline'}
+                  size={iconSize}
+                  color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
+                />
+              </Animated.View>
+              <Text
+                style={[
+                  styles.iconLabel,
+                  { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
+                  isDemoMode && { fontSize: 10 },
+                ]}
+              >
+                Layout
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.iconButton} />
+        )}
+      </View>
 
-      <TouchableOpacity
-        onPress={() => handlePress('layout', '/UILayout')}
-        style={styles.iconButton}
-        accessibilityLabel="Layout"
-        accessibilityHint="レイアウトに遷移"
-      >
-        <View style={styles.iconWithLabel}>
-          <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.layout }] }]}>
-            <Ionicons
-              name={activeIcon === 'layout' ? 'grid' : 'grid-outline'}
-              size={iconSize}
-              color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
-            />
-          </Animated.View>
-          <Text
-            style={[
-              styles.iconLabel,
-              { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
-              isDemoMode && { fontSize: 10 },
-            ]}
-          >
-            Layout
-          </Text>
-        </View>
-      </TouchableOpacity>
-
+      {/* 中央: home */}
       <TouchableOpacity
         onPress={() => handlePress('home', '/')}
         style={styles.iconButton}
@@ -189,57 +249,63 @@ export default function Footer({
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => handlePress('chat', '/ChatListScreen')}
-        style={styles.iconButton}
-        accessibilityLabel="VIP"
-        accessibilityHint="AIチャットに遷移"
-      >
-        <View style={styles.iconWithLabel}>
-          <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.chat }] }]}>
-            <Ionicons
-              name={activeIcon === 'chat' ? 'chatbubble' : 'chatbubble-outline'}
-              size={iconSize}
-              color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
-            />
-          </Animated.View>
-          <Text
-            style={[
-              styles.iconLabel,
-              { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
-              isDemoMode && { fontSize: 10 },
-            ]}
+      {/* 右エリア: chat と settings */}
+      <View style={styles.sideGroup}>
+        {purchasesLength > 1 || tutorialDone || tutorialDoneState? (
+          <TouchableOpacity
+            onPress={() => handlePress('chat', '/ChatListScreen')}
+            style={styles.iconButton}
           >
-            Chat
-          </Text>
-        </View>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => handlePress('settings', '/SettingsScreen')}
-        style={styles.iconButton}
-        accessibilityLabel="Settings"
-        accessibilityHint="設定に遷移"
-      >
-        <View style={styles.iconWithLabel}>
-          <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.settings }] }]}>
-            <Ionicons
-              name={activeIcon === 'settings' ? 'settings' : 'settings-outline'}
-              size={iconSize}
-              color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
-            />
-          </Animated.View>
-          <Text
-            style={[
-              styles.iconLabel,
-              { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
-              isDemoMode && { fontSize: 10 },
-            ]}
+            <View style={styles.iconWithLabel}>
+              <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.chat }] }]}>
+                <Ionicons
+                  name={activeIcon === 'chat' ? 'chatbubble' : 'chatbubble-outline'}
+                  size={iconSize}
+                  color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
+                />
+              </Animated.View>
+              <Text
+                style={[
+                  styles.iconLabel,
+                  { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
+                  isDemoMode && { fontSize: 10 },
+                ]}
+              >
+                Chat
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.iconButton} />
+        )}
+        {purchasesLength > 1 || tutorialDone || tutorialDoneState? (
+          <TouchableOpacity
+            onPress={() => handlePress('settings', '/SettingsScreen')}
+            style={styles.iconButton}
           >
-            Settings
-          </Text>
-        </View>
-      </TouchableOpacity>
+            <View style={styles.iconWithLabel}>
+              <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.settings }] }]}>
+                <Ionicons
+                  name={activeIcon === 'settings' ? 'settings' : 'settings-outline'}
+                  size={iconSize}
+                  color={isDarkMode ? '#DDDDDD' : '#FFFFFF'}
+                />
+              </Animated.View>
+              <Text
+                style={[
+                  styles.iconLabel,
+                  { color: isDarkMode ? '#DDDDDD' : '#FFFFFF' },
+                  isDemoMode && { fontSize: 10 },
+                ]}
+              >
+                Settings
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.iconButton} />
+        )}
+      </View>
     </View>
     </>
   );
@@ -248,7 +314,7 @@ export default function Footer({
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'center',
         alignItems: 'center',
         paddingVertical: 8,
         backgroundColor: 'rgba(29, 29, 29, 0.49)',
@@ -329,5 +395,11 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: 'black',
     zIndex: 1,
+  },
+  sideGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
   },
 });

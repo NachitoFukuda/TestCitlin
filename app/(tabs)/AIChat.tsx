@@ -24,9 +24,10 @@ import { Audio } from 'expo-av';
 import LottieView from 'lottie-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
+import ChatInput from '@/components/AIchat/ChatInput';
+
 
 const { OPENAI_API_KEY } = Constants.expoConfig?.extra as { [key: string]: string };
-
 
 // -----------------------------------
 // メッセージの型
@@ -34,6 +35,7 @@ const { OPENAI_API_KEY } = Constants.expoConfig?.extra as { [key: string]: strin
 interface Message {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  isApi?: boolean; // Optional property to indicate if the message is from the API
 }
 
 // -----------------------------------
@@ -41,16 +43,8 @@ interface Message {
 // -----------------------------------
 function getIconForChatId(chatId: string) {
   switch (chatId) {
-    case 'friend':
-      return require('../../assets/chatIcon/friend.jpg');
-    case 'boyfriend':
-      return require('../../assets/chatIcon/boy.jpg');
-    case 'girlfriend':
-      return require('../../assets/chatIcon/girl.jpg');
-    case 'office':
-      return require('../../assets/chatIcon/office.jpg');
-    default:
-      return require('../../assets/chatIcon/friend.jpg');
+      default:
+        return require('../../assets/chatIcon/friend.jpg');
   }
 }
 
@@ -72,19 +66,6 @@ async function getSystemMessageForChatId(chatId: string): Promise<string> {
     // 保存がなければデフォルトを返す
 
   }
-
-
-// -----------------------------------
-// 3) メッセージ履歴を MAX_COUNT 件までに制限するヘルパー
-// -----------------------------------
-function trimMessageHistory(messages: Message[]): Message[] {
-  const MAX_COUNT = 5; // 直近の履歴を5件までに制限
-  if (messages.length > MAX_COUNT) {
-    return messages.slice(messages.length - MAX_COUNT);
-  }
-  return messages;
-}
-
 
 // -----------------------------------
 // 5) OpenAI API 呼び出し
@@ -190,7 +171,7 @@ const AIChat = () => {
   // Expo Router で "?chatId=xxx" のパラメータを取得
   const routeParams = useLocalSearchParams();
   const chatId = routeParams.chatId as string;
-
+  const chatTitle = (routeParams.title as string) || chatId;
   // ---------------------------
   // キーボード表示・非表示の監視
   // ---------------------------
@@ -214,6 +195,34 @@ const AIChat = () => {
     };
   }, []);
 
+  const [iconUri, setIconUri] = useState<string | null>(null);
+  useEffect(() => {
+    const loadIcon = async () => {
+      try {
+        const uri = await AsyncStorage.getItem(`@chat_image:${chatId}`);
+        if (uri) setIconUri(uri);
+      } catch (e) {
+        console.error('アイコン取得失敗:', e);
+      }
+    };
+    loadIcon();
+  }, [chatId]);
+
+  const [storedName, setStoredName] = useState<string | null>(null);
+
+useEffect(() => {
+  const loadName = async () => {
+    try {
+      const name = await AsyncStorage.getItem(`@chat_name:${chatId}`);
+      if (name) setStoredName(name);
+    } catch (e) {
+      console.error('名前取得失敗:', e);
+    }
+  };
+  loadName();
+}, [chatId]);
+  const iconSource = iconUri ? { uri: iconUri } : getIconForChatId(chatId);
+
   // ---------------------------
   // chatId が変わったらストレージから履歴をロード
   // ---------------------------
@@ -222,19 +231,17 @@ const AIChat = () => {
       try {
         const storageKey = `chat_${chatId}`;
         const saved = await AsyncStorage.getItem(storageKey);
+        // まず必ずシステムメッセージを取得
+        const systemContent = await getSystemMessageForChatId(chatId);
+        const systemMessage: Message = { role: 'system', content: systemContent };
         if (saved) {
-          setMessages(JSON.parse(saved));
+          // 保存済み履歴から既存の system メッセージを除外して、新しい system を先頭に追加
+          const parsed: Message[] = JSON.parse(saved);
+          const filtered = parsed.filter(m => m.role !== 'system');
+          setMessages([systemMessage, ...filtered]);
         } else {
-          // 履歴がない場合はキャラクターのシステムメッセージを追加
-          const loadSystemMessage = async () => {
-            const systemMessageContent = await getSystemMessageForChatId(chatId);
-            const systemMessage: Message = {
-              role: 'system',
-              content: systemMessageContent,
-            };
-            setMessages([systemMessage]);
-          };
-          loadSystemMessage();
+          // 履歴がなければ system のみ
+          setMessages([systemMessage]);
         }
       } catch (err) {
         Alert.alert('Error', 'Failed to load chat history.');
@@ -243,61 +250,17 @@ const AIChat = () => {
     loadChatMessages();
   }, [chatId]);
 
-  // ---------------------------
-  // メッセージ送信
-  // ---------------------------
 
-  // 追加：和訳ボタンが押されたときの処理
-  const handleTranslate = async (originalMsg: Message) => {
-    try {
-      setIsLoading(true);
-      // 和訳用のシステムメッセージ
-      const translationSystemMsg: Message = {
-        role: 'system',
-        content: "Translate the following text into Japanese. Only output the translated text.",
-      };
-  
-      // 和訳リクエスト用のメッセージ履歴
-      const translationMessages: Message[] = [
-        translationSystemMsg,
-        { role: 'user', content: originalMsg.content },
-      ];
-  
-      // 翻訳API呼び出し
-      const translationReply = await callOpenAIGPT(translationMessages);
-      if (!translationReply) {
-        Alert.alert('Error', 'No translation response from AI.');
-        return;
-      }
-  
-      // 【修正箇所】翻訳結果を全履歴に追加する（trimMessageHistory を使わずに全件追加）
-      const updatedMessages = [...messages, translationReply];
-      setMessages(updatedMessages);
-      const storageKey = `chat_${chatId}`;
-      await AsyncStorage.setItem(storageKey, JSON.stringify(updatedMessages));
-    } catch (error) {
-      console.log('Translation error:', error);
-      Alert.alert('Error', 'Failed to translate the message.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-
-// --- 既存の callOpenAIGPT 関数の下に、新たな関数を定義 ---
-// 文法・スペル修正専用の AI 呼び出し
-async function callCorrectionAI(messages: Message[], maxTokens: number = 50): Promise<Message | null> {
-  return await callOpenAIGPT(messages, maxTokens);
-}
 
 async function callChatPartnerAI(messages: Message[], maxTokens: number): Promise<Message | null> {
   return await callOpenAIGPT(messages, maxTokens);
 }
 // Message型を拡張
-type MessageWithBackground = Message & { backgroundColor?: string };
-
+type MessageWithBackground = Message & { backgroundColor?: string; isApi?: boolean; };
 const handleSend = async (): Promise<void> => {
   if (!userAnswer.trim()) return;
+// AIChat.tsx の handleSend 関数中
+
 
   // ユーザー入力を退避し、入力欄をクリア
   const originalUserAnswer = userAnswer;
@@ -309,53 +272,8 @@ const handleSend = async (): Promise<void> => {
     { role: 'user', content: originalUserAnswer, backgroundColor: '#FFFFFF' },
   ];
   setMessages(fullMessages);
-
   try {
     setIsLoading(true);
-
-    // ★ 文法・スペル修正のための AI 呼び出し ★
-    const grammarSystemMsg: Message = {
-      role: 'system',
-      content:
-        "You are an English language assistant specialized in correcting grammar and spelling mistakes. " +
-        "Check the user's input and output only the corrected text in English if there are any mistakes. " +
-        "If there are no mistakes, output 'No corrections needed'.",
-    };
-    const grammarMessages: Message[] = [
-      grammarSystemMsg,
-      { role: 'user', content: originalUserAnswer },
-    ];
-    const correctionReply = await callCorrectionAI(grammarMessages, 50);
-
-    // 修正結果に応じて、ユーザーのメッセージ背景と修正メッセージを設定
-    let userBackgroundColor = '#FFFFFF';
-    let correctionMessage: MessageWithBackground | null = null;
-    if (correctionReply && correctionReply.content.trim() !== "No corrections needed") {
-      // 修正があれば、ユーザーのメッセージ背景を薄い赤に変更し、修正内容を別メッセージとして追加
-      userBackgroundColor = '#FFDDDD';
-      correctionMessage = {
-        role: 'assistant',
-        content: "Correction: " + correctionReply.content,
-        backgroundColor: '#E6FFE6', // 薄い緑（例）
-      };
-    }
-
-    // 【更新】ユーザーのメッセージ背景を更新（fullMessages 内の対象メッセージを変更）
-    fullMessages = fullMessages.map((msg) =>
-      msg.role === 'user' && msg.content === originalUserAnswer
-        ? { ...msg, backgroundColor: userBackgroundColor }
-        : msg
-    );
-    // 修正メッセージがある場合は全履歴に追加
-    if (correctionMessage) {
-      fullMessages.push(correctionMessage);
-    }
-    setMessages(fullMessages);
-
-    // ★ 会話相手からの返答の AI 呼び出し ★
-    // API には送信用として、最新5件に制限した履歴を利用（trimMessageHistory）
-    // ※ trimMessageHistory 関数は、渡された配列の末尾から MAX_COUNT 件（ここでは5件）を抽出します
-    const apiMessages = trimMessageHistory(fullMessages);
 
     // API 送信用にキャラクター指示と会話指示を追加
     const characterSystemMsg: Message = {
@@ -365,8 +283,9 @@ const handleSend = async (): Promise<void> => {
     const conversationSystemMsg: Message = {
       role: 'system',
       content:
-        "Answer the user's message in English, ensuring your answer is strictly shorter than the user's input.",
+        "基本的日本語で話しますが、積極的に英語会話をユーザーが実践できるように指導して下さい。回答は日本語を主体に、必要に応じて、例示的な愛会話フレーズを短く指示してください。会話は、ユーザーの分量に合わせて、返信してください。",
     };
+
     const chatApiMessages: Message[] = [
       characterSystemMsg,
       conversationSystemMsg,
@@ -374,18 +293,15 @@ const handleSend = async (): Promise<void> => {
     ];
 
     // ユーザー入力の単語数に応じて max_tokens を決定（例）
-    const userInputTokens = originalUserAnswer.trim().split(/\s+/).length;
-    const dynamicMaxTokens = Math.max(10, userInputTokens - 1);
-
-    const chatReply = await callChatPartnerAI(chatApiMessages, dynamicMaxTokens);
+    // 十分な長さを確保するために固定で256トークンを許可
+    const chatReply = await callChatPartnerAI(chatApiMessages, 256);
     if (!chatReply) {
       Alert.alert('Error', 'No response from the AI.');
       return;
     }
 
     // APIからの返答を全履歴に追加
-    fullMessages.push(chatReply);
-    // ※ 表示用の全履歴はそのまま保持する（trimMessageHistory は API送信用のみ）
+    fullMessages.push({ ...chatReply, isApi: true });    // ※ 表示用の全履歴はそのまま保持する（trimMessageHistory は API送信用のみ）
     setMessages(fullMessages);
 
     // ストレージへ保存
@@ -408,20 +324,7 @@ const clearChatHistory = async () => {
       setMessages([]); // state を空にする
       Alert.alert('完了', '会話内容が削除されました。');
     } catch (error) {
-      console.log('Clear chat error:', error);
       Alert.alert('エラー', '会話内容の削除に失敗しました。');
-    }
-  };
-  
-
-  const handleKeyPress = (key: string) => {
-
-    if (key === 'backspace') {
-      setUserAnswer((prev) => prev.slice(0, -1));
-    } else if (key === 'submit' || key === 'enter') {  // 'enter' も条件に追加
-        handleSend();
-    } else {
-      setUserAnswer((prev) => prev + key);
     }
   };
 
@@ -432,16 +335,11 @@ const clearChatHistory = async () => {
   const handleIconPress = () => {
     setModalVisible(true);
   };
+
   const handleModalClose = () => {
     setModalVisible(false);
   };
 
-  // ---------------------------
-  // AI アイコン (chatId別)
-  // ---------------------------
-  const assistantIconSource = getIconForChatId(chatId);
-
-  const [sound, setSound] = useState<any>(null); // 音声の状態を管理
 
   // 音声を再生する関数
   const playSound = async (text: string) => {
@@ -459,8 +357,20 @@ const clearChatHistory = async () => {
     }
   };
 
-  // 全角文字の判定 (和訳ボタンの表示判定)
 
+  const handleMissionEnd = () => {
+    // ミッション終了メッセージを追加
+    const endMsg: MessageWithBackground = {
+      role: 'assistant',
+      content: 'ミッション終了しました！',
+      isApi: false,
+    };
+    setMessages(prev => [...prev, endMsg]);
+    // 追加後にスクロール
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
 
   // ---------------------------
   // レンダリング
@@ -471,18 +381,18 @@ const clearChatHistory = async () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* ヘッダー */}
-
       <View style={styles.header}>
           {/* 左側プレースホルダー */}
           <View style={styles.headerSide} />
           {/* 中央のタイトル */}
-          <Text style={styles.headerTitle}>{chatId}</Text>
-          {/* 右側のゴミ箱アイコン */}
+           <Text style={styles.headerTitle}>
+              {storedName ?? chatTitle}
+            </Text>
           <TouchableOpacity
             onPress={() =>
               Alert.alert(
                 "確認",
-                "データ消えるでー？",
+                "会話履歴消えるでー？",
                 [
                   { text: "キャンセル", style: "cancel" },
                   { text: "OK", onPress: () => clearChatHistory() },
@@ -493,8 +403,6 @@ const clearChatHistory = async () => {
             <Ionicons name="trash-outline" size={24} color="#222" />
           </TouchableOpacity>
         </View>
-
-
       {/* チャット一覧 */}
       <ScrollView
         style={styles.chatContainer}
@@ -503,50 +411,46 @@ const clearChatHistory = async () => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }}
       >
-        {messages.slice(-100).map((msg, index) => {
-    if (msg.role === 'assistant' && msg.content.startsWith("Correction:")) {
+      {messages
+        .filter(msg => msg.role !== 'system')
+        .slice(-100)
+        .map((msg, index) => {
+        if (msg.role === 'assistant' && msg.content.startsWith("Correction:")) {
       return (
         <View style={styles.correctionMessage} key={index}>
-<Text style={styles.messageText}>
-  {msg.content.replace(/^Correction: /, '〇')}  {/* "Correction: " を取り除く */}
-</Text>
+          <Text style={styles.messageText}>
+            {msg.content.replace(/^Correction: /, '〇')}  {/* "Correction: " を取り除く */}
+          </Text>
         </View>
       );
     } else if (msg.role === 'assistant') {
       return (
-<View style={styles.assistantRow} key={index}>
-  <TouchableOpacity onPress={handleIconPress}>
-    <Image source={assistantIconSource} style={styles.assistantIcon} />
-  </TouchableOpacity>
-  <LinearGradient
-    colors={['rgba(0, 179, 255, 0.26)','rgba(255, 0, 234, 0.26)', 'rgba(255, 196, 0, 0.26)']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 1 }}
-    style={styles.gradientBorder1}
-  >
-  <View style={styles.assistantMessage}>
-    <Text style={styles.messageText}>{msg.content}</Text>
-    {/* 和訳ボタンとスピーカーボタン */}
-    {!/[\u3000-\u30ff\uff01-\uff60\u4e00-\u9fff]/.test(msg.content) && (
-      <View style={styles.buttonsContainer}>
-        <TouchableOpacity
-          style={styles.speakerButton}
-          onPress={() => playSound(msg.content)}
-        >
-          <Text style={styles.buttonText}>🔉</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.translateButton}
-          onPress={() => handleTranslate(msg)}
-        >
-          <Text style={styles.buttonText}>a→あ</Text>
-        </TouchableOpacity>
-      </View>
-    )}
-  </View>
-  </LinearGradient>
-</View>
+        // ① まず一番外側でキーを振る
+        <View key={`assistant-${index}`}>
 
+
+          {/* ② アイコンとバブルを横並びにするRow */}
+          <View style={styles.assistantRow}>
+          <TouchableOpacity onPress={handleIconPress}>
+          <Image source={iconSource} style={styles.assistantIcon} />
+          </TouchableOpacity>
+            <LinearGradient
+              colors={[
+                'rgba(0, 179, 255, 0.26)',
+                'rgba(255, 0, 234, 0.26)',
+                'rgba(255, 196, 0, 0.26)',
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientBorder1}
+            >
+              {/* ③ メッセージバブル */}
+              <View style={styles.assistantMessage}>
+                <Text style={styles.messageText}>{msg.content}</Text>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
       );
     } else {
       return (
@@ -562,7 +466,7 @@ const clearChatHistory = async () => {
 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
   {/* Button with Icon */}
   <TouchableOpacity onPress={handleIconPress}>
-    <Image source={assistantIconSource} style={styles.assistantIcon} />
+   <Image source={iconSource} style={styles.assistantIcon} />
   </TouchableOpacity>
 
   {/* Assistant Message */}
@@ -602,9 +506,7 @@ const clearChatHistory = async () => {
 
    </>
   )}
-
       </ScrollView>
-
       {/* アイコン拡大表示モーダル */}
       <Modal
         visible={modalVisible}
@@ -617,14 +519,19 @@ const clearChatHistory = async () => {
           onPress={handleModalClose}
           activeOpacity={1}
         >
-          <Image source={assistantIconSource} style={styles.modalImage} />
+            <Image source={iconSource} style={styles.modalImage} />
         </TouchableOpacity>
       </Modal>
-      <KeyboardExample
-          onKeyPress={handleKeyPress}
-          userAnswer={userAnswer}
-        />
-        
+     <View style={styles.inputContainer}>
+     <ChatInput
+        value={userAnswer}
+        onChangeText={setUserAnswer}
+        onSend={handleSend}
+      />
+        <TouchableOpacity onPress={handleSend} style={styles.clearButton}>
+          <Ionicons name="send" size={24} color="#4A90E2" />
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -687,10 +594,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   assistantIcon: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     borderRadius: 16,
     marginRight: 8,
+    top: 5,
   },
   assistantMessage: {
     backgroundColor: '#FFF9',
@@ -725,9 +633,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 12,
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderTopColor: '#DDD',
+    paddingTop :15,
+    paddingBottom: 30,
+    backgroundColor: '#FFF9',
+
   },
   input: {
     flex: 1,
@@ -740,13 +649,13 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 8,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFF9',
     borderRadius: 5,
     marginRight: 10,
   },
   clearButtonText: {
     fontSize: 16,
-    color: '#4A90E2',
+    color: '#FFF9',
   },
   // モーダル背景
   modalBackground: {
@@ -756,9 +665,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalImage: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
+    width: 250,      // 幅を大きく
+    height: 250,     // 高さを大きく
+    borderRadius: 125, // 円形にしたいなら半径を幅の半分に
   },
   buttonsContainer: {
     flexDirection: 'row',
@@ -783,6 +692,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   messageWrapper: {
+    flex: 1,
     padding: 5, // 外側の枠を作る
     borderRadius: 15,
   },
@@ -792,5 +702,28 @@ const styles = StyleSheet.create({
     width: '70%', // コンテナを画面幅の70%に制限
     alignSelf: 'center', // 画面中央に配置
   },
-  
+  partnerDescriptionChat: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 4,
+    },
+    missionSeparator: {
+      width: '100%',
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: '#666',
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    MittionStartText: {
+      fontSize: 25,
+      color: '#rgb(8, 206, 21)',
+      marginBottom: 4,
+      textAlign: 'center',
+    },
+    MittionEndText: {
+      fontSize: 25,
+      color: '#rgb(206, 8, 8)',
+      marginBottom: 4,
+      textAlign: 'center',
+    },
 });

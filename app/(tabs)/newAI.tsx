@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+// StrictMode やリマウントによる二重実行を防ぐモジュールスコープのフラグ
+let hasSubmitted = false;
+import React, { useState, useEffect, useRef } from 'react';
+import { LayoutAnimation, UIManager } from 'react-native';
+// Android で LayoutAnimation を有効化
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
@@ -12,7 +19,8 @@ import {
   Alert,
   Image,
   Button,
-  Dimensions
+  Dimensions,
+  Keyboard
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -27,6 +35,7 @@ import AgePicker from '@/components/AIchat/AgePicker';
 import PersonalityPicker from '@/components/AIchat/PersonalityPicker';
 import CatchphraseTicEditor from '@/components/AIchat/CatchphraseTicEditor';
 import { useCharacterPrompt } from '@/hooks/useCharacterPrompt';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 
 export default function NewChatScreen() {
   const router = useRouter();
@@ -40,13 +49,16 @@ export default function NewChatScreen() {
   const [newPhrase, setNewPhrase] = useState('');
   const [newTic, setNewTic] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
-  const [similarityLevel, setSimilarityLevel] = useState<'high' | 'medium' | 'low' | null>(null);
+  const [similarityLevel, setSimilarityLevel] = useState<'high' | 'medium' | 'low' | 'AI' | null>(null);
   const [questionCount, setQuestionCount] = useState<number>(5);
   // ステップ表示プリセット
   const [customDisplayIndices, setCustomDisplayIndices] = useState<number[] | null>(null);
   const [age, setAge] = useState(25);
   const [gender, setGender] = useState<string | null>(null);
   const [traitsSelected, setTraitsSelected] = useState(false);
+
+  // キャラクタープロンプト生成モーダル制御
+  const [showCharacterPrompt] = useState(false);
 
   // 好きなもの入力用ステートとハンドラ
   const [newFavorite, setNewFavorite] = useState('');
@@ -60,10 +72,12 @@ export default function NewChatScreen() {
   // 画面がフォーカスされるたびにウィザード状態をリセット
   useFocusEffect(
     React.useCallback(() => {
+      // モジュールスコープのフラグをリセット
+      hasSubmitted = false;
       // 初期状態にリセット
       setStep(1);
       setSimilarityLevel(null);
-      setQuestionCount(5);
+      setQuestionCount(10);
       setCustomDisplayIndices(null);
       return () => {
         // クリーンアップ不要
@@ -103,14 +117,14 @@ export default function NewChatScreen() {
   const handleRemoveDislike = (index: number) => {
     setDislikes(prev => prev.filter((_, i) => i !== index));
   };
-
   useEffect(() => {
     // 最終ステップ（renderSummary）表示時
-    if (step === renderSteps.length) {
+    if (step === renderSteps.length && !hasSubmitted) {
+      hasSubmitted = true;
       const submitData = async () => {
         // 一意なIDを生成
         const id = generateUniqueId();
-        // 性格プロンプトを生成
+        // 性格プロンプトをフックに渡す（親からの親Promptを第四引数で渡す）
         const charPrompt = await generateCharacterPrompt(
           {
             ...selectedPersonality,
@@ -121,13 +135,15 @@ export default function NewChatScreen() {
             favorites,
             dislikes,
           },
-          id,                 // chatId
-          pickedImage ?? undefined // imageUri
+          id, // chatId
+          pickedImage ?? undefined, // imageUri
+          parentPrompt !== '' ? parentPrompt : undefined, // parentPrompt
         );
         // セッションとして保存
         await createSession({
           id: id,
           personality: selectedPersonality,
+          nickname: selectedPersonality.nickname,
           prompt: charPrompt,
           imageUri: pickedImage,
           messages: [],
@@ -135,7 +151,6 @@ export default function NewChatScreen() {
           lastModified: Date.now(),
         });
         // ここでチャット画面へ遷移
-        console.log('[submitData] session saved, navigating to chat screen:', id);
         router.push({ pathname: '/AIChat', params: { chatId: id } });
       };
       submitData();
@@ -148,6 +163,24 @@ export default function NewChatScreen() {
 
   // 画像追加用ステート
   const [pickedImage, setPickedImage] = useState<string | null>(null);
+  // State to track generated prompt from child
+  const [parentPrompt, setParentPrompt] = useState<string>('');
+  // State to track generated nickname from child
+
+  // State for keyboard visibility
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // 画像ピッカー起動
     const pickImage = async () => {
@@ -233,84 +266,64 @@ const handleBack = () => {
 
 
 
-  const renderStep1 = () => (
-    <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1, justifyContent: 'space-between' }}>
-      <View style={{ flex: 1 }}>
-        <View style={styles.similarityContainer}>
-          <Text style={styles.similarityTitle}>推しの再現度</Text>
-          <View style={styles.similarityOptions}>
-            <TouchableOpacity
-              style={[styles.similarityButton, similarityLevel === 'high' && styles.selectedSimilarity]}
-              onPress={() => {
-                setSimilarityLevel('high');
-                setQuestionCount(8);
-                // 全ステップ表示
-                setCustomDisplayIndices(renderSteps.map((_, idx) => idx));
-              }}
-            >
-              <Text style={styles.similarityText}>高い</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.similarityButton, similarityLevel === 'medium' && styles.selectedSimilarity]}
-              onPress={() => {
-                setSimilarityLevel('medium');
-                setQuestionCount(5);
-                // Medium: [0, 1, 4, 5, 8, renderSteps.length - 1]
-                setCustomDisplayIndices([0, 1, 4, 5, 8, renderSteps.length - 1]);
-              }}
-            >
-              <Text style={styles.similarityText}>まあまあ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.similarityButton, similarityLevel === 'low' && styles.selectedSimilarity]}
-              onPress={() => {
-                setSimilarityLevel('low');
-                setQuestionCount(3);
-                // Low: [0, 1, 4, 8, renderSteps.length - 1]
-                setCustomDisplayIndices([0, 1, 4, 8, renderSteps.length - 1]);
-              }}
-            >
-              <Text style={styles.similarityText}>低い</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.similarityText}>質問数: {questionCount}</Text>
-        </View>
-      </View>
-      <View style={styles.navigationButtons}>
+  const renderStep1 = () => {
+    return (
+      <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1, justifyContent: 'space-between', backgroundColor: '#EBF3FF',
+      }}>
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => router.back()}
-        >
-          <X size={24} color={Colors.gray[600]} />
-        </TouchableOpacity>
-        
-        {similarityLevel && (
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={handleNext}
+          onPress={() => router.push('/ChatListScreen')}
           >
-              <Text style={styles.nextButtonText}>Next</Text>
-              <ChevronRight size={20} color={Colors.white} />
-            </TouchableOpacity>
-          )}
+          <NeomorphBox
+            width={60}
+            height={60}
+            style={styles.AIbutton}
+          >
+            <X size={24} color={Colors.gray[600]} />
+          </NeomorphBox>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.similarityTitle}>質問に答えて推しを作成しよう！！</Text>
+
         </View>
-    </Animated.View>
-  );
+            <TouchableOpacity
+              style={styles.nextButton1}
+              onPress={handleNext}
+            >
+              <NeomorphBox
+                width={screenWidth * 0.9}
+                height={60}
+                variant="blue"
+                style={styles.ImageBox}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.nextButtonText}>スタート</Text>
+                </View>
+              </NeomorphBox>
+            </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const renderStep2 = () => (
     <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1, justifyContent: 'space-between' }}>
-      <Text style={styles.stepTitle}>推しAIの作成</Text>
 
       <View>
-        <Text style={styles.sectionTitle}>推しのニックネーム</Text>
+        <Text style={styles.similarityTitle}>推しのニックネーム</Text>
+        <NeomorphBox
+              width={screenWidth * 0.9}
+              height={60}
+              style={styles.ImageBox}
+            >
         <TextInput
-          style={styles.addItemInput}
           placeholder="名前　ニックネームを入力..."
           value={selectedPersonality.nickname || ''}
           onChangeText={(text) =>
             setSelectedPersonality({ ...selectedPersonality, nickname: text })
           }
         />
+      </NeomorphBox>
+
       </View>
       <View style={styles.navigationButtons}>
         <TouchableOpacity
@@ -336,8 +349,6 @@ const handleBack = () => {
   const renderStep3 = () => (
     <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1 }}>
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={styles.aegTitle}>推しの年齢を選択して下さい。</Text>
-
         <AgePicker
           value={age}
           onChange={setAge}
@@ -584,6 +595,7 @@ const renderStep8 = () => (
   </Animated.View>
 );
 
+
 const renderStep9 = () => (
   <Animated.View 
     entering={FadeInDown.delay(200).springify()} 
@@ -620,7 +632,7 @@ const renderStep9 = () => (
 
 const renderSummary = () => (
   <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text style={styles.stepTitle}>AI作成中...</Text>
+    <Text style={styles.stepTitle}>推しAI作成中...</Text>
   </Animated.View>
 );
 
@@ -672,6 +684,9 @@ const renderSummary = () => (
       </View>
       <View style={styles.content}>
         {displayStepIndices.map((stepIdx) => {
+          if (showCharacterPrompt && stepIdx === 0) {
+            return null;
+          }
           if (step === stepIdx + 1) {
             const element = renderSteps[stepIdx]();
             return React.cloneElement(element, { key: `step-${stepIdx}` });
@@ -705,17 +720,25 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: '#EBF3FF',
   },
   header: {
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: Colors.white,
+    backgroundColor: '#EBF3FF',
   },
   progress: {
     flexDirection: 'row',
     justifyContent: 'center',
+  },
+  AIbutton: {
+    marginBottom: 50,
+  },
+  ImageBox: {
+    margin: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   progressStep: {
     flex: 1,
@@ -730,19 +753,14 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+    backgroundColor: '#EBF3FF',
   },
   stepTitle: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 24,
     color: Colors.gray[900],
   },
-  aegTitle: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 24,
-    bottom: 50,
-    color: Colors.gray[900],
-    textAlign: 'center',
-  },
+
   navigationButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -753,6 +771,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    top: 40,
     backgroundColor: Colors.gray[100],
     justifyContent: 'center',
     alignItems: 'center',
@@ -773,12 +792,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 3,
+    alignSelf: 'flex-end',
+  },
+  nextButton1: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    bottom: 40,
   },
   nextButtonText: {
     fontFamily: 'Inter-Bold',
     fontSize: 16,
     color: Colors.white,
-    marginRight: 4,
   },
   backButton: {
     flexDirection: 'row',
@@ -855,23 +880,18 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
-  startButtonText: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 16,
-    color: Colors.white,
-  },
-  similarityContainer: {
-    marginBottom: 16,
-  },
   similarityTitle: {
-    fontSize: 16,
+    fontSize: 25,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginTop: 200,
+    marginBottom: 60,
+    textAlign: 'center',
     color: Colors.gray[800],
   },
   similarityOptions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    marginBottom: 8,
+    flex: 0.3,
   },
   similarityButton: {
     flex: 1,
@@ -880,16 +900,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.gray[300],
     borderRadius: 8,
-    marginHorizontal: 4,
+    marginVertical: 4,
     alignItems: 'center',
   },
-  selectedSimilarity: {
-    backgroundColor: Colors.primary[100],
-    borderColor: Colors.primary[500],
-  },
+
   similarityText: {
-    fontSize: 14,
-    color: Colors.gray[700],
+    fontSize: 15,
+    textAlign: 'center',
+    color: Colors.gray[500],
   },
   skipOptions: {
     flexDirection: 'row',

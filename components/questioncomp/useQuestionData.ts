@@ -18,7 +18,6 @@ const useQuestionData = (): { questionData: QuestionData | null; level: string |
         if (typeof parsedData === 'string' && parsedData.includes('_')) {
           parsedData = parsedData.replace('_', '.');
         }
-        console.log('[useQuestionData] AsyncStorageから取得した級:', parsedData);
         setLevel(parsedData);
       })
       .catch((error) => {
@@ -86,7 +85,6 @@ const useQuestionData = (): { questionData: QuestionData | null; level: string |
   // questionData 更新時のログ（必要なら）
   useEffect(() => {
     if (questionData) {
-      console.log('[useQuestionData] 問題データが更新されました');
     }
   }, [questionData]);
 
