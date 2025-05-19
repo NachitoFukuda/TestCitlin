@@ -1,0 +1,155 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "83A8B476",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6742269279",
+    "_developerTeamID" : "X22B5T5GWZ",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 769151870.88624597,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21650854",
+      "localizations" : [
+
+      ],
+      "name" : "月額課金",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "24.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6743449410",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "すべての広告が削除されます。AIchatが利用可能。月額料金より33％お得",
+              "displayName" : "citlin Premier Pro",
+              "locale" : "ja"
+            },
+            {
+              "description" : " Ads disappear; AIchat available; 33% savings",
+              "displayName" : "citlin Premier Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "citlinPremierPro",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "citlin Premier Pro",
+          "subscriptionGroupID" : "21650854",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6743448853",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : " All ads will disappear; AIchat is available.",
+              "displayName" : "citlinPremier+",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "すべての広告が削除されます。AIchatが利用可能です。",
+              "displayName" : "citlinPremier+",
+              "locale" : "ja"
+            }
+          ],
+          "productID" : "citlinPremierPlus",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "citlin Premier+",
+          "subscriptionGroupID" : "21650854",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

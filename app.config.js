@@ -5,7 +5,7 @@ module.exports = {
   expo: {
     name: "testcitlin",
     slug: "testcitlin",
-    version: "1.0.0",
+    version: "1.0.4",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "myapp",
@@ -14,14 +14,18 @@ module.exports = {
     splash: {
       image: "./assets/images/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#EBF3FF"
     },
       // app.config.js の expo.ios.infoPlist 部分
       ios: {
         supportsTablet: true,
-        infoPlist: {
-          NSPhotoLibraryUsageDescription: "ユーザーが写真を選択できるようにします",
-          NSAppTransportSecurity: {
+        bundleIdentifier: "com.Citlim.citlin", // iOSも指定するなら
+        buildNumber: "16",
+          infoPlist: {
+              NSSpeechRecognitionUsageDescription: "このアプリでは、英語学習の一環として音声認識機能を使用します。発話内容は端末内でのみ処理され、録音された音声は保存されず、他の目的には一切使用されません。",
+              NSMicrophoneUsageDescription: "英語の発音練習機能を利用するためにマイクへのアクセスが必要です。",
+              NSPhotoLibraryUsageDescription: "ユーザーが写真を選択できるようにします",
+        NSAppTransportSecurity: {
             NSAllowsArbitraryLoads: true,
             NSExceptionDomains: {
               "pexels.com": {
@@ -50,6 +54,9 @@ module.exports = {
       typedRoutes: true
     },
     extra: {
+      eas: {
+        projectId: '3a42e41b-ab7c-4034-928c-20d946ab81d0'
+      },
       PEXELS_API_KEY: process.env.PEXELS_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,

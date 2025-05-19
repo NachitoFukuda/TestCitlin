@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, Animated, Dimensions, InteractionManager } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text, Animated, Dimensions, InteractionManager, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Circle } from 'react-native-svg';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 import TapIndicator from './TapIndicator';
+import { useSubscription } from '@/components/contexts/SubscriptionContext';
 
 const TUTORIAL_KEY = '@quiz:tutorialDone';
 
@@ -23,6 +24,7 @@ export default function Footer({
   tutorialDone?: boolean;
 }) {
   const router = useRouter();
+  const { isSubscribed } = useSubscription();
 
   const [tutorialDoneState, setTutorialDone] = React.useState(tutorialDone);
 
@@ -106,6 +108,16 @@ export default function Footer({
   const baseHomeTranslateY = -60;
   // デモモード時はホームアイコンを少し下げる
   const homeIconTranslateY = isDemoMode ? baseHomeTranslateY + 20 * iconScale : baseHomeTranslateY;
+
+  // ChatボタンのonPress分岐
+  const handleChatPress = () => {
+    if (isSubscribed) {
+      handlePress('chat', '/ChatListScreen');
+    } else {
+      Alert.alert('サブスク限定', 'チャット機能はサブスク加入者限定です。');
+    }
+  };
+
   return (
     <>
     {isDemoMode && <View style={styles.demoBar} />}
@@ -253,7 +265,7 @@ export default function Footer({
       <View style={styles.sideGroup}>
         {purchasesLength > 1 || tutorialDone || tutorialDoneState? (
           <TouchableOpacity
-            onPress={() => handlePress('chat', '/ChatListScreen')}
+            onPress={handleChatPress}
             style={styles.iconButton}
           >
             <View style={styles.iconWithLabel}>

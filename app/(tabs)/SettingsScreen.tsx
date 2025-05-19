@@ -3,6 +3,8 @@ import { View, StyleSheet, Switch, Text, TouchableOpacity, Alert, Linking, Dimen
 import { useRouter } from 'expo-router';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import PurchaseScreen from '../../components/etc/PurchaseScreen';
+import Purchases from 'react-native-purchases';
 //import useSubscription from '@/hooks/useSubscriptionStatus';
 //import { PurchaseScreen } from '@/components/PurchaseScreen';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,16 +45,15 @@ export default function SettingsScreen() {
           setIsDarkMode(false);
         }
         // RevenueCat SDK の初期化処理
-        // try {
-        //   Purchases.setDebugLogsEnabled(true);
-        //   Purchases.configure({ apiKey: 'appl_HeFNWLtZWzmjtrunDFIwNEffyIt' });
-        //   await Purchases.getOfferings();
-        //   // サブスクリプション情報の取得
-        //   const info = await Purchases.getCustomerInfo();
-        //   setCustomerInfo(info);
-        // } catch (error) {
-        //   Alert.alert('SDK 初期化エラー', String(error));
-        // }
+        try {
+          Purchases.setDebugLogsEnabled(true);
+          Purchases.configure({ apiKey: 'appl_HeFNWLtZWzmjtrunDFIwNEffyIt' });
+          await Purchases.getOfferings();
+          const info = await Purchases.getCustomerInfo();
+          setCustomerInfo(info);
+        } catch (error) {
+          Alert.alert('SDK 初期化エラー', String(error));
+        }
       };
 
     initialize();
@@ -86,119 +87,22 @@ export default function SettingsScreen() {
     });
   };
 
-  // RevenueCat を使った購入処理
-  // const handlePurchase = async () => {
-  //   try {
-  //     await purchaseProduct("citlinplus");
-  //     await refresh();
-  //   } catch (error) {
-  //     console.error("購入処理エラー:", error);
-  //     Alert.alert("購入エラー", String(error));
-  //   }
-  // };
-  const clearCorrectData = async () => {
-    try {
-      await AsyncStorage.removeItem('correctData');
-      await AsyncStorage.removeItem('@deadline_days');
 
-      Alert.alert('リセット完了', '正解データを削除しました');
-      // もし画面上で correctData を参照している state があれば同時にクリア
-      // setCorrectData({}); など
-    } catch (e) {
-      console.error('AsyncStorage リセットエラー:', e);
-      Alert.alert('エラー', '正解データの削除に失敗しました');
-    }
-  };
-  
-  const clearPurchases = async () => {
-    try {
-      await AsyncStorage.removeItem('@quiz:purchases');
-      await AsyncStorage.removeItem('@quiz:positions');
-      await AsyncStorage.removeItem('@quiz_points');
-      await AsyncStorage.removeItem('@quiz:tutorialDone');
-      Alert.alert('リセット完了', '購入データ、配置データ、ポイントをリセットしました');
-      // もし画面上で correctData を参照している state があれば同時にクリア
-      // setCorrectData({}); など
-    } catch (e) {
-      console.error('AsyncStorage リセットエラー:', e);
-      Alert.alert('エラー', '商品データの削除に失敗しました');
-    }
-  };
-
-  const clearMissionProgress = async () => {
-    try {
-      await AsyncStorage.removeItem('@mission_progress:');
-      Alert.alert('リセット完了', 'ミッション進捗をリセットしました');
-    } catch (e) {
-      console.error('ミッション進捗リセットエラー:', e);
-      Alert.alert('エラー', 'ミッション進捗の削除に失敗しました');
-    }
-  };
-  
-  const handlePress = () => {
-    // ボタンが押された場合のアクション
-    Alert.alert(
-      'citlinPremium+',
-      'この機能はプレミアムプラン専用です。アップグレードすると、追加の特典や機能がご利用いただけます。',
-
-    );
-      };
   return (
     <>
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#303030' : '#EBF3FF' }]}>
-        {/* ダークモード設定 */}
-        <NeomorphBox 
-          width={300} 
-          height={60} 
-          forceTheme={isDarkMode ? 'dark' : 'light'} 
-          style={styles.neomorphBox}
-        >
-          <View style={styles.row}>
-            <Text style={[styles.text, { color: isDarkMode ? '#ddd' : '#666' }]}>
-              ダークモード
-            </Text>
-            {isDarkMode !== null && <Switch value={isDarkMode} onValueChange={handleToggleSwitch} />}
-          </View>
-        </NeomorphBox>
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#222' : '#F4F8FB' }]}> 
+        {/* タイトル */}
 
-        {/* 購入処理ボタン */}
-        {/* <TouchableOpacity style={styles.purchaseButton} onPress={handlePurchase}>
-          <Text style={styles.purchaseButtonText}>citlinplus を購入する</Text>
-        </TouchableOpacity> */}
-      <View style={{ margin: 12 }}>
-        <Button
-          title="正解データをリセット"
-          onPress={clearCorrectData}
-          color="#cc0000"
-        />
+        {/* 設定セクション */}
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2c2c2c' : '#fff', shadowColor: isDarkMode ? '#000' : '#aaa' }]}> 
+          <TouchableOpacity style={styles.rowButton} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+            <Ionicons name="list" size={22} color={isDarkMode ? '#6cf' : '#4169e1'} style={styles.icon} />
+            <Text style={[styles.buttonText2, { color: isDarkMode ? '#6cf' : '#4169e1' }]}>有料プランを見る</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={{ margin: 12 }}>
-        <Button
-          title="購入データをリセット"
-          onPress={clearPurchases}
-          color="#cc0000"
-        />
-      </View>
-      <View style={{ margin: 12 }}>
-        <Button
-          title="ミッション進捗をリセット"
-          onPress={clearMissionProgress}
-          color="#cc0000"
-        />
-      </View>
-        {/* EULA・プライバシーポリシーリンク */}
-        <TouchableOpacity onPress={handleOpenEULA} activeOpacity={0.7}>
-          <Text style={styles.buttonText2}>利用規約 (EULA)</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleOpenPrivacyPolicy} activeOpacity={0.7}>
-          <Text style={styles.buttonText2}>プライバシーポリシー</Text>
-        </TouchableOpacity>
 
-        {/* モーダル表示用ボタン */}
-        <TouchableOpacity onPress={() => setModalVisible(true)} activeOpacity={0.7}>
-          <Text style={styles.buttonText2}>購入一覧を見る</Text>
-        </TouchableOpacity>
-      </View>
+
 
       <Footer activeIcon="settings" />
 
@@ -214,7 +118,16 @@ export default function SettingsScreen() {
             <TouchableOpacity style={modalStyles.closeButton} onPress={() => setModalVisible(false)}>
               <Text style={modalStyles.closeButtonText}>閉じる</Text>
             </TouchableOpacity>
-            {/* <PurchaseScreen /> */}
+            <PurchaseScreen customerInfo={customerInfo} />
+            <View style={styles.linksContainer}>
+            <TouchableOpacity onPress={handleOpenEULA}>
+              <Text style={styles.linkText}>利用規約</Text>
+            </TouchableOpacity>
+            <Text style={styles.separator}>|</Text>
+            <TouchableOpacity onPress={handleOpenPrivacyPolicy}>
+              <Text style={styles.linkText}>プライバシーポリシー</Text>
+            </TouchableOpacity>
+          </View>
           </View>
         </View>
       </Modal>
@@ -223,11 +136,52 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, justifyContent: 'center', alignItems: 'center' },
-  text: { fontSize: 18, fontWeight: 'bold' },
+  container: { 
+    flex: 1, 
+    padding: 0, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#EBF3FF'
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginTop: 60,
+    marginBottom: 24,
+    letterSpacing: 1.2,
+  },
+  section: {
+    width: '90%',
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginBottom: 32,
+    shadowColor: '#aaa',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  rowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: 'transparent',
+    width: '100%',
+  },
+  icon: {
+    marginRight: 12,
+  },
+  buttonText2: {
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'left',
+  },
   neomorphBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, margin: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '80%' },
-  buttonText2: { margin: 10, fontSize: 16, fontWeight: 'bold', color: '#00f' },
   purchaseButton: {
     marginVertical: 20,
     padding: 15,
@@ -257,6 +211,44 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: 'bold',
   },
+  bottomSubButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 12,
+    gap: 16,
+  },
+  subButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  subButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    textAlign: 'left',
+  },
+  linksContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  linkText: {
+    color: '#666',
+    fontSize: 12,
+    textDecorationLine: 'underline',
+  },
+  separator: {
+    color: '#666',
+    fontSize: 12,
+    marginHorizontal: 8,
+  },
 });
 
 const modalStyles = StyleSheet.create({
@@ -280,5 +272,4 @@ const modalStyles = StyleSheet.create({
     fontSize: 16,
     color: '#00f',
   },
-
 });
