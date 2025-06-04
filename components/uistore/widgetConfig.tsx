@@ -11,6 +11,7 @@ import TodayGool from './TodayGool';
 
 // 例えば、この ID に対応づけ
 export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'start06'|'start07'|'start08'|'start09'
+|'note01'
 |'chach01'| 'chach02' |'chach03'| 'chach04' | 'chach05'| 'chach06'| 'chach07'| 'chach08'
 |'TodayGool1'|'TodayGool2'
 |'Howday1'|'Howday2'
@@ -167,6 +168,21 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
         },
       ],
       size: 'box',
+      desigin:'brue'
+    }),
+  },
+  
+  note01: {
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'note',
+          onPress: () => console.log('単語帳へ'),
+          route: '/NoteComp',
+        },
+      ],
+      size: 'minibox',
       desigin:'brue'
     }),
   },

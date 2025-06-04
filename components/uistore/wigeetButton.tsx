@@ -2,15 +2,8 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-/**
- * actions: 複数のアクションをボタンとして表示
- * - label: ボタンの表示文字列
- * - onPress: 実行したいコールバック
- * - route: 遷移先パス（expo-router の push で遷移）
- */
 type Action = {
   label: string;
   onPress?: () => void;
@@ -20,7 +13,7 @@ type Action = {
 interface WidgetButtonProps {
   actions: Action[];
   fromShop?: boolean;
-  size?: 'long' | 'short' | 'box';
+  size?: 'long' | 'short' | 'box'| 'minibox';
   desigin: string;
   shape: string;
 }
@@ -42,28 +35,43 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
       : screenWidth * 0.4
     : size === 'long' 
     ? baseWidth * 2 
+    : size === 'minibox'
+    ? fromShop 
+      ? screenWidth * 0.125 *0.9
+      : screenWidth * 0.2 *0.9
     : baseWidth;
   const height = size === 'box'
     ? fromShop
       ? screenWidth * 0.25
-      : screenWidth* 0.4
+      : screenWidth * 0.4
+    : size === 'minibox'
+    ? fromShop 
+      ? screenWidth * 0.125 *0.9
+      : screenWidth * 0.2 *0.9
     : fromShop 
     ? screenWidth * 0.09 
     : screenWidth * 0.15;
-  const fontSize = fromShop ? 12 : 20;
+  const fontSize = size === 'minibox' ? 40 : fromShop ? 12 : 20;
 
   // size に応じたコンテナ幅
   const containerWidth = size === 'box'
     ? screenWidth * 0.5
     : size === 'long'
     ? screenWidth * 1
+    : size === 'minibox'
+    ? screenWidth * 0.25
     : screenWidth * 0.5;
 
   const containerHeight = size === 'box'
     ? screenWidth * 0.5
     : size === 'long'
     ? screenWidth * 0.25
+    : size === 'minibox'
+    ? screenWidth * 0.25
     : screenWidth * 0.25;
+
+
+    
 
   const handlePress = (action: Action) => () => {
     // コールバックがあれば先に実行
@@ -89,11 +97,19 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
         >
           {shape === 'line' ? (
             <View style={[styles.lineBox, { width, height }]}> 
-              <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              {action.label === 'note' ? (
+                <Icon name="notebook-outline" size={fontSize} color="#666" />
+              ) : (
+                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              )}
             </View>
           ) : shape === 'line_cercle' ? (
             <View style={[styles.circleBox, { width, height, borderRadius: height / 2 }]}>  
-              <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              {action.label === 'note' ? (
+                <Icon name="notebook-outline" size={fontSize} color="#666" />
+              ) : (
+                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              )}
             </View>
           ) : (
             <NeomorphBox
@@ -103,7 +119,11 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
               variant={size === 'box' ? 'circle' : desigin === 'rainbow' ? 'AI' : undefined}
               
             >
-              <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              {action.label === 'note' ? (
+                <Icon name="notebook-outline" size={fontSize} color="#777" />
+              ) : (
+                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+              )}
             </NeomorphBox>
           )}
         </TouchableOpacity>

@@ -411,15 +411,16 @@ useEffect(() => {
           <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
             スコア: {animatedScore}/{total}
           </Text>
-          <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
-            獲得ポイント: {points} pt
-
+          <View>
+            <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
+              獲得ポイント: {points} pt
+            </Text>
             { animatedScore === total && (
-              <Text style={styles.bonusText}>
-                {'\n'}全問正解ボーナス: +{Math.floor(points * 0.5)} pt
+              <Text style={[styles.bonusText, { marginTop: 10 }]}>
+                全問正解ボーナス: +{Math.floor(points * 0.5)} pt
               </Text>
             )}
-          </Text>
+          </View>
         </View>
 
       {/* ここで下に表示 */}
@@ -513,6 +514,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bonusText: {
+    fontSize:20,
     color: '#FFD700',
     fontWeight: 'bold',
   },

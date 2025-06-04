@@ -29,7 +29,7 @@ type ShopItem = {
   price: number;
   widthCells: number;
   heightCells: number;
-  tag: 'button' | 'sticker' | 'theme';  // タグを明示
+  tag: 'button'| 'note' | 'sticker' | 'theme';  // タグを明示
 };
 
 
@@ -41,6 +41,8 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'start07', name: 'Light Start', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
   { id: 'start08', name: 'Max Start', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
   { id: 'start09', name: 'circle Start', price: 0, widthCells: 2, heightCells: 2, tag: 'button' },
+
+  { id: 'note01', name: 'note', price: 0, widthCells: 1, heightCells: 1, tag: 'note' },
 
   { id: 'chach01', name: 'Balance Check Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
   { id: 'chach02', name: 'Balance Check Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
@@ -75,9 +77,10 @@ const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
 const POSITIONS_KEY = '@quiz:positions';
 const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
-const TAGS = ['button', 'sticker', 'theme'] as const;
+const TAGS = ['button', 'note','sticker', 'theme'] as const;
 const TAG_LABELS: Record<typeof TAGS[number], string> = {
   button: 'Start Button',
+  note: '単語帳',
   sticker: '残高確認',
   theme: '学習履歴',
 };

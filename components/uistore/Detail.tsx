@@ -16,7 +16,7 @@ type ShopItem = {
   price: number;
   widthCells: number;
   heightCells: number;
-  tag: 'button' | 'sticker' | 'theme';
+  tag: 'button' | 'sticker' | 'theme'| 'note';
 };
 
 interface DetailProps {

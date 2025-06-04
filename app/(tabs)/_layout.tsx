@@ -60,7 +60,13 @@ export default function TabLayout() {
             headerShown: true,
           }}
         />
-
+        <Tabs.Screen
+          name="NoteComp"
+          options={{
+            title: '',
+            headerShown: true,
+          }}
+        />
           <Tabs.Screen 
             name="UIstore" 
             options={{
