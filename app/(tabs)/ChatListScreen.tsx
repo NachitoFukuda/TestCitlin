@@ -182,7 +182,7 @@ const ChatListScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EBF3FF' },
+  container: { flex: 1, backgroundColor: '#E3E5F2' },
   headerContainer: {
     paddingVertical: 15,
     paddingHorizontal: 20,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   chatItemNeumorphism: {
     marginVertical: 10,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 7,

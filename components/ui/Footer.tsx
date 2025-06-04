@@ -5,47 +5,46 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Circle } from 'react-native-svg';
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 import TapIndicator from './TapIndicator';
-import { useSubscription } from '@/components/contexts/SubscriptionContext';
 
-const TUTORIAL_KEY = '@quiz:tutorialDone';
+const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
 export default function Footer({
   activeIcon,
   layoutdemo,
-  purchasesLength = 0,
-  tutorialDone = true,
+  tutorialDone ,
+  pushButton,
 }: {
   activeIcon: string;
   layoutdemo?: boolean;
   purchasesLength?: number;
   tutorialDone?: boolean;
+  pushButton?: boolean;
 }) {
   const router = useRouter();
-  const { isSubscribed } = useSubscription();
 
-  const [tutorialDoneState, setTutorialDone] = React.useState(tutorialDone);
+  // チュートリアル完了フラグを boolean で管理
+  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
 
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const loadTutorialDone = async () => {
-      try {
-        const value = await AsyncStorage.getItem(TUTORIAL_KEY);
-        if (isMounted && value === 'true') {
-          setTutorialDone(true);
+  console.log('チュートリアル進捗step', tutorialDoneState);
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const handleFocus = async () => {
+        // 既存テーマ読込…
+        // → ここでチュートリアルステップも読み直す
+        const val = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
+        console.log('[Footer] storage value:', val);  // ← ここを追加
+        if (isActive && val !== null) {
+          setTutorialStep(val === 'true');
         }
-      } catch (error) {
-        console.error('❌ チュートリアル状態の読み込みに失敗しました:', error);
-      }
-    };
-    loadTutorialDone();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+      };
+      handleFocus();
+      return () => { isActive = false; };
+    }, [])
+  );
+  console.log('pushButton',pushButton)
+  // tutorialDoneがtrueの時にTUTORIAL_STEP_KEYを更新
 
 
   const [isDarkMode, setIsDarkMode] = React.useState(false);
@@ -109,14 +108,7 @@ export default function Footer({
   // デモモード時はホームアイコンを少し下げる
   const homeIconTranslateY = isDemoMode ? baseHomeTranslateY + 20 * iconScale : baseHomeTranslateY;
 
-  // ChatボタンのonPress分岐
-  const handleChatPress = () => {
-    if (isSubscribed) {
-      handlePress('chat', '/ChatListScreen');
-    } else {
-      Alert.alert('サブスク限定', 'チャット機能はサブスク加入者限定です。');
-    }
-  };
+  // ログ出力: layout インジケータ表示条件の確認
 
   return (
     <>
@@ -131,7 +123,18 @@ export default function Footer({
       {/* 左エリア: shop と layout */}
       <View style={styles.sideGroup}>
         <TouchableOpacity
-          onPress={() => {
+          onPress={async () => {
+            try {
+              const stored = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
+              if (stored === 'true') {
+                setTutorialStep(true);
+              } else if (stored === null) {
+                await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'false');
+                setTutorialStep(false);
+              }
+            } catch (e) {
+              console.error('[Footer] Failed to update tutorial step:', e);
+            }
             handlePress('shop', '/UIstore');
           }}
           style={styles.iconButton}
@@ -146,17 +149,14 @@ export default function Footer({
                   { transform: [{ translateY: iconAnims.shop }] },
                 ]}
               >
-                {activeIcon !== 'shop' &&
-                activeIcon !== 'layoutdemo' &&
-                activeIcon !== 'layout' &&
-                !tutorialDone && (
+                  {!tutorialDoneState && !isDemoMode && !(activeIcon === 'shop') && !(activeIcon === 'layout')&& (
                     <TapIndicator
-                    size={iconWrapperSize * 1.4}
-                    color={'#000'}
-                    strokeWidth={2}
-                    duration={800}
-                  />
-                )}
+                      size={iconWrapperSize * 2.4}
+                      color={'#000'}
+                      strokeWidth={2}
+                      duration={1000}
+                    />
+                  )}
                 <Ionicons
                   name={activeIcon === 'shop' ? 'pricetag' : 'pricetag-outline'}
                   size={iconSize}
@@ -174,19 +174,29 @@ export default function Footer({
             </Text>
           </View>
         </TouchableOpacity>
-        {purchasesLength > 0 || tutorialDone || tutorialDoneState ? (
+        {((tutorialDone === true && !isDemoMode ) || pushButton || tutorialDoneState ) ? (
           <TouchableOpacity
-            onPress={() => handlePress('layout', '/UILayout')}
+            onPress={async () => {
+              handlePress('layout', '/UILayout');
+              if (!isDemoMode && tutorialDone === true) {
+                try {
+                  await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
+                  setTutorialStep(true);
+                } catch (e) {
+                  console.error('[Footer] Failed to update tutorial step:', e);
+                }
+              }
+            }}
             style={styles.iconButton}
           >
             <View style={styles.iconWithLabel}>
               <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.layout }] }]}>
-              {activeIcon !== 'layout' && activeIcon !== 'layoutdemo'  && !tutorialDone && (
+              {((tutorialDone === true && !isDemoMode ) || pushButton && !(activeIcon === 'layout'))&&!tutorialDoneState&& (
                   <TapIndicator
-                    size={iconWrapperSize * 1.4}
-                    color={'#000'}
-                    strokeWidth={2}
-                    duration={800}
+                  size={iconWrapperSize * 2.4}
+                  color={'#000'}
+                  strokeWidth={2}
+                  duration={1000}
                   />
                 )}
                 <Ionicons
@@ -213,7 +223,10 @@ export default function Footer({
 
       {/* 中央: home */}
       <TouchableOpacity
-        onPress={() => handlePress('home', '/')}
+        onPress={() => {
+            handlePress('home', '/');
+          
+        }}
         style={styles.iconButton}
         accessibilityLabel="Home"
         accessibilityHint="ホームに遷移"
@@ -263,10 +276,12 @@ export default function Footer({
 
       {/* 右エリア: chat と settings */}
       <View style={styles.sideGroup}>
-        {purchasesLength > 1 || tutorialDone || tutorialDoneState? (
           <TouchableOpacity
-            onPress={handleChatPress}
             style={styles.iconButton}
+            onPress={() => {
+                handlePress('chat', '/Upsell');
+              
+            }}
           >
             <View style={styles.iconWithLabel}>
               <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.chat }] }]}>
@@ -287,12 +302,12 @@ export default function Footer({
               </Text>
             </View>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.iconButton} />
-        )}
-        {purchasesLength > 1 || tutorialDone || tutorialDoneState? (
+
           <TouchableOpacity
-            onPress={() => handlePress('settings', '/SettingsScreen')}
+            onPress={() => {
+                handlePress('settings', '/SettingsScreen');
+              
+            }}
             style={styles.iconButton}
           >
             <View style={styles.iconWithLabel}>
@@ -314,9 +329,6 @@ export default function Footer({
               </Text>
             </View>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.iconButton} />
-        )}
       </View>
     </View>
     </>
@@ -384,8 +396,8 @@ const styles = StyleSheet.create({
       height: 76,
       borderRadius: 38,
       borderWidth: 2,
-      borderColor: '#EBF3FF',
-      backgroundColor: '#EBF3FF',
+      borderColor: '#E3E5F2',
+      backgroundColor: '#E3E5F2',
       top: -72,
       alignSelf: 'center',
       zIndex: -99,

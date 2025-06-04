@@ -9,7 +9,6 @@ interface CustomPickerProps {
   selectedValue: number;
   onValueChange: (value: number) => void;
 }
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 const ITEM_HEIGHT = 40;

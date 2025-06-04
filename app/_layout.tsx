@@ -8,8 +8,6 @@ import 'react-native-reanimated';
 import { Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import mobileAds from 'react-native-google-mobile-ads';
-import { SubscriptionProvider } from '@/components/contexts/SubscriptionContext';
 
 // スプラッシュスクリーンをアセット読み込み完了まで非表示にする
 SplashScreen.preventAutoHideAsync();
@@ -21,7 +19,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      mobileAds().initialize();
       SplashScreen.hideAsync();
     }
   }, [loaded]);
@@ -32,7 +29,6 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SubscriptionProvider>
         <NavigationThemeProvider value={DarkTheme}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -66,7 +62,6 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </NavigationThemeProvider>
-      </SubscriptionProvider>
     </GestureHandlerRootView>
   );
 }

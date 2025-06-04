@@ -22,7 +22,7 @@ const Countdown: React.FC<CountdownProps> = ({
   const circleSize = diagonal * 1.5;
 
   // forceTheme に応じて円の色を変更
-  const circleColor = forceTheme === 'dark' ? '#303030' : '#EBF3FF';
+  const circleColor = forceTheme === 'dark' ? '#303030' : '#E3E5F2';
 
   // カウントダウン処理
   useEffect(() => {

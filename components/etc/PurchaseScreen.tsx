@@ -1,38 +1,57 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import Purchases from 'react-native-purchases';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import NeomorphBox from '../ui/NeomorphBox';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 type PurchaseScreenProps = {
   customerInfo: any;
 };
 
+// 仮のサブスクリプションデータ
+const mockOfferings = {
+  premium_offering: {
+    monthlytitle: 'citrin premir+',
+    yearlytitle: 'citrin premir pro',
+    monthlyPrice: '500/月',
+    yearlyPrice: '¥5000/年',
+    features: [
+      '無制限のAIチャット',
+      '高度なAIモデルへのアクセス',
+      '広告非表示',
+      '優先サポート',
+    ],
+    popular: true,
+  },
+  adfree_offering: {
+    monthlytitle: '広告非表示  (月額）',
+    yearlytitle: '広告非表示  (年額）',
+    monthlyPrice: '200/月',
+    yearlyPrice: '¥2000/年',
+    features: [
+      '広告非表示',
+      '基本的なAIチャット機能',
+    ],
+    popular: false,
+  },
+};
+
 const PurchaseScreen: React.FC<PurchaseScreenProps> = ({ customerInfo }) => {
-  const [offerings, setOfferings] = useState<any | null>(null);
-  const [loadingOfferings, setLoadingOfferings] = useState<boolean>(true);
+  const [offerings, setOfferings] = useState<any | null>(mockOfferings);
+  const [loadingOfferings, setLoadingOfferings] = useState<boolean>(false);
   const [processingPurchase, setProcessingPurchase] = useState<boolean>(false);
   // 年額/月額プラン選択用
-  const [isYearly, setIsYearly] = useState(true);
+  const [isYearly, setIsYearly] = useState(false);
   // offering種別選択用
   const [selectedOfferingId, setSelectedOfferingId] = useState<'premium_offering' | 'adfree_offering'>('premium_offering');
 
-  useEffect(() => {
-    const fetchOfferings = async () => {
-      try {
-        const allOfferings = await Purchases.getOfferings();
-        setOfferings(allOfferings);
-      } catch (e) {
-        Alert.alert('Offerings取得エラー', String(e));
-      } finally {
-        setLoadingOfferings(false);
-      }
-    };
-    fetchOfferings();
-  }, []);
+
 
   const handlePurchase = async (pkg: any) => {
     setProcessingPurchase(true);
     try {
-      await Purchases.purchasePackage(pkg);
       Alert.alert('購入完了', 'サブスクを購入しました。');
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -44,7 +63,11 @@ const PurchaseScreen: React.FC<PurchaseScreenProps> = ({ customerInfo }) => {
   };
 
   if (loadingOfferings) {
-    return <ActivityIndicator size="large" style={styles.loader} />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4169e1" />
+      </View>
+    );
   }
 
   const isSubscribed = customerInfo?.entitlements?.active
@@ -62,172 +85,216 @@ const PurchaseScreen: React.FC<PurchaseScreenProps> = ({ customerInfo }) => {
   });
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>
-        {isSubscribed ? 'サブスク中のプラン' : 'サブスク未加入'}
-      </Text>
-
-      {/* 年額/月額トグル */}
-      {!isSubscribed && (
-        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 24 }}>
-          <TouchableOpacity
-            onPress={() => setIsYearly(false)}
-            style={{
-              backgroundColor: !isYearly ? '#007AFF' : '#ccc',
-              padding: 12,
-              borderTopLeftRadius: 8,
-              borderBottomLeftRadius: 8,
-              minWidth: 120,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>月額プラン</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setIsYearly(true)}
-            style={{
-              backgroundColor: isYearly ? '#007AFF' : '#ccc',
-              padding: 12,
-              borderTopRightRadius: 8,
-              borderBottomRightRadius: 8,
-              minWidth: 120,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>年額プラン</Text>
-          </TouchableOpacity>
+    <>
+      {loadingOfferings ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4169e1" />
         </View>
-      )}
-
-      {/* プラン表示 */}
-      {!isSubscribed &&
-        filteredPackages.map((pkg: any, index: number) => (
-          <React.Fragment key={pkg.identifier}>
-            <View
-              style={[
-                styles.packageContainer,
-                index === 0 && isYearly && {
-                  borderColor: '#FFD700',
-                  backgroundColor: '#FFF9E6',
-                  borderWidth: 3,
-                  shadowColor: '#FFD700',
-                  shadowOpacity: 0.3,
-                  shadowRadius: 10,
-                  elevation: 6,
-                  transform: [{ scale: 1.05 }],
-                  marginVertical: 24,
-                  padding: 24,
-                },
-              ]}
+      ) : (
+        <>
+          {/* プラン切り替えトグル */}
+          <View style={styles.toggleContainer}>
+            <TouchableOpacity
+              style={[styles.toggleButton, !isYearly && styles.toggleButtonActive]}
+              onPress={() => setIsYearly(false)}
             >
-              <Text
-                style={[
-                  styles.packageTitle,
-                  index === 0 && isYearly && {
-                    color: '#B8860B',
-                    fontSize: 24,
-                    fontWeight: 'bold',
-                    marginBottom: 8,
-                  },
-                ]}
-              >
-                {pkg.product.title}
+              <Text style={[styles.toggleButtonText, !isYearly && styles.toggleButtonTextActive]}>
+                月額プラン
               </Text>
-              <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                {index === 0 && isYearly && (() => {
-                  const monthly = selectedPackages.find((p: any) => p.identifier === 'citlin_Plus')?.product?.price ?? 0;
-                  const yearlyEquivalent = monthly * 12;
-                  return (
-                    <Text
-                      style={[
-                        styles.packagePrice,
-                        { 
-                          textDecorationLine: 'line-through', 
-                          color: '#999',
-                          fontSize: 18,
-                          marginBottom: 4,
-                        },
-                      ]}
-                    >
-                      ¥{yearlyEquivalent.toFixed(0)}
-                    </Text>
-                  );
-                })()}
-                <Text
-                  style={[
-                    styles.packagePrice,
-                    index === 0 && isYearly && {
-                      color: '#FF8C00',
-                      fontSize: 28,
-                      fontWeight: 'bold',
-                    },
-                  ]}
-                >
-                  {pkg.product.priceString}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleButton, isYearly && styles.toggleButtonActive]}
+              onPress={() => setIsYearly(true)}
+            >
+              <Text style={[styles.toggleButtonText, isYearly && styles.toggleButtonTextActive]}>
+                年額プラン
+                <Text style={[styles.discountText, isYearly && styles.discountTextActive]}>
+                  {' '}17%OFF
                 </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  {
-                    backgroundColor: '#007AFF',
-                    paddingVertical: 10,
-                    paddingHorizontal: 24,
-                    borderRadius: 20,
-                  },
-                  index === 0 && isYearly && {
-                    paddingVertical: 16,
-                    paddingHorizontal: 40,
-                    backgroundColor: '#FF8C00',
-                    shadowColor: '#FF8C00',
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }
-                ]}
-                onPress={() => handlePurchase(pkg)}
-                disabled={processingPurchase}
-              >
-                <Text style={{ 
-                  color: 'white', 
-                  fontSize: index === 0 && isYearly ? 18 : 16, 
-                  fontWeight: 'bold' 
-                }}>購入する</Text>
-              </TouchableOpacity>
-              <Text style={styles.noticeText}>
-                購入すると、サブスクリプションは自動的に更新されます。いつでもApp Storeの設定からキャンセル可能です。料金は購入確認時にApple IDに請求されます。
               </Text>
-            </View>
-            {index === 0 && isYearly && (() => {
-              const monthly = selectedPackages.find((p: any) => p.identifier === 'citlin_Plus')?.product?.price ?? 0;
-              const yearlyEquivalent = monthly * 12;
-              const discount = Math.round(yearlyEquivalent - pkg.product.price);
-              return (
-                <Text style={[styles.recommendBadge, {
-                  fontSize: 18,
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 20,
-                  backgroundColor: '#FFD700',
-                  color: '#B8860B',
-                  fontWeight: 'bold',
-                  marginTop: -12,
-                  marginBottom: 24,
-                  textAlign: 'center',
-                }]}>
-                  ⭐️ 年間{discount}円お得！ ⭐️
-                </Text>
-              );
-            })()}
-          </React.Fragment>
-        ))}
+            </TouchableOpacity>
+          </View>
 
-      {processingPurchase && <ActivityIndicator size="small" style={styles.loader} />}
-    </View>
+          <View style={styles.offeringContainer}>
+            {Object.entries(mockOfferings).map(([id, offering]) => (
+              <View key={id} style={styles.cardWrapper}>
+                <NeomorphBox
+                  style={[
+                    styles.offeringCard,
+                    offering.popular && isYearly && styles.popularCard,
+                  ]}
+                  width={SCREEN_WIDTH * 0.85}
+                  height={370}
+                  variant={offering.popular && isYearly ? 'AI' : ''}
+                >
+                  <LinearGradient
+                    colors={offering.popular && isYearly ? ['rgba(230, 0, 255, 0.7)', 'rgba(13, 231, 255, 0.7)'] : ['#E3E5F2', '#E3E5F2']}
+                    start={{ x: 0, y: 0.8 }}
+                    end={{ x: 0.8, y: 0 }}
+                    style={offering.popular && isYearly ? styles.titleGradient : styles.titlesimple}
+                  >
+                    <Text style={offering.popular && isYearly ?styles.offeringTitle : styles.offeringTitle2}>
+                      {isYearly ? offering.yearlytitle : offering.monthlytitle}
+                    </Text>
+                  </LinearGradient>
+
+                  {offering.popular && isYearly && (
+                    <View style={styles.popularBadge}>
+                      <Text style={styles.popularText}>おすすめ</Text>
+                    </View>
+                  )}
+                  <Text style={styles.offeringPrice}>
+                    {isYearly ? `¥${Math.round(parseInt(offering.yearlyPrice.replace(/[^0-9]/g, '')) / 12)}/月` : offering.monthlyPrice}
+                  </Text>
+                  {isYearly && (
+                    <Text style={styles.yearlyDiscount}>
+                      年間一括払い {offering.yearlyPrice}
+                    </Text>
+                  )}
+                  <View style={styles.featuresContainer}>
+                    {offering.features.map((feature, index) => (
+                      <View key={index} style={styles.featureRow}>
+                        <Ionicons name="checkmark-circle" size={24} color="#444" />
+                        <Text style={styles.featureText}>{feature}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.purchaseButton}
+                    onPress={() => handlePurchase(offering)}
+                    disabled={processingPurchase}
+                  >
+                    <Text style={styles.purchaseButtonText}>
+                      無料で試す
+                    </Text>
+                  </TouchableOpacity>
+                </NeomorphBox>
+              </View>
+            ))}
+          </View>
+
+
+          <Text style={styles.termsText}>
+            購入を完了すると、iTunesアカウントに請求されます。サブスクリプションは自動更新され、更新日の24時間前までにキャンセルしない限り更新されます。
+          </Text>
+
+          {processingPurchase && <ActivityIndicator size="small" style={styles.loader} />}
+        </>
+      )}
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: {
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  offeringContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  cardWrapper: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  offeringCard: {
+    padding: 20,
+  },
+  popularCard: {
+    borderColor: '#ffd700',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -16,
+    right: 20,
+    backgroundColor: '#ffd700',
+    paddingHorizontal: 20,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  popularText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  offeringTitle: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    paddingTop:20,
+    paddingBottom:5,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  offeringTitle2: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    paddingTop:30,
+    color: '#666',
+    textAlign: 'center',
+  },
+  offeringDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  offeringPrice: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4169e1',
+    marginTop:60,
+    marginBottom: 16,
+  },
+  featuresContainer: {
+    gap: 8,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featureText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  purchaseButton: {
+    backgroundColor: '#444',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 8,
+    minWidth:'80%'
+  },
+  purchaseButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  termsText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   loader: { marginVertical: 20 },
   header: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   packageContainer: {
@@ -242,7 +309,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#EBF3FF',
+    borderColor: '#E3E5F2',
   },
   packageTitle: {
     fontSize: 18,
@@ -273,6 +340,76 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 16,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    marginHorizontal: 16,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#444',
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
+  },
+  discountText: {
+    fontSize: 12,
+    color: '#ff6b6b',
+  },
+  discountTextActive: {
+    color: '#fff',
+  },
+  yearlyDiscount: {
+    fontSize: 12,
+    color: '#ff6b6b',
+    marginTop: 8,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  deleteButton: {
+    backgroundColor: '#ff4444',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
+    marginBottom: 20,
+    width: SCREEN_WIDTH * 0.85,
+    alignSelf: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  titleGradient: {
+    position: 'absolute',    // 絶対配置
+    top: 0,                  // 上端にくっつく
+    width:'100%',
+    paddingVertical: 8,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  titlesimple: {
+    position: 'absolute',    // 絶対配置
+    top: 0,                  // 上端にくっつく
   },
 });
 

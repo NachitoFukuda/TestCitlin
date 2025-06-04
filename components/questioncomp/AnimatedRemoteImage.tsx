@@ -37,10 +37,10 @@ export default function AnimatedRemoteImage({
 
   // カラースキームごとの色定義
   const colors = {
-    background: isDark ? '#303030' : '#EBF3FF',
+    background: isDark ? '#303030' : '#E3E5F2',
     overlayBackground: isDark
       ? '#303030'
-      : '#EBF3FF',
+      : '#E3E5F2',
     textPrimary: isDark ? '#FFFFFF' : '#000000',
     textSecondary: isDark ? '#BFC2CF' : '#555555',
   };

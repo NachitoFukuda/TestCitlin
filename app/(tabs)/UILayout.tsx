@@ -46,16 +46,25 @@ type ShopItem = {
 type Position = { gridX: number; gridY: number; };
 
 const PURCHASES_KEY = '@quiz:purchases';
-const TUTORIAL_KEY = '@quiz:tutorialDone';
+const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
 export default function UILayout() {
-  const [tutorialDone, setTutorialDone] = useState(false);
+  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
+  console.log('tutorialStep',tutorialDoneState)
 
-  useEffect(() => {
-    AsyncStorage.getItem(TUTORIAL_KEY).then(value => {
-      if (value === 'true') setTutorialDone(true);
-    });
+  React.useEffect(() => {
+    AsyncStorage.getItem(TUTORIAL_STEP_KEY)
+      .then(val => {
+        if (val !== null) {
+          setTutorialStep(val === 'true');
+        }
+      })
+      .catch(err => {
+        console.error('[Footer] Failed to load tutorial step:', err);
+        setTutorialStep(false);
+      });
   }, []);
+
 
   const [positions, setPositions] = useState<Record<string, Position | null>>({});
   const isFirstLoad = useRef(true);
@@ -151,7 +160,7 @@ export default function UILayout() {
   const [gridLayout, setGridLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
 
-  const addItemToGrid = (item: ShopItem) => {
+  const addItemToGrid = async (item: ShopItem) => {
     // 探索可能な最大グリッド座標
     const maxX = 4 - item.widthCells;
     const maxY = rowCount - item.heightCells;
@@ -188,10 +197,14 @@ export default function UILayout() {
     });
     // Removedリストから除外
     setRemovedWidgets(prev => prev.filter(w => w.id !== item.id));
-    // チュートリアル完了フラグを保存
-    AsyncStorage.setItem(TUTORIAL_KEY, 'true');
-    // ステートを更新して即座に再レンダー
-    setTutorialDone(true);
+    // チュートリアル完了ステップを保存
+    try {
+      await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
+      console.log('[UILayout] Tutorial step set to end in storage');
+    } catch (err) {
+      console.error('[UILayout] Failed to set tutorial step to end:', err);
+    }
+    setTutorialStep(true);
   };
 
   return (
@@ -380,7 +393,10 @@ export default function UILayout() {
         </View>          
       {/* --- ここまで：小さいグリッド --- */}
       {positionsLoaded && (() => {
-        const available = Object.values(purchases).filter(item => positions[item.id] == null);
+        // 配置可能アイテム一覧
+        const rawAvailable = Object.values(purchases).filter(item => positions[item.id] == null);
+        // チュートリアル未完了時は最初の1つだけ表示
+        const available = tutorialDoneState ? rawAvailable : rawAvailable.slice(0, 1);
         if (available.length === 0) {
           return (
             <TouchableOpacity
@@ -388,7 +404,7 @@ export default function UILayout() {
             >
                 <NeomorphBox
                   width={200}
-                  height={50} // isTransitioning の条件が同じ高さの場合は固定でも問題ありません
+                  height={50}
                   style={styles.neomorphBox}
                   forceTheme={'light'}
                 >
@@ -401,14 +417,29 @@ export default function UILayout() {
           <>
             <Text style={styles.bottomBarLabel}>配置可能なウィジェット</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bottomScroll}>
-              {available.map(item => (
+            {available.map((item, index) => {
+              // グリッドに配置されているアイテムをチェック
+              const isPlaced = positions[item.id] !== null;
+              if (isPlaced) return null; // 配置済みのアイテムは表示しない
+
+              return (
                 <View key={item.id} style={{ marginRight: 8, alignItems: 'center' }}>
                   <Text numberOfLines={1} style={styles.bottomItemText}>{item.name}</Text>
                   <TouchableOpacity
                     style={[styles.addButton, { position: 'relative' }]}
-                    onPress={() => addItemToGrid(item)}
+                    onPress={async () => {
+                      // アイテム追加 & 保存完了を待つ
+                      await addItemToGrid(item);
+                      try {
+                        await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
+                        console.log('[UILayout] Tutorial step set to end in storage');
+                      } catch (err) {
+                        console.error('[UILayout] Failed to set tutorial step to end:', err);
+                      }
+                      setTutorialStep(true);
+                    }}
                   >
-                    {item.id === 'start01' && (
+                    {tutorialDoneState  && (
                       <View style={{
                         position: 'absolute',
                         top: -20,
@@ -418,16 +449,18 @@ export default function UILayout() {
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
+                     {tutorialDoneState  && index == 0&& (
                         <TapIndicator
-                          size={80}
+                          size={160}
                           color="#000"
                           strokeWidth={2}
-                          duration={800}
+                          duration={1000}
                         />
+                        )}
                       </View>
                     )}
                     <View
-                    pointerEvents="none" 
+                      pointerEvents="none" 
                       style={{
                         width: '100%',
                         alignItems: 'center',
@@ -449,7 +482,7 @@ export default function UILayout() {
                           );
                         }
                         return (
-                          <View style={[ WIDGET_CONFIG[item.id as WidgetId]?.shopcontainerStyle]}>
+                          <View style={[WIDGET_CONFIG[item.id as WidgetId]?.shopcontainerStyle]}>
                             <Text style={WIDGET_CONFIG[item.id as WidgetId]?.titleText}>
                               {WIDGET_CONFIG[item.id as WidgetId]?.title ?? item.name}
                             </Text>
@@ -459,7 +492,8 @@ export default function UILayout() {
                     </View>
                   </TouchableOpacity>
                 </View>
-              ))}
+              );
+            })}
             </ScrollView>
           </>
         );
@@ -468,19 +502,19 @@ export default function UILayout() {
            <Footer
               activeIcon="layout"
               purchasesLength={Object.keys(purchases).length}
-              tutorialDone={tutorialDone}
-            />
+              pushButton={true}
+              />
       </>
   );
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, paddingTop: 70, backgroundColor: '#EBF3FF', alignItems: 'center' },
+  container:          { flex: 1, paddingTop: 70, backgroundColor: '#E3E5F2', alignItems: 'center' },
   item:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#FFF', marginBottom: 8, borderRadius: 8 },
   name:               { fontSize: 16 },
   price:              { fontSize: 14, color: '#888' },
   button: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 2,
@@ -492,7 +526,7 @@ const styles = StyleSheet.create({
 
   buttonDisabled:     { backgroundColor: '#AAA' },
   smallGridContainer: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     marginTop: 0,
     overflow: 'visible',
     alignSelf: 'center',

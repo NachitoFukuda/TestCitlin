@@ -6,7 +6,8 @@ import { FontAwesome5 } from '@expo/vector-icons';
 
 const POINTS_KEY = '@heatmap_data';
 const STEPS_KEY = '@steps_data';
-const CORRECT_KEY = '@correct_data';
+const CORRECT_KEY = 'correctData';
+const CORRECT_New_KEY = '@daily_correct_data';
 const GENERATED_KEY = '@generated_data';
 /**
  * 週次の学習ステータスと日別進捗、ステップカウントを
@@ -25,7 +26,7 @@ interface StreakProgressCardProps {
     const bgColor = color === 'brack'
       ? '#000000'
       : color === 'wight'
-      ? '#FFFFFF'
+      ? ''
       : '#1E1E1E';
     const textColor = color === 'brack'
       ? '#FFFFFF'
@@ -39,130 +40,128 @@ interface StreakProgressCardProps {
   const [todayGeneratedData, setTodayGeneratedData] = useState<any>(null);
   const [dayCount, setDayCount] = useState<number>(1);
   const [TodayaverageRate, setTodayaverageRate] = useState<number>(0);
-  const [counts, setcounts] = useState<number>(1);
+  const [counts, setCounts] = useState<number>(0);
+
+  
+  // 安全にデータを取得する関数
+  const safeGetData = async (key: string, defaultValue: any) => {
+    try {
+      const json = await AsyncStorage.getItem(key);
+      if (!json) return defaultValue;
+      return JSON.parse(json);
+    } catch (error) {
+      console.log(`[StreakProgressCard] Error loading ${key}:`, error);
+      return defaultValue;
+    }
+  };
 
   useEffect(() => {
-    AsyncStorage.getItem('@deadline_days')
-      .then(json => {
-        const deadlineData = json ? JSON.parse(json) : null;
-        console.log('[QuizEndComponent] Loaded @deadline_days:', deadlineData);
-        if (deadlineData && deadlineData.savedAt) {
+    const loadDeadlineDays = async () => {
+      try {
+        const deadlineData = await safeGetData('@deadline_days', null);
+        if (deadlineData?.savedAt) {
           const savedDate = new Date(deadlineData.savedAt);
-          // 正午をまたいでも日付差分を正しく取るため00:00にリセット
           savedDate.setHours(0, 0, 0, 0);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const diffTime = today.getTime() - savedDate.getTime();
-          // 日数を算出（保存日を1日目とする）
           const dayCount = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          setDayCount(dayCount)
-          console.log('[QuizEndComponent] Days since savedAt:', dayCount);
+          setDayCount(dayCount);
         }
-      })
-      .catch(err => {
-        console.error('[QuizEndComponent] Error loading @deadline_days:', err);
-      });
+      } catch (error) {
+        console.log('[StreakProgressCard] Error in loadDeadlineDays:', error);
+      }
+    };
+    loadDeadlineDays();
   }, []);
 
-  // Heatmap データ （matrixの最終行）と Steps を読み込む
   useEffect(() => {
-    AsyncStorage.getItem(POINTS_KEY)
-      .then(json => {
-        console.log('[StreakProgressCard] raw heatmap_data JSON:', json);
-        const parsed = json ? JSON.parse(json) : null;
-        console.log('[StreakProgressCard] parsed heatmap_data:', parsed);
-        if (parsed?.matrix && Array.isArray(parsed.matrix)) {
-          const lastWeek = parsed.matrix[parsed.matrix.length - 1];
-          setWeekData(lastWeek as number[]);
-        }
-      })
-      .catch(() => {});
-    AsyncStorage.getItem(STEPS_KEY)
-      .then(json => {
-        console.log('[StreakProgressCard] raw steps JSON:', json);
-        const cnt = json ? JSON.parse(json) : 0;
-        console.log('[StreakProgressCard] parsed steps count:', cnt);
-        setSteps(cnt);
-      })
-      .catch(() => {});
-
-    // 正解数を取得
-    AsyncStorage.getItem(CORRECT_KEY)
-      .then(json => {
-        const data = json ? JSON.parse(json) : {};
-        const values = Object.values(data);
-        const count2_3 = values.filter((obj: any) => obj && (obj.C === 2 || obj.C === 3)).length;
-        const count4_5 = values.filter((obj: any) => obj && (obj.C === 4 || obj.C === 5)).length;
-        const count6_7 = values.filter((obj: any) => obj && (obj.C === 6 || obj.C === 7)).length;
-        const count8_9 = values.filter((obj: any) => obj && (obj.C === 8 || obj.C === 9)).length;
-        const totalCorrect = count2_3 + count4_5 + count6_7 + count8_9;
-        setCorrectCount(totalCorrect);
-      })
-      .catch(() => {});
-
-    // 今日の目標を取得
-    AsyncStorage.getItem(GENERATED_KEY)
-      .then(json => {
-        const parsed = json ? JSON.parse(json) : [];
-        const today = new Date().getDate(); // 日付をキーに
-        let entry;
-        if (Array.isArray(parsed)) {
-          entry = parsed.find((item: any) => item.id === today);
-        } else {
-          entry = (parsed as Record<number, any>)[today];
-        }
-        // result 配列の合計値を「今日の目標」として設定
-        const goalValue = Array.isArray(entry?.result) 
-          ? (entry.result as number[]).reduce((sum, v) => sum + v, 0) 
-          : 0;
-        setTodayGoal(goalValue);
-      })
-      .catch(() => {});
-  }, []);
-
-
-  useEffect(() => {
-    (async () => {
+    const loadData = async () => {
       try {
-        const storedData = await AsyncStorage.getItem('@generated_data');
-        const generatedData = storedData ? JSON.parse(storedData) : [];
-        // IDがdayCountと一致するアイテムを取得
-        let matched: any = null;
+        // Heatmap データの読み込み
+        const heatmapData = await safeGetData(POINTS_KEY, { matrix: [] });
+        if (heatmapData?.matrix?.length > 0) {
+          const lastWeek = heatmapData.matrix[heatmapData.matrix.length - 1];
+          if (Array.isArray(lastWeek)) {
+            setWeekData(lastWeek);
+          }
+        }
+
+        // Steps データの読み込み
+        const stepsData = await safeGetData(STEPS_KEY, 0);
+        setSteps(typeof stepsData === 'number' ? stepsData : 0);
+
+        // 正解数の読み込み
+        const correctData = await safeGetData(CORRECT_KEY, {});
+        if (typeof correctData === 'object') {
+          const values = Object.values(correctData);
+          const count2_3 = values.filter((obj: any) => obj && (obj.C === 2 || obj.C === 3)).length;
+          const count4_5 = values.filter((obj: any) => obj && (obj.C === 4 || obj.C === 5)).length;
+          const count6_7 = values.filter((obj: any) => obj && (obj.C === 6 || obj.C === 7)).length;
+          const count8_9 = values.filter((obj: any) => obj && (obj.C === 8 || obj.C === 9)).length;
+          setCorrectCount(count2_3 + count4_5 + count6_7 + count8_9);
+        }
+
+        // 今日の目標の読み込み
+        const generatedData = await safeGetData(GENERATED_KEY, []);
+        let entry;
+        let entrytoday;
+        let yesterdays;
+        if (Array.isArray(generatedData)) {
+          entrytoday = generatedData.find((item: any) => item.id === dayCount);
+          const totalToday = Array.isArray(entrytoday?.result)
+            ? entrytoday.result.reduce((sum: number, val: number) => sum + val, 0)
+            : 0;
+          yesterdays = generatedData.find((item: any) => item.id === dayCount - 1) || { result: [0, 0, 0, 0, 0] };
+          const totalYesterday = Array.isArray(yesterdays?.result)
+            ? yesterdays.result.reduce((sum: number, val: number) => sum + val, 0)
+            : 0;
+          entry = totalToday - totalYesterday ;
+        } else if (typeof generatedData === 'object') {
+          entry = generatedData[dayCount];
+        }
+
+        setTodayGoal(entry);
+      } catch (error) {
+        console.log('[StreakProgressCard] Error in loadData:', error);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadGeneratedData = async () => {
+      try {
+        const generatedData = await safeGetData('@generated_data', []);
+        let matched = null;
         if (Array.isArray(generatedData)) {
           matched = generatedData.find((item: any) => item.id === dayCount);
         } else if (typeof generatedData === 'object') {
-          matched = (generatedData as Record<number, any>)[dayCount];
+          matched = generatedData[dayCount];
         }
         setTodayGeneratedData(matched);
-      } catch (err) {
-        console.error('[QuizEndComponent] Error loading @generated_data:', err);
+      } catch (error) {
+        console.log('[StreakProgressCard] Error in loadGeneratedData:', error);
       }
-    })();
+    };
+    loadGeneratedData();
   }, [dayCount]);
 
   useEffect(() => {
     (async () => {
       try {
-        const storedData = await AsyncStorage.getItem('correctData');
-        // もしデータがなければ空オブジェクトにフォールバック
-        const generatedData = storedData
-          ? (JSON.parse(storedData) as Record<string, { C?: number; L?: number }> )
-          : {};  
-        // 値オブジェクトだけ取り出す
-        const values = Object.values(generatedData);
-        const count2_3 = values.filter(obj => obj.C === 2 || obj.C === 3).length;
-        const count4_5 = values.filter(obj => obj.C === 4 || obj.C === 5).length;
-        const count6_7 = values.filter(obj => obj.C === 6 || obj.C === 7).length;
-        const count8_9 = values.filter(obj => obj.C === 8 || obj.C === 9).length;
-        const counts1 = [count2_3, count4_5, count6_7, count8_9];
-        // 配列の全要素を足し合わせ
-        const totalCount = counts1.reduce((sum, n) => sum + n, 0);
-        setcounts(totalCount)
-      } catch (err) {
-        console.error('[QuizEndComponent] Error loading correctData:', err);
+        const data = await safeGetData(CORRECT_New_KEY, {});
+        const todayKey = new Date().toISOString().split('T')[0];
+        if (data.hasOwnProperty(todayKey)) {
+          setCounts(data[todayKey]);
+        } else {
+          setCounts(0);
+        }
+      } catch (e) {
+        console.error('[StreakProgressCard] Error loading today correct data:', e);
       }
     })();
-  }, [todayGeneratedData]);
+  }, []);
 
   // 継続日数 = 連続で>0 の日数
   const streak = (() => {
@@ -213,9 +212,8 @@ interface StreakProgressCardProps {
             // Adjust radius so stroke sits inside SVG bounds to match dot size
             const adjustedRadius = radius - strokeWidth / 2;
             const adjustedCircumference = 2 * Math.PI * adjustedRadius;
-            const percentValue = todayGoal > 0 ? v / todayGoal : 0;
+            const percentValue = percent;
             const dashOffset = adjustedCircumference * (1 - percentValue);
-
             return (
               <View key={i} style={styles.dotWrapper}>
                 {isToday ? (
@@ -226,7 +224,7 @@ interface StreakProgressCardProps {
                     style={{ marginBottom: 4, transform: [{ rotate: '-90deg' }] }}
                   >
                     <Circle
-                      stroke="#555"
+                      stroke="#666"
                       fill="none"
                       cx={radius}
                       cy={radius}
@@ -245,25 +243,17 @@ interface StreakProgressCardProps {
                     />
                   </Svg>
                 ) : isFull ? (
-                  // Full achievement: green border + centered check
+                  // Full achievement: green border only
                   <View
                     style={[
                       styles.dot,
                       {
                         borderColor: '#4CD964',
                         borderWidth: 2,
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        backgroundColor: 'transparent',
                       },
-                      styles.dotActive,
                     ]}
-                  >
-                    <FontAwesome5
-                      name="check"
-                      size={12}
-                      color="#4CD964"
-                    />
-                  </View>
+                  />
                 ) : v > 0 ? (
                   // Partial achievement: gauge + red X, X centered
                   <View style={{
@@ -280,7 +270,7 @@ interface StreakProgressCardProps {
                       style={{ transform: [{ rotate: '-90deg' }] }}
                     >
                       <Circle
-                        stroke="#555"
+                        stroke="#666"
                         fill="none"
                         cx={radius}
                         cy={radius}
@@ -310,13 +300,12 @@ interface StreakProgressCardProps {
                     />
                   </View>
                 ) : isPast ? (
-                  // Past zero: show red X on grey dot, X centered
                   <View style={{
                     width: 20,
                     height: 20,
                     borderRadius: 10,
                     marginBottom: 4,
-                    backgroundColor: '#555',
+                    backgroundColor: '#666',
                     alignItems: 'center',
                     justifyContent: 'center',
                     position: 'relative',
@@ -333,8 +322,15 @@ interface StreakProgressCardProps {
                     />
                   </View>
                 ) : (
-                  // Future or no-data: simple grey dot
-                  <View style={[styles.dot, styles.dotInactive]} />
+                  // Future or no-data: transparent circle with border
+                  <View style={[
+                    styles.dot,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 2,
+                      borderColor: '#666',
+                    }
+                  ]} />
                 )}
                 <Text style={[styles.dotLabel, { color: textColor }]}>{weekdayLabels[i]}</Text>
               </View>

@@ -14,7 +14,7 @@ module.exports = {
     splash: {
       image: "./assets/images/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#EBF3FF"
+      backgroundColor: "#E3E5F2"
     },
       // app.config.js の expo.ios.infoPlist 部分
       ios: {

@@ -17,8 +17,8 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({ width, height, children, styl
 
   // 🌟 カラースキームに応じた色の設定
   const colors = {
-    outerBackground: isDark ? '#303030' : '#EBF3FF',
-    innerBackground: isDark ? '#303030' : '#EBF3FF',
+    outerBackground: isDark ? '#303030' : '#E3E5F2',
+    innerBackground: isDark ? '#303030' : '#E3E5F2',
     outerShadow: isDark ? '#555' : '#fff',
     innerShadow: isDark ? '#000' : '#BFC2CF',
   };

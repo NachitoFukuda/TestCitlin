@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Detail from '../../components/uistore/Detail';
 import {
   View,
   Text,
@@ -7,7 +8,10 @@ import {
   StyleSheet,
   Alert,
   Image,
+  Modal,
+  Dimensions
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import TapIndicator from '../../components/ui/TapIndicator';
 import { View as RNView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +22,8 @@ import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
 import { WidgetId } from '@/components/uistore/widgetConfig';
 import { ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 
 // UIstore.tsx 上部
 type ShopItem = {
@@ -30,67 +36,87 @@ type ShopItem = {
 };
 
 
-const SHOP_ITEMS: ShopItem[] = [
-  { id: 'start01', name: 'スタートボタン1', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
-  { id: 'start02', name: 'スタートボタン2', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
-  { id: 'start03', name: 'スタートボタン3', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
-  { id: 'start04', name: 'スタートボタン4', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
-  { id: 'start05', name: 'スタートボタン5', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
-  { id: 'start06', name: 'スタートボタン6', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
-  { id: 'chach01', name: '残高確認1', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
-  { id: 'chach02', name: '残高確認2', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
-  { id: 'chach03', name: '残高確認3', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
-  { id: 'chach04', name: '残高確認4', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
-  { id: 'chach05', name: '残高確認5', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
-  { id: 'chach06', name: '残高確認6', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
-  { id: 'Heatmap01', name: '学習履歴1', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'Heatmap02', name: '学習履歴2', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'Heatmap03', name: '学習履歴3', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'Heatmap04', name: '学習履歴4', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress01', name: '学習履歴5', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress02', name: '学習履歴6', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress03', name: '学習履歴7', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress04', name: '学習履歴8', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress05', name: '学習履歴9', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress06', name: '学習履歴10', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress07', name: '学習履歴11', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress08', name: '学習履歴12', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
+export const SHOP_ITEMS: ShopItem[] = [
+  { id: 'start01', name: 'Start Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
+  { id: 'start02', name: 'Start Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
+  { id: 'start05', name: 'Smart Start', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
+  { id: 'start06', name: 'Power Start', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
+  { id: 'start07', name: 'Light Start', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
+  { id: 'start08', name: 'Max Start', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
+  { id: 'start09', name: 'circle Start', price: 0, widthCells: 2, heightCells: 2, tag: 'button' },
+
+  { id: 'chach01', name: 'Balance Check Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
+  { id: 'chach02', name: 'Balance Check Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
+  { id: 'chach03', name: 'Account Snapshot', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
+  { id: 'chach04', name: 'Wallet View', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
+  { id: 'chach05', name: 'Quick Balance', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
+  { id: 'chach06', name: 'Full Balance', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
+  { id: 'chach07', name: 'My Coins Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
+  { id: 'chach08', name: 'My Coins Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
+
+  { id: 'TodayGool1', name: 'Daily Target', price: 0, widthCells: 2, heightCells: 1, tag: 'theme' },
+  { id: 'TodayGool2', name: 'Daily Target Pro', price: 0, widthCells: 2, heightCells: 1, tag: 'theme' },
+  { id: 'Howday1', name: 'Study Days', price: 0, widthCells: 2, heightCells: 1, tag: 'theme' },
+  { id: 'Howday2', name: 'Study Days Pro', price: 0, widthCells: 2, heightCells: 1, tag: 'theme' },
+
+  { id: 'Heatmap01', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'Heatmap02', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'Heatmap03', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'Heatmap04', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+
+  { id: 'WeekProgress01', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress02', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress03', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress04', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress05', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress06', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress07', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress08', name: 'Weekly Tracker Mini B', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
 ];
 
 const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
 const POSITIONS_KEY = '@quiz:positions';
-const TUTORIAL_KEY = '@quiz:tutorialDone';
+const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 const TAGS = ['button', 'sticker', 'theme'] as const;
 const TAG_LABELS: Record<typeof TAGS[number], string> = {
-  button: 'ボタン',
+  button: 'Start Button',
   sticker: '残高確認',
   theme: '学習履歴',
 };
 
 export default function UIstore() {
+  const [overlayItem, setOverlayItem] = useState<ShopItem | null>(null);
+  const router = useRouter();
   const [points,    setPoints]    = useState<number>(0);
   const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
   const [positions, setPositions] = useState<Record<string, { gridX: number; gridY: number }>>({});
   const [selectedTag, setSelectedTag] = useState<typeof TAGS[number]>('button');
-  const [tutorialDone, setTutorialDone] = useState<boolean>(false);
+  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
+  const [pushButton, seTpushButton] = React.useState<boolean>(false);
+  console.log(pushButton)
+  // ボタンタップ時に呼び出されるコールバック
+  const handleButtonTap = (buttontap: boolean) => {
+    seTpushButton(buttontap);
+  };
 
+  console.log('shopチュートリアル進捗step', tutorialDoneState);
   useFocusEffect(
     useCallback(() => {
-      const fetchTutorialStatus = async () => {
-        try {
-          const value = await AsyncStorage.getItem(TUTORIAL_KEY);
-          if (value === 'true') {
-            setTutorialDone(true);
-          }
-        } catch (e) {
-          console.error('❌ チュートリアル状態の取得に失敗:', e);
+      let isActive = true;
+      const handleFocus = async () => {
+        // 既存テーマ読込…
+        // → ここでチュートリアルステップも読み直す
+        const val = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
+        if (isActive && val !== null) {
+          setTutorialStep(val === 'true');
         }
       };
-
-      fetchTutorialStatus();
+      handleFocus();
+      return () => { isActive = false; };
     }, [])
   );
+
   useEffect(() => {
     (async () => {
       // ポイント読み込み
@@ -110,29 +136,20 @@ export default function UIstore() {
     })();
   }, []);
 
-  // 購入処理
-  const buyItem = async (item: ShopItem) => {
-    if (points < item.price) {
-      Alert.alert('エラー', 'ポイントが不足しています');
-      return;
-    }
-    const newPoints    = points - item.price;
-    const newPurchases = { ...purchases, [item.id]: item };
+  const screenWidth = Dimensions.get('window').width;
+  const nyumoWidth = screenWidth* 0.45
 
-    await AsyncStorage.setItem(POINTS_KEY, JSON.stringify(newPoints));
-    await AsyncStorage.setItem(PURCHASES_KEY, JSON.stringify(newPurchases));
-    // state 更新
-    setPoints(newPoints);
-    setPurchases(newPurchases);
-    Alert.alert('購入完了', `${item.name} を購入しました！`);
-  };
+
   const filteredItems = SHOP_ITEMS.filter(item => item.tag === selectedTag);
+  // アイコンの大きさ（TapIndicatorで使う）
+  const iconWrapperSize = 48;
+  const displayItems = tutorialDoneState ? filteredItems : filteredItems.slice(0, 1);
   return (
     <>
     <View style={styles.simpleHeader}>
         <Text style={styles.simpleHeaderText}>₵ {points}</Text>
     </View>
-    <View style={{ height: 40, backgroundColor: '#EBF3FF' }}>
+    <View style={{ height: 40, backgroundColor: '#E3E5F2' }}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -163,122 +180,167 @@ export default function UIstore() {
 
       {/* 商品リスト */}
       <FlatList
-        data={filteredItems}
+        data={displayItems}
         keyExtractor={i => i.id}
         numColumns={2}
         contentContainerStyle={{ paddingBottom: 140 }}
-        renderItem={({ item }) => (
-          <View style={WIDGET_CONFIG[item.id]?.component ? styles.card1 : styles.card}>
-              {WIDGET_CONFIG[item.id]?.component ? (() => {
-                const Widget = WIDGET_CONFIG[item.id]!.component!;
-                const props = WIDGET_CONFIG[item.id]!.getDefaultProps
-                  ? WIDGET_CONFIG[item.id]!.getDefaultProps!(item)
-                  : {};
-                return (
+        renderItem={({ item, index }) => (
+          <TouchableOpacity
+            style={WIDGET_CONFIG[item.id]?.component ? styles.card1 : styles.card}
+            onPress={() => {
+              setOverlayItem(item);
+            }}
+          >
+            <NeomorphBox
+              width={nyumoWidth}
+              height={item.widthCells === 2 && item.heightCells === 2 ? nyumoWidth * 1.5 : nyumoWidth}
+              forceTheme={'light'}
+            >
+            {tutorialDoneState === false && index === 0 && !pushButton  &&(
+              <TapIndicator
+                size={iconWrapperSize * 2.4}
+                color={'#000'}
+                strokeWidth={2}
+                duration={1000}
+              />
+            )}
+            {WIDGET_CONFIG[item.id]?.component ? (() => {
+              const Widget = WIDGET_CONFIG[item.id]!.component!;
+              const props = WIDGET_CONFIG[item.id]!.getDefaultProps
+                ? WIDGET_CONFIG[item.id]!.getDefaultProps!(item)
+                : {};
+              return (
                   <View
                     style={{
-                      alignSelf: 'center',       // 横中央に
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      paddingTop: 0,
-                      marginTop: 0,
+                      flex: 1,
+                      top: 0,
                     }}
                   >
                     <Widget {...props} fromShop={true}/>
                   </View>
-                );
-              })() : (
-                <View style={[ WIDGET_CONFIG[item.id]?.shopcontainerStyle]}>
-                  <Text style={WIDGET_CONFIG[item.id]?.titleText}>
-                    {WIDGET_CONFIG[item.id]?.title ?? item.name}
-                  </Text>
-                </View>
-              )}
+              );
+            })() : (
+                <>
+                </>
+            )}
+                  <View
+                    style={{
+                      flex: 1,
+                      top: item.widthCells === 2 && item.heightCells === 2 ? 35 : 0,
+                      width:'70%',
+                    }}
+                  >
               <Text style={[styles.name]}>
                 {item.name}
               </Text>
-            <Text style={styles.price}>{item.price} ₵</Text>
+              <Text style={styles.price}> ₵{item.price}</Text>
+            </View>
+            </NeomorphBox>
+          </TouchableOpacity>
+        )}
+      />
+      {overlayItem && (
+        <Modal transparent animationType="slide" onRequestClose={() => setOverlayItem(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <Detail 
+              item={overlayItem} 
+              onButtonTap={handleButtonTap}
+            />
             <TouchableOpacity
-              style={[
-                styles.button,
-                purchases[item.id] && styles.buttonDisabled,
-                { position: 'relative' },
-              ]}
-              disabled={!!purchases[item.id]}
-              onPress={() => buyItem(item)}
+              style={styles.closeButton}
+              onPress={() => setOverlayItem(null)}
             >
-              {item.id === 'start01' && !purchases[item.id] && (
-                <View style={{ position: 'absolute', top: -20, left: -20, right: -20, bottom: -20, alignItems: 'center', justifyContent: 'center' }}>
-                  <TapIndicator
-                    size={80}
-                    color="#000"
-                    strokeWidth={2}
-                    duration={800}
-                  />
-                </View>
-              )}
-              <Text style={styles.buttonText}>
-                {purchases[item.id] ? '購入済み' : '購入する'}
-              </Text>
+              <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+                {pushButton &&(
+                  <View style={{ position: 'absolute', top: -iconWrapperSize * 1, left: -iconWrapperSize * 1}}>
+                    <TapIndicator
+                      size={iconWrapperSize * 2.4}
+                      color={'#000'}
+                      strokeWidth={2}
+                      duration={1000}
+                    />
+                  </View>
+                )}
+                <Ionicons name="chevron-back" size={24} color="#000" />
+              </View>
             </TouchableOpacity>
           </View>
-        )}
-        ListEmptyComponent={<Text>ショップアイテムがありません</Text>}
-      />
+        </Modal>
+      )}
     </View>
-    <Footer activeIcon="shop" purchasesLength={Object.keys(purchases).length} tutorialDone={tutorialDone}/>
+    <Footer activeIcon="shop" purchasesLength={Object.keys(purchases).length} tutorialDone={tutorialDoneState} pushButton={pushButton}/>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    backgroundColor: '#E3E5F2',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    zIndex: 10,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     paddingTop: 8,
   },
   simpleHeader: {
     width: '100%',
     paddingVertical: 35,
     paddingHorizontal: 17,
-    backgroundColor: '#000',
+    backgroundColor: '#E3E5F2',
+
   },
   simpleHeaderText: {
     top: 14,
-    color: '#fff',
+    color: '#000',
     paddingHorizontal: 14,
     alignSelf: 'flex-end',
     fontSize: 25,
     fontWeight: '200',
   },
+  shopcontainerStyle: {
+    backgroundColor: '#000',
+
+  },
   tabContainer: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     width: '100%',
     marginLeft: 8,
     marginTop: 8,
   },
   tabButton: {
-    marginRight: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: '#EBF3FF',
-    borderWidth: 1,
-    borderColor: '#000',
+    marginRight: 3,
+    paddingHorizontal: 20,
+    backgroundColor: '#E3E5F2',
+    alignItems: 'center',
   },
   tabButtonActive: {
-    backgroundColor: '#000',
-    borderWidth: 1,
+    backgroundColor: '#E3E5F2',
   },
   tabButtonText: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: 18,
+    color: 'rgba(0, 0, 0, 0.5)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(0, 0, 0, 0.2)',
   },
   tabButtonTextActive: {
-    color: '#EBF3FF',
+    color: '#000',
+    borderBottomWidth: 2,
+    borderBottomColor: '#000',
   },
   card: {
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#FFF',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#000',
@@ -288,25 +350,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card1: {
-    backgroundColor: '#EBF3FF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#000',
+
     width: '45%',
-    paddingTop:10,
+    paddingTop:5,
     margin: 8,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   name: {
-    fontSize: 16
+    marginTop:20,
+    fontSize: 16,
+    fontWeight: '200',
+
    },
   price:{
-    fontSize: 14,
+    marginTop:3,
+    fontSize: 20,
+    fontWeight: '500',
+    color: '#666',
    },
   button: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#E3E5F2',
     borderWidth: 1,
     borderColor: '#000',
     paddingVertical: 6,

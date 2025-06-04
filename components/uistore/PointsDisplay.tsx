@@ -13,11 +13,13 @@ interface PointsDisplayProps {
   fromShop?: boolean;
   size?: string;
   shape?: string;
+  desigin: string;
 }
 const PointsDisplay: React.FC<PointsDisplayProps> = ({
   fromShop = false,
   size = '',
   shape = 'rounded',
+  desigin,
 }) => {
   const [points, setPoints] = useState<number>(0);
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -62,14 +64,15 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
   const screenWidth = Dimensions.get('window').width;
   // ベース幅の定義（short:40%, default:90%）
   const defaultWidth = screenWidth * 0.9;
-  const shortWidth = screenWidth * 0.4;
+  const shortWidth = screenWidth * 0.45;
   const baseWidth = size === 'short' ? shortWidth : defaultWidth;
   // fromShop が true のとき幅を 0.5 倍
-  const width = fromShop ? baseWidth * 0.4 : baseWidth;
+  const width = fromShop ? baseWidth * 0.45 : baseWidth;
   // ベース高さの定義
-  const defaultHeight = 70;
+  const defaultHeight = fromShop ? shortWidth * 0.2:shortWidth * 0.4 ;
   // fromShop が true のとき高さを 0.5 倍
-  const height = fromShop ? defaultHeight * 0.5 : defaultHeight;
+  const height = defaultHeight;
+  const cobtainerhight = screenWidth / 4;
 
   // borderRadius を shape に応じて設定
   let borderRadiusValue = 60;
@@ -83,12 +86,12 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
   const valueFontSize = fromShop ? 12 : 20;
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{justifyContent: 'center', alignItems: 'center', height:cobtainerhight,}}>
       {shape === 'numo' ? (
         <NeomorphBox
           width={width}
           height={height}
-          forceTheme="light"
+          variant={desigin === 'rainbow' ? 'AI' : undefined}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <Text style={[styles.label, { fontSize: labelFontSize }]}>₵</Text>
@@ -125,11 +128,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    color: '#333',
+    color: '#666',
     marginRight: 4,
   },
   value: {
     fontSize: 18,
+    color: '#666',
     fontWeight: 'bold',
   },
 });

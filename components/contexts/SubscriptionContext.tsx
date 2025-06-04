@@ -1,6 +1,5 @@
 // components/contexts/SubscriptionContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import Purchases from 'react-native-purchases';
 
 type SubscriptionContextType = {
   isSubscribed: boolean;
@@ -20,10 +19,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const refresh = async () => {
     try {
-      const info = await Purchases.getCustomerInfo();
-      setCustomerInfo(info);
-      const active = info?.entitlements?.active;
-      setIsSubscribed(active && Object.keys(active).length > 0);
     } catch {
       setIsSubscribed(false);
       setCustomerInfo(null);

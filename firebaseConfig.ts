@@ -1,9 +1,7 @@
 import Constants from 'expo-constants';
 import { initializeApp, getApps } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
-import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore'; // ← 追加
-import { getAuth } from 'firebase/auth';
 
 interface AppConfigExtra {
   FIREBASE_API_KEY: string;
@@ -37,8 +35,6 @@ const app =
 
 // storage と Realtime Database を app にバインドしてエクスポート
 export const storage = getStorage(app);
-export const rtdb = getDatabase(app);
-export const auth = getAuth(app);
 // （必要に応じて Firestore を以下のように追加可能）
 // import { getFirestore } from 'firebase/firestore';
 // export const firestore = getFirestore(app);

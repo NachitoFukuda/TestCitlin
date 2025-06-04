@@ -5,13 +5,108 @@ import LearningSchedule from './LearningSchedule';
 import NeomorphBox from '../ui/NeomorphBox';
 import LottieView from 'lottie-react-native';
 import NotificationSetup from './NotificationSetup';
-import CalendarView from './CalendarView';
-
+import { useGenerateCalendarData } from '@/hooks/useGeneratedData';
+import { JsonData } from '../etc/types';
 interface InitialSetupProps {
   onSetupComplete: () => void;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+// カスタムフックを作成
+const useCalendarDataGeneration = (
+  currentStep: number,
+  dailyWordCount: number,
+  learningDays: number,
+  deadlineDays: number,
+  selectedLevel: string | null
+) => {
+  useEffect(() => {
+    if (currentStep === 5) {
+      console.log('[InitialSetup] Starting calendar data generation with:', {
+        dailyWordCount,
+        learningDays,
+        deadlineDays,
+        selectedLevel
+      });
+
+      // 現在の日付を基準に計算
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // 締切日を計算
+      const deadlineDate = addDays(today, deadlineDays);
+      const diffDays = deadlineDays;
+      
+      console.log('[InitialSetup] Date calculations:', {
+        today,
+        deadlineDate,
+        diffDays
+      });
+      const getTotalWordsByLevel = (level: string | null): number => {
+        switch(level) {
+          case '3':
+            return 1000;
+          case '2_5':
+            return 1220; 
+          case '2':
+            return 2300; 
+          case '1_5':
+            return 3400; 
+          case '1':
+            return 3200; 
+          default:
+            return 1000; // デフォルトの値
+        }
+      };
+      const maxValue = getTotalWordsByLevel(selectedLevel);
+      const divisor = diffDays - 41;
+
+      console.log('[InitialSetup] Generation parameters:', {
+        selectedLevel,
+        maxValue,
+        divisor,
+        diffDays,
+        dailyWordCount,
+        learningDays
+      });
+
+      const generatedData: JsonData[] = [];
+      for (let i = 1; i < diffDays; i++) {
+        const firstValue = Math.min(Math.floor((maxValue / divisor) * i), maxValue);
+        const secondValue = i < 1 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 1)), maxValue);
+        const thirdValue = i < 6 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 6)), maxValue);
+        const fourthValue = i < 19 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 19)), maxValue);
+        const fifthValue = i < 39 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 39)), maxValue);
+
+        generatedData.push({
+          id: i,
+          result: [firstValue, secondValue, thirdValue, fourthValue, fifthValue],
+        });
+      }
+
+      console.log('[InitialSetup] Generated data summary:', {
+        firstDay: generatedData[0],
+        lastDay: generatedData[generatedData.length - 1],
+        totalDays: generatedData.length,
+        sampleValues: generatedData.slice(0, 3)
+      });
+
+      // データを保存
+      AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData))
+        .then(() => {
+          console.log('[InitialSetup] Data generation and storage complete');
+        })
+        .catch((error) => {
+          console.error('[InitialSetup] Error saving data:', error);
+        });
+    }
+  }, [currentStep, dailyWordCount, learningDays, deadlineDays, selectedLevel]);
+};
 
 const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -24,10 +119,10 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
     'こんにちは', 
     'citlinでは、\n英検3級から\n1級までを、\n最後まで『無料』で\n学習することができます！！✨',
     'AIが最適な\nタイミングで復習するべき問題を\n出題！',
-    'どの級を学習する？',  // ← ステップ10
-    '',  // 11
-    '学習時間を通知で知らせる？',  // 12
-    '学習を始めよう！！',  // 13
+    'どの級を学習する？',  
+    '',  
+    '学習時間を通知で知らせる？', 
+    '学習を始めよう！！',  
   ];
 
   // 各ステップに応じたフォントサイズ・位置
@@ -51,6 +146,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [dailyWordCount, setDailyWordCount] = useState(10);
   const [learningDays, setLearningDays] = useState(0);
   const [savedDeadlineDays, setSavedDeadlineDays] = useState<number | null>(null);
+  const [isDataSaved, setIsDataSaved] = useState(false);
 
   // 学習する級の選択用ステート
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -90,16 +186,51 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // currentStep が 12 のときに保存済みの期限日数を取得
   useEffect(() => {
-    if (currentStep === 12) {
+    if (currentStep === 5) {
       AsyncStorage.getItem('@deadline_days')
         .then((deadline) => {
           if (deadline !== null) {
-            setSavedDeadlineDays(parseInt(deadline, 10));
+            const deadlineData = JSON.parse(deadline);
+            console.log('[InitialSetup] Loaded deadline data:', deadlineData);
+            setSavedDeadlineDays(deadlineData.days);
+            setIsDataSaved(true);
           }
         })
-        .catch(() => {});
+        .catch((error) => {
+          console.error('[InitialSetup] Error loading deadline data:', error);
+        });
     }
   }, [currentStep]);
+
+  // カレンダーデータ生成フックを使用
+  useCalendarDataGeneration(
+    currentStep,
+    dailyWordCount,
+    learningDays,
+    deadlineDays,
+    selectedLevel
+  );
+
+  // 現在の日付を基準に計算
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 締切日を計算
+  const deadlineDate = addDays(today, deadlineDays);
+  const diffDays = deadlineDays;
+  const getTotalWordsByLevel = (level: string | null): number => {
+    switch (level) {
+      case '3': return 1000;
+      case '2_5': return 1220;
+      case '2': return 2300;
+      case '1_5': return 3400;
+      case '1': return 3200;
+      default: return 1000;
+    }
+  };
+  // 目標単語数と分割数
+  const maxValue = getTotalWordsByLevel(selectedLevel);
+  const divisor = diffDays - 41;
 
   // 次へ or 決定ボタン
   const handleNext = () => {
@@ -132,24 +263,27 @@ const handleSelectLevel = (level: string) => {
     });
 };
 
-
   // スケジュールを保存
   const handleSave = async () => {
     try {
       const currentDate = new Date().toISOString();
       if (scheduleOption === 'deadline') {
-        if (deadlineDays >= 50) {
+        if (deadlineDays >= 40) {
           const deadlineData = { days: deadlineDays, savedAt: currentDate };
           await AsyncStorage.setItem('@deadline_days', JSON.stringify(deadlineData));
+          console.log('[InitialSetup] Saved deadline data:', deadlineData);
+          setIsDataSaved(true);
           Alert.alert('作成成功', `${deadlineDays}日間の予定を立てたよ！`);
           handleNext();
         } else {
           Alert.alert('作成失敗', '単語数が選択できてないよ！');
         }
       } else if (scheduleOption === 'daily') {
-        if (learningDays >= 50) {
+        if (learningDays >= 40) {
           const learningData = { days: learningDays, savedAt: currentDate };
           await AsyncStorage.setItem('@deadline_days', JSON.stringify(learningData));
+          console.log('[InitialSetup] Saved learning data:', learningData);
+          setIsDataSaved(true);
           Alert.alert('作成成功', `${learningDays}日間の予定を立てたよ！`);
           handleNext();
         } else {
@@ -173,7 +307,6 @@ const handleSelectLevel = (level: string) => {
 
   // LottieView参照
   const confettiRef = useRef<LottieView>(null);
-
 
   return (
     <View style={styles.container}>
@@ -336,7 +469,6 @@ const handleSelectLevel = (level: string) => {
             </View>
           )}
 
-          {/* ステップ12: 学習スケジュール */}
           {currentStep === 4 && (
             <LearningSchedule
               dailyWordCount={dailyWordCount}
@@ -348,20 +480,11 @@ const handleSelectLevel = (level: string) => {
             />
           )}
 
-          {currentStep === 5 &&
-          <>
-              <CalendarView
-              dailyWordCount={dailyWordCount}
-              learningDays={learningDays}
-              deadlineDays={deadlineDays}
-              selectedLevel={selectedLevel}
-            />
-           <NotificationSetup />
-           </>
-           }
-
-
-          {/* 小テストUI（LongWidget）の例：ステップ1～7で表示 */}
+          {currentStep === 5 && (
+            <>
+                <NotificationSetup />
+            </>
+          )}
 
         </View>
       </NeomorphBox>
@@ -390,7 +513,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,

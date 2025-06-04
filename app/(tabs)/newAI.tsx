@@ -1,12 +1,9 @@
 // StrictMode やリマウントによる二重実行を防ぐモジュールスコープのフラグ
-let hasSubmitted = false;
-import React, { useState, useEffect, useRef } from 'react';
-import { LayoutAnimation, UIManager } from 'react-native';
-// Android で LayoutAnimation を有効化
+import React, { useState} from 'react';
+import { UIManager } from 'react-native';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -17,65 +14,71 @@ import {
   KeyboardAvoidingView, 
   Platform,
   Alert,
-  Image,
-  Button,
   Dimensions,
-  Keyboard,
-  ActivityIndicator
+  ActivityIndicator,
+  Image
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { X, ChevronLeft, ChevronRight, Plus, Minus } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import Colors from '@/constants/Colors';
-import { defaultPersonalities } from '../../constants/personalities';
-import { Personality } from '@/types';
+import { Plus, Minus, Image as ImageIcon } from 'lucide-react-native';
 import { useSessionStorage } from '../../hooks/useSessionStorage';
 import { generateUniqueId } from '../../utils/helpers';
-import AgePicker from '@/components/AIchat/AgePicker';
-import PersonalityPicker from '@/components/AIchat/PersonalityPicker';
-import CatchphraseTicEditor from '@/components/AIchat/CatchphraseTicEditor';
 import { useCharacterPrompt } from '@/hooks/useCharacterPrompt';
 import NeomorphBox from '@/components/ui/NeomorphBox';
+import { Picker } from '@react-native-picker/picker';
+import * as ImagePicker from 'expo-image-picker';
 
 const characterQuestions = [
   {
     icon: '🗣',
     label: 'キャラの名前',
     question: 'このキャラの名前は？',
-    usage: 'プロンプト冒頭・呼びかけ・一人称整理に使う',
+  },
+  {
+    icon: '👋',
+    label: 'あなたの名前・ニックネーム',
+    question: 'このキャラに、あなたはどう呼ばれたいですか？',
+    sampleAnswers: ['先生', '先輩', 'お姉さん', 'お兄さん', 'マスター', 'ボス'],
   },
   {
     icon: '💬',
     label: '話し方の特徴（口調）',
-    question: 'このキャラはどんな話し方をしますか？\n（例：丁寧で落ち着いた話し方／子供っぽく元気／皮肉まじりで冷静）',
-    usage: 'GPTのセリフ生成の全体トーンを制御',
+    question: 'このキャラはどんな話し方をしますか？',
+    sampleAnswers: ['丁寧で落ち着いた話し方', '子供っぽく元気', '皮肉まじりで冷静'],
+  },
+  {
+    icon: '🎭',
+    label: '語尾の特徴',
+    question: 'このキャラの語尾の特徴は？',
+    sampleAnswers: ['です・ます', 'だよ・だね', 'わ・わよ', 'にゃ・にゃん', '～っす', '～でござる'],
   },
   {
     icon: '😼',
     label: '性格・雰囲気',
-    question: 'このキャラの性格を一言で言うと？\n（例：明るく元気／クールで冷たいけど優しい／ツンデレで素直じゃない）',
-    usage: 'GPTの反応・感情表現の基礎になる',
+    question: 'このキャラの性格を一言で言うと？',
+    sampleAnswers: ['明るく元気', 'クールで冷たいけど優しい', 'ツンデレで素直じゃない'],
   },
   {
     icon: '📚',
-    label: '英語を教えるときの接し方（teaching_style）',
-    question: 'このキャラは、英語を教えるときにどんな雰囲気で接してくれますか？\n（例：やさしく説明してくれる／ドSに詰めてくる／無言でヒントだけ出す）',
-    usage: '指導スタンスをコントロール（冷静？熱血？距離感ある？）',
+    label: '英語を教えるときの接し方',
+    question: 'このキャラは、英語を教えるときにどんな雰囲気で接してくれますか？',
+    sampleAnswers: ['やさしく説明してくれる', 'ドSに詰めてくる', '無言でヒントだけ出す'],
   },
   {
     icon: '🎉',
     label: '褒めるときの言い方',
-    question: 'このキャラは正解したとき、どんなふうに褒めてくれますか？\n（例：「すごーい！」「……ふふ、悪くないわね」）',
-    usage: 'ユーザーへの"ご褒美セリフ"の生成用テンプレ',
+    question: 'このキャラは正解したとき、どんなふうに褒めてくれますか？',
+    sampleAnswers: ['すごーい！', 'ふふ、悪くないわね', 'よくできました！'],
   },
   {
     icon: '🤔',
     label: '間違えたときの反応',
-    question: 'このキャラは、あなたが英語を間違えたときにどんな反応をしますか？\n（例：「あらあら、もう一回やってみて？」／「バカ！違うに決まってるでしょ」）',
-    usage: '正誤フィードバックの演出。AIの"ムード調整弁"',
+    question: 'このキャラは、あなたが英語を間違えたときにどんな反応をしますか？',
+    sampleAnswers: ['あらあら、もう一回やってみて？', 'バカ！違うに決まってるでしょ', '惜しい！もう少し考えてみよう'],
   },
 ];
+
+const boxWidth = Dimensions.get('window').width * 0.9;
+const inputWidth = Dimensions.get('window').width * 0.7;
 
 export default function CharacterFormScreen() {
   const router = useRouter();
@@ -83,6 +86,18 @@ export default function CharacterFormScreen() {
   const { generateCharacterPrompt } = useCharacterPrompt();
   const [answers, setAnswers] = useState<string[]>(Array(characterQuestions.length).fill(''));
   const [isLoading, setIsLoading] = useState(false);
+  const [gender, setGender] = useState<string>('未選択');
+  const [age, setAge] = useState<string>('20');
+  const [expandedQuestions, setExpandedQuestions] = useState<number[]>([]);
+  const [imageUri, setImageUri] = useState<string | undefined>(undefined);
+
+  const toggleQuestion = (idx: number) => {
+    setExpandedQuestions(prev => 
+      prev.includes(idx) 
+        ? prev.filter(i => i !== idx)
+        : [...prev, idx]
+    );
+  };
 
   // 画面がマウントされるたびにローディングをリセット
   React.useEffect(() => {
@@ -121,7 +136,7 @@ export default function CharacterFormScreen() {
     const charPrompt = await generateCharacterPrompt(
       personality,
       id, // chatId
-      undefined, // imageUri
+      imageUri, // imageUri
       undefined, // parentPrompt
     );
     await createSession({
@@ -129,7 +144,7 @@ export default function CharacterFormScreen() {
       personality,
       nickname: answers[0],
       prompt: charPrompt,
-      imageUri: null,
+      imageUri: imageUri,
       messages: [],
       createdAt: Date.now(),
       lastModified: Date.now(),
@@ -137,30 +152,160 @@ export default function CharacterFormScreen() {
     router.push({ pathname: '/AIChat', params: { chatId: id } });
   };
 
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('申し訳ありません', '画像を選択するにはカメラロールへのアクセス許可が必要です。');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#EBF3FF' }}
+      style={{ flex: 1, backgroundColor: '#E3E5F2' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
       <ScrollView contentContainerStyle={{ ...styles.container, paddingBottom: 16 }}>
-        <Text style={styles.title}>キャラクター作成フォーム</Text>
-        {characterQuestions.map((q, idx) => (
-          <View key={idx} style={styles.questionBlock}>
-            <Text style={styles.label}>{q.icon}【{q.label}】</Text>
-            <Text style={styles.question}>{q.question}</Text>
-            <TextInput
-              style={styles.input}
-              value={answers[idx]}
-              onChangeText={text => handleChange(text, idx)}
-              placeholder="ここに入力..."
-              multiline
-            />
-            <Text style={styles.usage}>用途：{q.usage}</Text>
+        <Text style={styles.title}>推しを作ろう！</Text>
+
+        {/* 画像選択 */}
+        <NeomorphBox
+          width={boxWidth}
+          height={250}
+          style={styles.neomorphBox}
+          forceTheme="light"
+        >
+          <Text style={styles.bigLabel}>🖼️ 推しの顔</Text>
+          <TouchableOpacity 
+            style={styles.imagePickerButton} 
+            onPress={pickImage}
+          >
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.selectedImage} />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <ImageIcon size={40} color="#666" />
+                <Text style={styles.imagePlaceholderText}>タップして画像を選択</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </NeomorphBox>
+
+        {/* 性別選択 */}
+        <NeomorphBox
+          width={boxWidth}
+          height={200}
+          style={styles.neomorphBox}
+          forceTheme="light"
+        >
+          <Text style={styles.bigLabel}>👤 推しの性別</Text>
+          <View style={[styles.selectionContainer, { width: inputWidth, alignSelf: 'center' }]}>
+            <TouchableOpacity
+              style={[styles.selectionButton, gender === '男性' && styles.selectedButton]}
+              onPress={() => setGender('男性')}
+            >
+              <Text style={[styles.selectionButtonText, gender === '男性' && styles.selectedButtonText]}>男性</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.selectionButton, gender === '女性' && styles.selectedButton]}
+              onPress={() => setGender('女性')}
+            >
+              <Text style={[styles.selectionButtonText, gender === '女性' && styles.selectedButtonText]}>女性</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.selectionButton, gender === 'その他' && styles.selectedButton]}
+              onPress={() => setGender('その他')}
+            >
+              <Text style={[styles.selectionButtonText, gender === 'その他' && styles.selectedButtonText]}>その他</Text>
+            </TouchableOpacity>
           </View>
+        </NeomorphBox>
+
+        {/* 年齢選択 */}
+        <NeomorphBox
+          width={boxWidth}
+          height={200}
+          style={styles.neomorphBox}
+          forceTheme="light"
+        >
+          <Text style={styles.bigLabel}>🎂 推しの年齢</Text>
+          <View style={[styles.pickerContainer, { width: inputWidth, alignSelf: 'center' }]}>
+            <Picker
+              selectedValue={age}
+              onValueChange={(itemValue) => setAge(itemValue)}
+              style={styles.picker}
+              itemStyle={styles.pickerItem}
+            >
+              {Array.from({ length: 83 }, (_, i) => i + 5).map((age) => (
+                <Picker.Item
+                  key={age}
+                  label={`${age}歳`}
+                  value={age.toString()}
+                  style={styles.pickerItem}
+                />
+              ))}
+            </Picker>
+          </View>
+        </NeomorphBox>
+
+        {characterQuestions.map((q, idx) => (
+          <NeomorphBox
+            key={idx}
+            width={boxWidth}
+            height={expandedQuestions.includes(idx) ? 250 : 150}
+            style={styles.neomorphBox}
+            forceTheme="light"
+          >
+            <Text style={styles.bigLabel}>{q.icon} {q.label}</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                value={answers[idx]}
+                onChangeText={text => handleChange(text, idx)}
+                placeholder="ここに入力..."
+                multiline
+              />
+              <TouchableOpacity
+                style={styles.expandButton}
+                onPress={() => toggleQuestion(idx)}
+              >
+                {expandedQuestions.includes(idx) ? (
+                  <Minus size={20} color="#666" />
+                ) : (
+                  <Plus size={20} color="#666" />
+                )}
+              </TouchableOpacity>
+            </View>
+            {expandedQuestions.includes(idx) && q.sampleAnswers && q.sampleAnswers.length > 0 && (
+              <View style={styles.sampleAnswersContainer}>
+                {q.sampleAnswers.map((sample, sampleIdx) => (
+                  <TouchableOpacity
+                    key={sampleIdx}
+                    style={styles.sampleAnswerButton}
+                    onPress={() => handleChange(sample, idx)}
+                  >
+                    <Text style={styles.sampleAnswerText}>{sample}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </NeomorphBox>
         ))}
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>送信</Text>
+          <Text style={styles.submitButtonText}>推しを作る！</Text>
         </TouchableOpacity>
       </ScrollView>
       {isLoading && (
@@ -183,14 +328,23 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 60,
     marginTop: 100,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
+    alignItems: 'center',
   },
   title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 32,
+    textAlign: 'center',
+    color: '#666',
+    width: boxWidth,
+  },
+  bigLabel: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 24,
+    marginBottom: 16,
+    color: '#666',
     textAlign: 'center',
-    color: '#333',
   },
   questionBlock: {
     marginBottom: 32,
@@ -201,18 +355,41 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    width: '100%',
+  },
+  neomorphBox: {
+    marginBottom: 32,
+    backgroundColor: '#E3E5F2',
+    borderRadius: 12,
+    padding: 16,
+    width: boxWidth,
   },
   label: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: '#666',
+    textAlign: 'left',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
   question: {
     fontSize: 15,
     marginBottom: 8,
     color: '#444',
+    textAlign: 'left',
+    paddingHorizontal: 20,
+    paddingVertical: 4,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    gap: 8,
   },
   input: {
+    flex: 1,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
@@ -232,10 +409,117 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 16,
+    width: boxWidth,
+    alignSelf: 'center',
   },
   submitButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  selectionContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    justifyContent: 'center',
+  },
+  selectionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFF',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    minWidth: 80,
+  },
+  selectedButton: {
+    backgroundColor: '#4F8EF7',
+    borderColor: '#4F8EF7',
+  },
+  selectionButtonText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  selectedButtonText: {
+    color: '#fff',
+  },
+  pickerContainer: {
+    backgroundColor: '#F8FAFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginTop: 8,
+    overflow: 'hidden',
+    height: 200,
+  },
+  picker: {
+    height: 200,
+    width: '100%',
+    marginTop: Platform.OS === 'ios' ? -8 : 0,
+  },
+  pickerItem: {
+    fontSize: 18,
+    textAlign: 'center',
+    height: 200,
+    lineHeight: 200,
+  },
+  sampleAnswersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 20,
+    justifyContent: 'flex-start',
+  },
+  sampleAnswerButton: {
+    backgroundColor: '#F0F2F5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  sampleAnswerText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  expandButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F2F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginBottom: 8,
+  },
+  imagePickerButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F8FAFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    overflow: 'hidden',
+  },
+  selectedImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
+  },
+  imagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePlaceholderText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#666',
   },
 });

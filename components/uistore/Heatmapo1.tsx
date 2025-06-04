@@ -19,36 +19,42 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
   const [data, setData] = useState<number[][]>(defaultData);
 
   useEffect(() => {
-    AsyncStorage.getItem('@heatmap_data')
-      .then(json => {
-        let parsed: any;
-        try {
-          parsed = JSON.parse(json || '');
-        } catch {
-          parsed = null;
-        }
-        console.log('[Heatmap1] fetched data from storage:', parsed);
-        interface ParsedData {
-          matrix: number[][];
-        }
+    if (fromShop) {
+      // Generate random data when fromShop is true
+      const randomData = Array.from({ length: 4 }, () =>
+        Array.from({ length: 7 }, () => Math.floor(Math.random() * 101))
+      );
+      setData(randomData);
+    } else {
+      // Original AsyncStorage logic for when fromShop is false
+      AsyncStorage.getItem('@heatmap_data')
+        .then(json => {
+          let parsed: any;
+          try {
+            parsed = JSON.parse(json || '');
+          } catch {
+            parsed = null;
+          }
+          interface ParsedData {
+            matrix: number[][];
+          }
 
-        if (
-          parsed &&
-          (parsed as ParsedData).matrix &&
-          Array.isArray((parsed as ParsedData).matrix) &&
-          (parsed as ParsedData).matrix.every(row => Array.isArray(row) && row.every(v => typeof v === 'number'))
-        ) {
-          console.log('[Heatmap1] parsed heatmap data is valid:', (parsed as ParsedData).matrix);
-          setData((parsed as ParsedData).matrix);
-        } else {
-          console.log('[Heatmap1] parsed data invalid or missing, using defaultData');
+          if (
+            parsed &&
+            (parsed as ParsedData).matrix &&
+            Array.isArray((parsed as ParsedData).matrix) &&
+            (parsed as ParsedData).matrix.every(row => Array.isArray(row) && row.every(v => typeof v === 'number'))
+          ) {
+            setData((parsed as ParsedData).matrix);
+          } else {
+            setData(defaultData);
+          }
+        })
+        .catch(err => {
           setData(defaultData);
-        }
-      })
-      .catch(err => {
-        setData(defaultData);
-      });
-  }, []);
+        });
+    }
+  }, [fromShop]);
 
     const cellMargin = 3;
     const todayIndex = new Date().getDay(); // 0=Sunday ... 6=Saturday

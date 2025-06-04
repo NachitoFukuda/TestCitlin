@@ -32,33 +32,41 @@ const WeekProgressChart: React.FC<WeekProgressChartProps> = ({
   useEffect(() => {
     // data prop がある場合は読み込み不要
     if (data) return;
-    AsyncStorage.getItem('@heatmap_data')
-      .then(json => {
-        try {
-          const parsed = JSON.parse(json || '');
-          if (
-            parsed?.matrix &&
-            Array.isArray(parsed.matrix) &&
-            parsed.matrix.every(
-              (row: any) => Array.isArray(row) && row.every((v: any) => typeof v === 'number')
-            )
-          ) {
-            const matrix: number[][] = parsed.matrix;
-            // 最後の行を取得（直近1週間）
-            const lastWeek = matrix[matrix.length - 1];
-            setWeekData(lastWeek);
-            return;
+
+    if (fromShop) {
+      // Generate random data when fromShop is true
+      const randomData = Array.from({ length: 7 }, () => Math.floor(Math.random() * 101));
+      setWeekData(randomData);
+    } else {
+      // Original AsyncStorage logic for when fromShop is false
+      AsyncStorage.getItem('@heatmap_data')
+        .then(json => {
+          try {
+            const parsed = JSON.parse(json || '');
+            if (
+              parsed?.matrix &&
+              Array.isArray(parsed.matrix) &&
+              parsed.matrix.every(
+                (row: any) => Array.isArray(row) && row.every((v: any) => typeof v === 'number')
+              )
+            ) {
+              const matrix: number[][] = parsed.matrix;
+              // 最後の行を取得（直近1週間）
+              const lastWeek = matrix[matrix.length - 1];
+              setWeekData(lastWeek);
+              return;
+            }
+          } catch {
+            // ignore parse errors
           }
-        } catch {
-          // ignore parse errors
-        }
-        // データがない場合は0埋め
-        setWeekData(Array(7).fill(0));
-      })
-      .catch(() => {
-        setWeekData(Array(7).fill(0));
-      });
-  }, [data]);
+          // データがない場合は0埋め
+          setWeekData(Array(7).fill(0));
+        })
+        .catch(() => {
+          setWeekData(Array(7).fill(0));
+        });
+    }
+  }, [data, fromShop]);
 
   const screenWidth = Dimensions.get('window').width;
   // size が 'short' の場合は画面幅の 50%、それ以外は従来ロジック
@@ -106,8 +114,26 @@ const WeekProgressChart: React.FC<WeekProgressChartProps> = ({
   const renderBarChart = () => (
     <View style={[styles.bars, { width: '100%', height: innerHeight * 0.8 }]}>
       {weekData.map((value, i) => {
-        const h = (value / maxVal) * (innerHeight * 0.8);
-        return <View key={i} style={[styles.bar, { height: h, backgroundColor: color }]} />;
+        const h = (value / maxVal) * (innerHeight * 0.6);
+        return (
+          <NeomorphBox
+            key={i}
+            width={10}
+            height={innerHeight * 0.6}
+            style={[styles.bar]}
+            variant="graph"
+          >
+            <View 
+              style={{ 
+                width: '100%',
+                height: h,
+                backgroundColor: '#999',
+                position: 'absolute',
+                bottom: 0
+              }} 
+            />
+          </NeomorphBox>
+        );
       })}
     </View>
   );
@@ -201,8 +227,8 @@ const styles = StyleSheet.create({
   },
   bar: {
     flex: 1,
-    marginHorizontal: 4,
-    borderRadius: 4,
+    marginRight:18,
+    marginLeft:18
   },
   labels: {
     flexDirection: 'row',

@@ -10,7 +10,7 @@ function ChatListButton() {
   const router = useRouter();
   
   // "AIChat" または "EikenScreen" のときにボタンを表示
-  const isTargetScreen = ["AIChat", "newAI", "EikenScreen", "AIteacherChat"].includes(segments[segments.length - 1]);
+  const isTargetScreen = ["AIChat", "newAI", "AIteacherChat"].includes(segments[segments.length - 1]);
   if (!isTargetScreen) return null;
 
   return (
@@ -78,7 +78,7 @@ export default function TabLayout() {
           />
 
         <Tabs.Screen
-          name="SettingsScreen"
+          name="settings"
           options={{
             title: '設定',
           }}
@@ -108,7 +108,16 @@ export default function TabLayout() {
             headerLeft: () => <ChatListButton />,
           }}
         />
-
+        <Tabs.Screen
+          name="Upsell"
+          options={{
+            title: '広告',
+            headerShown: true,
+            headerTitleStyle: {
+              color: '#fff'
+            }
+          }}
+        />
       </Tabs>
     </UIConfigProvider>
   );

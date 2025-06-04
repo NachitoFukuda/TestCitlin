@@ -236,7 +236,7 @@ export default function HomeScreen() {
       <View
         style={[
           styles.scrollContainer,
-          { backgroundColor: isDarkMode ? '#303030' : '#EBF3FF' },
+          { backgroundColor: isDarkMode ? '#303030' : '#E3E5F2' },
         ]}
       >
         {/* テーマ情報を各兄弟要素に渡す */}

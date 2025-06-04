@@ -7,10 +7,13 @@ import WeekProgressChart from './WeekProgressChart';
 import PointsDisplay from './PointsDisplay';
 import StreakProgressCard from './StreakProgressCard';
 import WigeetButton from './wigeetButton';
+import TodayGool from './TodayGool';
 
 // 例えば、この ID に対応づけ
-export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'start06'
-|'chach01'| 'chach02' |'chach03'| 'chach04' | 'chach05'| 'chach06'
+export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'start06'|'start07'|'start08'|'start09'
+|'chach01'| 'chach02' |'chach03'| 'chach04' | 'chach05'| 'chach06'| 'chach07'| 'chach08'
+|'TodayGool1'|'TodayGool2'
+|'Howday1'|'Howday2'
 |'Heatmap01'|'Heatmap02'|'Heatmap03'|'Heatmap04'
 |'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress07'|'WeekProgress08';
 
@@ -48,115 +51,58 @@ export interface WidgetSettings {
 // レジストリ本体
 export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
   start01: {
-    shopcontainerStyle: { backgroundColor: '#EBF3FF',borderColor: '#666',borderWidth: 3, height:40, width: 80, borderRadius: 30,margin:10, justifyContent: 'center', alignItems: 'center'},
-    titleText:{color: '#666'},
-    layoutStyle: { backgroundColor: '#EBF3FF', padding: 12, zIndex: 5, borderRadius: 40, margin: 7, borderWidth: 2, borderColor: '#666' },
-    textStyle: { color: '#666', fontSize: 20, letterSpacing: 3, textAlign: 'center' },
-    title: 'start',
-    containerStyle: { backgroundColor: '#EBF3FF', padding: 12, zIndex: 5, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderColor: '#666' },
-    subtitle: 'ゲームを始める',
-    defaultPosition: { gridX: 1, gridY: 1 },
-    actions: [
-      {
-        label: 'start',
-        onPress: () => console.log(''),
-        route: '/question',
-        buttonStyle: {
-          flex: 1,
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#EBF3FF',
-          padding: 6,
-          borderRadius: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
-          borderWidth: 3,
-          borderColor: '#666',
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'start',
+          onPress: () => console.log('質問画面へ'),
+          route: '/question',
         },
-        buttonTextStyle: { color: '#666', fontWeight: 'bold', fontSize: 25, letterSpacing: 3, textAlign: 'center' },
-      },
-    ],
+      ],
+      shape: 'line',
+    }),
   },
   start02: {
-    shopcontainerStyle: { backgroundColor: '#EBF3FF',borderColor: '#666',borderWidth: 3,height:40, width: 160, borderRadius: 30,margin:10, justifyContent: 'center', alignItems: 'center'},
-    titleText:{color: '#666'},
-    layoutStyle: { backgroundColor: '#EBF3FF', padding: 12, zIndex: 5, borderRadius: 40, margin: 7, borderWidth: 2, borderColor: '#666' },
-    title: 'start',
-    containerStyle: { backgroundColor: '#EBF3FF', padding: 10, borderRadius: 8, zIndex: 3, justifyContent: 'center', alignItems: 'center' },
-    actions: [
-      {
-        label: 'start',
-        onPress: () => console.log('質問画面へ'),
-        route: '/question',
-        buttonStyle: {
-          flex: 1,
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#EBF3FF',
-          padding: 6,
-          borderRadius: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
-          borderWidth: 3,
-          borderColor: '#666',
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'start',
+          onPress: () => console.log('質問画面へ'),
+          route: '/question',
         },
-        buttonTextStyle: { color: '#666', fontWeight: 'bold', fontSize: 25, letterSpacing: 3, textAlign: 'center' },
-      },
-    ],
+      ],
+      shape: 'line',
+      size: 'long',
+    }),
   },
   start03: {
-    shopcontainerStyle: { backgroundColor: '#666',height:40, width: 80, borderRadius: 30,margin:10, justifyContent: 'center', alignItems: 'center'},
-    titleText:{color: '#fff'},
-    layoutStyle: { backgroundColor: '#666', padding: 12, zIndex: 5, borderRadius: 40, margin: 7 },
-    textStyle: { color: '#fff', fontSize: 20, letterSpacing: 3, textAlign: 'center' },
-    title: 'start',
-    containerStyle: { backgroundColor: '#EBF3FF', padding: 12, zIndex: 5, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-    subtitle: 'ゲームを始める',
-    defaultPosition: { gridX: 1, gridY: 1 },
-    actions: [
-      {
-        label: 'start',
-        onPress: () => console.log(''),
-        route: '/question',
-        buttonStyle: {
-          flex: 1,
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#666',
-          padding: 6,
-          borderRadius: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'start',
+          onPress: () => console.log('質問画面へ'),
+          route: '/question',
         },
-        buttonTextStyle: { color: '#EBF3FF', fontWeight: 'bold', fontSize: 25, letterSpacing: 3, textAlign: 'center' },
-      },
-    ],
+      ],
+      shape: 'line_cercle',
+    }),
   },
   start04: {
-    shopcontainerStyle: { backgroundColor: '#666',height:40, width: 160, borderRadius: 30,margin:10, justifyContent: 'center', alignItems: 'center'},
-    titleText:{color: '#fff'},
-    layoutStyle: { backgroundColor: '#666', padding: 12, zIndex: 5, borderRadius: 40, margin: 7 },
-    textStyle: { color: '#fff', fontSize: 20, letterSpacing: 3, textAlign: 'center' },
-    title: 'start',
-    containerStyle: { backgroundColor: '#EBF3FF', padding: 10, borderRadius: 8, zIndex: 3, justifyContent: 'center', alignItems: 'center' },
-    actions: [
-      {
-        label: 'start',
-        onPress: () => console.log('質問画面へ'),
-        route: '/question',
-        buttonStyle: {
-          flex: 1,
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#666',
-          padding: 6,
-          borderRadius: 50,
-          justifyContent: 'center',
-          alignItems: 'center',
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'start',
+          onPress: () => console.log('質問画面へ'),
+          route: '/question',
         },
-        buttonTextStyle: { color: '#EBF3FF', fontWeight: 'bold', fontSize: 30, letterSpacing: 4, textAlign: 'center' },
-      },
-    ],
+      ],
+      shape: 'line_cercle',
+      size: 'long',
+    }),
   },
    start05: {
        component: WigeetButton,
@@ -183,6 +129,48 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
         size: 'long',
       }),
     },
+    start07: {
+      component: WigeetButton,
+      getDefaultProps: () => ({
+        actions: [
+          {
+            label: 'start',
+            onPress: () => console.log('質問画面へ'),
+            route: '/question',
+          },
+        ],
+        desigin:'rainbow'
+      }),
+    },
+   start08: {
+     component: WigeetButton,
+     getDefaultProps: () => ({
+       actions: [
+         {
+           label: 'start',
+           onPress: () => console.log('質問画面へ'),
+           route: '/question',
+         },
+       ],
+       size: 'long',
+       desigin:'rainbow'
+     }),
+   },
+   start09: {
+    component: WigeetButton,
+    getDefaultProps: () => ({
+      actions: [
+        {
+          label: 'start',
+          onPress: () => console.log('質問画面へ'),
+          route: '/question',
+        },
+      ],
+      size: 'box',
+      desigin:'brue'
+    }),
+  },
+
   chach01: {
     component: PointsDisplay,
     getDefaultProps: () => ({
@@ -216,6 +204,54 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       getDefaultProps: () => ({
         shape: 'numo',
     }),  },
+    chach07: {
+      component: PointsDisplay,
+      getDefaultProps: () => ({
+        size: 'short',
+        shape: 'numo',
+        desigin:'rainbow'
+    }),  },
+  chach08: {
+      component: PointsDisplay,
+      getDefaultProps: () => ({
+        shape: 'numo',
+        desigin:'rainbow'
+    }),  },
+    TodayGool1: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+
+
+        };
+      },
+    },
+    TodayGool2: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+          desigin:'rainbow'
+        };
+      },
+    },
+    Howday1: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+          display:'Howday'
+
+        };
+      },
+    },
+    Howday2: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+          display:'Howday',
+          desigin:'rainbow'
+        };
+      },
+    },
   Heatmap01: {
     component: Heatmapo1,
     getDefaultProps: () => {

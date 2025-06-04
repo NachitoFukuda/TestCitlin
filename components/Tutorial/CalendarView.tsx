@@ -1,9 +1,7 @@
 // CalendarView.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface JsonData {
   id: number;
@@ -83,52 +81,60 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // 学習開始日を表示用に保持
   const [savedAtDate, setSavedAtDate] = useState<Date | null>(null);
   const [savedLevels, setSavedLevels] = useState<string[]>([]);
-
-
   
+  // コンポーネントマウント時のログ
 
+
+  // 級情報の読み込み
   useEffect(() => {
     AsyncStorage.getItem('@selected_levels')
       .then((data) => {
         if (data) {
           const levels = JSON.parse(data);
+          console.log('[CalendarView] Loaded levels:', levels);
           setSavedLevels(levels);
         }
       })
       .catch((error) => {
-        console.log('保存された級の取得に失敗しました:', error);
+        console.error('[CalendarView] Error loading levels:', error);
       });
   }, []);
 
+  // データ生成と読み込み
   useEffect(() => {
+    console.log('[CalendarView] Starting calculations with props:', {
+      dailyWordCount,
+      learningDays,
+      deadlineDays,
+      selectedLevel
+    });
+
     const generateAndLoadData = async () => {
       try {
-        // 1. @deadline_days から期限などの情報を取得
         const data = await AsyncStorage.getItem('@deadline_days');
+        console.log('[CalendarView] Raw deadline data:', data);
+        
         if (data !== null) {
           const deadlineData: DeadlineData = JSON.parse(data);
+          console.log('[CalendarView] Parsed deadline data:', deadlineData);
 
           if (deadlineData.days && deadlineData.savedAt) {
             const { days, savedAt } = deadlineData;
-            // 開始日を state に入れておく (表示計算用)
             const savedDateObj = new Date(savedAt);
-            setSavedAtDate(savedDateObj);
-
-            // 経過日数を計算
             const daysSinceStartCalculated = calculateDaysSinceStart(savedAt);
-            setDaysSinceStart(daysSinceStartCalculated);
-
-            // 期限日を計算
             const deadlineDateCalculated = addDays(savedDateObj, days);
-            setDeadlineDate(deadlineDateCalculated);
+            
+            console.log('[CalendarView] Date calculations:', {
+              savedDate: savedDateObj,
+              daysSinceStart: daysSinceStartCalculated,
+              deadlineDate: deadlineDateCalculated
+            });
 
-            // deadlineDate と今日の差分
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const diffTime = deadlineDateCalculated.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // 2. 級情報を取得し、maxValue を決定
             const selectedLevelsData = await AsyncStorage.getItem('@selected_levels');
             let level: string | null = null;
             if (selectedLevelsData !== null) {
@@ -137,46 +143,43 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 level = levels[0];
               }
             }
-            const maxValue = getTotalWordsByLevel(level);
-            const divisor = diffDays - 41; // 例としての divisor
 
-            // 3. JSONデータを生成 → @generated_data に保存 (今まで通り id & result)
+            const maxValue = getTotalWordsByLevel(level);
+            const divisor = diffDays - 41;
+
+
             const generatedData: JsonData[] = [];
             for (let i = 1; i < diffDays; i++) {
               const firstValue = Math.min(Math.floor((maxValue / divisor) * i), maxValue);
-              const secondValue =
-                i < 1 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 1)), maxValue);
-              const thirdValue =
-                i < 6 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 6)), maxValue);
-              const fourthValue =
-                i < 19 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 19)), maxValue);
-              const fifthValue =
-                i < 39 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 39)), maxValue);
+              const secondValue = i < 1 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 1)), maxValue);
+              const thirdValue = i < 6 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 6)), maxValue);
+              const fourthValue = i < 19 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 19)), maxValue);
+              const fifthValue = i < 39 ? 0 : Math.min(Math.floor((maxValue / divisor) * (i - 39)), maxValue);
 
               generatedData.push({
-                id: i, // id 1 からスタート
+                id: i,
                 result: [firstValue, secondValue, thirdValue, fourthValue, fifthValue],
               });
             }
 
+            console.log('[CalendarView] Generated data summary:', {
+              firstDay: generatedData[0],
+              lastDay: generatedData[generatedData.length - 1],
+              totalDays: generatedData.length,
+              sampleValues: generatedData.slice(0, 3) // 最初の3日分のデータを表示
+            });
+
             await AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData));
-            console.log('[CalendarView] generatedData:', generatedData);
+            console.log('[CalendarView] Data generation complete');
           }
         }
-
-        // 4. 保存後に @generated_data を読み込んで state にセット
-        const storedData = await AsyncStorage.getItem('@generated_data');
-        if (storedData) {
-          const parsedData: JsonData[] = JSON.parse(storedData);
-          setJsonData(parsedData);
-        }
       } catch (error) {
-        console.error('[CalendarView] Error generating or loading data:', error);
+        console.error('[CalendarView] Calculation error:', error);
       }
     };
 
     generateAndLoadData();
-  }, []);
+  }, [dailyWordCount, learningDays, deadlineDays, selectedLevel]); // 依存配列を追加
 
   return null;
 };

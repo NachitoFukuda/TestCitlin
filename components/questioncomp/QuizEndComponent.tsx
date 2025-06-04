@@ -49,19 +49,23 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   missedQuestions = [],
   forceTheme = 'light',
 }) => {
-    // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
-    const basePoint = 10;
-    const idMultiplier = Math.pow(1.05, QentionID);
-    // 基本報酬
-    const baseReward = Math.round(score * basePoint * idMultiplier);
-    // 全問正解ボーナス
-    let bonusPoints = 0;
-    if (score === total && total > 0) {
-      const fullBonusMultiplier = Math.pow(1.1, score);
-      bonusPoints = Math.round(baseReward * (fullBonusMultiplier - 1));
-    }
-    // 合計ポイント
-    const points = baseReward + bonusPoints;
+
+
+  // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
+  const basePoint = 10;
+  const idMultiplier = Math.pow(1.05, QentionID);
+  // 基本報酬
+  const baseReward = Math.round(score * basePoint * idMultiplier);
+  // 全問正解ボーナス
+  let bonusPoints = 0;
+  if (score === total && total > 0) {
+    const fullBonusMultiplier = Math.pow(1.1, score);
+    bonusPoints = Math.round(baseReward * (fullBonusMultiplier - 1));
+  }
+  // VIPユーザーはポイント2倍
+  const vipMultiplier =  1;
+  // 合計ポイント
+  const points = (baseReward + bonusPoints) * vipMultiplier;
   
   const [animatedScore, setAnimatedScore] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -80,12 +84,11 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
 
   // テーマに応じた色を一元管理
   const themeColors = useMemo(() => {
-    const isDark = forceTheme === 'dark';
     return {
-      containerBg: isDark ? '#303030' : '#EBF3FF',
-      textColor: isDark ? '#ccc' : '#666',
-      questionTextColor: isDark ? '#ddd' : '#666',
-      buttonTextColor: isDark ? '#ccc' : '#666',
+      containerBg: '#E3E5F2',
+      textColor: '#666',
+      questionTextColor:  '#666',
+      buttonTextColor: '#666',
     };
   }, [forceTheme]);
 
@@ -247,7 +250,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
       try {
         const storedData = await AsyncStorage.getItem('@generated_data');
         const generatedData = storedData ? JSON.parse(storedData) : [];
-        // IDがdayCountと一致するアイテムを取得
         let matched: any = null;
         if (Array.isArray(generatedData)) {
           matched = generatedData.find((item: any) => item.id === dayCount);
@@ -281,6 +283,7 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
         const count8_9 = values.filter(obj => obj.C === 8 || obj.C === 9).length;
 
         const results = todayGeneratedData?.result ?? [];
+        console.log('[QuizEndComponent] results:', todayGeneratedData);
         const counts = [count2_3, count4_5, count6_7, count8_9];
         const completionRates = await Promise.resolve(calculateCompletionRates(results, counts));
         const nonNullRates = completionRates.filter((r): r is number => r !== null);
@@ -353,47 +356,55 @@ useEffect(() => {
       // ① 既存のポイントを取得
       const stored = await AsyncStorage.getItem(POINTS_STORAGE_KEY);
       const prevPoints = stored ? JSON.parse(stored) : 0;
-      // ② 今回獲得した points を既存に加算
+  
+      // ② 今回獲得した points を加算
       const totalPoints = prevPoints + points;
-      // ③ 加算後の合計を保存
+  
+      // ③ 合計を保存
       await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
-      // ④ 保存された値をログに出力
+  
+      // ★ ④ 今日の正解数を保存
+      const today = new Date().toISOString().split('T')[0]; // 例: "2025-05-23"
+      const CORRECT_KEY = '@daily_correct_data';
+      const correctRaw = await AsyncStorage.getItem(CORRECT_KEY);
+      const correctParsed = correctRaw ? JSON.parse(correctRaw) : {};
+      correctParsed[today] = (correctParsed[today] || 0) + score;
+      await AsyncStorage.setItem(CORRECT_KEY, JSON.stringify(correctParsed));
+  
     } catch (e) {
-      console.error('ポイント保存エラー:', e);
+      console.error('保存エラー:', e);
     }
   
-    // 完了したらトップ画面へ戻る
-    router.push('/');
+    // 通常はホーム画面に遷移、20%の確率でUpsell画面に遷移
+    const shouldShowUpsell = Math.random() < 0.2; // 20%の確率
+    router.push(shouldShowUpsell ? '/Upsell' : '/');
+
   };
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>
       {/* EndLabelを、スコアのカウントアップが完了したときに表示 */}
       <View style={styles.mLabelContainer}>
-
-      {animatedScore === score ? (
+        {animatedScore === score ? (
           <EndLabel Score={animatedScore} forceTheme={forceTheme} />
-      ) : (
-        <NeomorphBox
-          width={SCREEN_WIDTH * 0.85}
-          height={60}
-          style={styles.neomorphContainer}
-          forceTheme={forceTheme}
-        >
-          <Text style={[styles.questionText, { color: themeColors.questionTextColor }]}>
-          </Text>
-        </NeomorphBox>
-      )}
+        ) : (
+          <NeomorphBox
+            width={SCREEN_WIDTH * 0.85}
+            height={60}
+            style={styles.neomorphContainer}
+          >
+            <Text style={[styles.questionText, { color: themeColors.questionTextColor }]}>
+            </Text>
+          </NeomorphBox>
+        )}
       </View>
 
       <NeomorphBox
         width={SCREEN_WIDTH * 0.85}
         height={210 + missedQuestions.length * 44}
         style={styles.neomorphBox}
-        forceTheme={forceTheme}
       >
         <View style={styles.contentContainer}>
-
           <Text style={[styles.questionText, { color: themeColors.questionTextColor }]}>
             学習終了
           </Text>
@@ -402,6 +413,12 @@ useEffect(() => {
           </Text>
           <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
             獲得ポイント: {points} pt
+
+            { animatedScore === total && (
+              <Text style={styles.bonusText}>
+                {'\n'}全問正解ボーナス: +{Math.floor(points * 0.5)} pt
+              </Text>
+            )}
           </Text>
         </View>
 
@@ -431,7 +448,7 @@ useEffect(() => {
 
       <View style={styles.nextButtonContainer}>
         <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
-          <NeomorphBox width={SCREEN_WIDTH * 0.85} height={60} forceTheme={forceTheme}>
+          <NeomorphBox width={SCREEN_WIDTH * 0.85} height={60}>
             <Text style={[styles.nextButtonText, { color: themeColors.buttonTextColor }]}>
               完了
             </Text>
@@ -494,5 +511,13 @@ const styles = StyleSheet.create({
   pointText: {
     fontSize: 18,
     marginBottom: 8,
+  },
+  bonusText: {
+    color: '#FFD700',
+    fontWeight: 'bold',
+  },
+  vipText: {
+    color: '#FFD700',
+    fontWeight: 'bold',
   },
 });

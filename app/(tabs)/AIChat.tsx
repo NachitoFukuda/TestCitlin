@@ -544,7 +544,7 @@ export default AIChat;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#E3E5F2',
   },
   header: {
     flexDirection: 'row',

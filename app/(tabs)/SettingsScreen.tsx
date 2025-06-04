@@ -4,11 +4,10 @@ import { useRouter } from 'expo-router';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PurchaseScreen from '../../components/etc/PurchaseScreen';
-import Purchases from 'react-native-purchases';
-//import useSubscription from '@/hooks/useSubscriptionStatus';
-//import { PurchaseScreen } from '@/components/PurchaseScreen';
+
 import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/ui/Footer';
+import { ScrollView } from 'react-native-gesture-handler';
 // import Purchases from 'react-native-purchases';
 
 const windowWidth = Dimensions.get('window').width;
@@ -17,62 +16,56 @@ const EULA_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeu
 const PRIVACY_POLICY_URL = "https://citlin.sakura.ne.jp/";
 
 export default function SettingsScreen() {
-  const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
   const [customerInfo, setCustomerInfo] = useState<any>(null);
+  const keysToClear = [
+        '@deadline_days',
+        'correctData',
+        '@RotatingNeomorphicButton_counter',
+        'last_usage_date',
+        'last_usage_month',
+        'daily_token_balance',
+        '@quiz:tutorialDone',
+        '@quiz:purchases',
+        '@quiz_points',
+        '@quiz:positions',
+        '@quiz:tutorialStep'
+      ];
 
-  // const {
-  //   isPremium,
-  //   isLoading,
-  //   purchaseProduct,
-  //   restorePurchases,
-  //   refresh,
-  // } = useSubscription();
+
 
   useEffect(() => {
     const initialize = async () => {
-     // テーマの読み込み処理
-        try {
-          const storedTheme = await AsyncStorage.getItem('theme');
-          if (storedTheme === 'dark') {
-            setIsDarkMode(true);
-          } else {
-            setIsDarkMode(false);
-          }
-        } catch (error) {
-          console.error('❌ テーマの読み込みに失敗しました:', error);
-          setIsDarkMode(false);
-        }
-        // RevenueCat SDK の初期化処理
-        try {
-          Purchases.setDebugLogsEnabled(true);
-          Purchases.configure({ apiKey: 'appl_HeFNWLtZWzmjtrunDFIwNEffyIt' });
-          await Purchases.getOfferings();
-          const info = await Purchases.getCustomerInfo();
-          setCustomerInfo(info);
-        } catch (error) {
-          Alert.alert('SDK 初期化エラー', String(error));
-        }
-      };
+      setIsLoading(true);
+      try {
+        const storedTheme = await AsyncStorage.getItem('theme');
+        setIsDarkMode(storedTheme === 'dark');
+      } catch (error) {
+        console.error('❌ テーマの読み込みに失敗しました:', error);
+        setIsDarkMode(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     initialize();
   }, []);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#F4F8FB' }]}>
+        <ActivityIndicator size="large" color="#4169e1" />
+      </View>
+    );
+  }
+
   const isAnySubscribed = customerInfo?.entitlements?.active
   ? Object.keys(customerInfo.entitlements.active).length > 0
   : false;
 
-  // テーマの切り替え
-  const handleToggleSwitch = async () => {
-    if (isDarkMode === null) return;
-    try {
-      const newTheme = isDarkMode ? 'light' : 'dark';
-      setIsDarkMode(!isDarkMode);
-      await AsyncStorage.setItem('theme', newTheme);
-    } catch (error) {
-      Alert.alert("エラー", "テーマの保存に失敗しました:\n" + String(error));
-    }
-  };
 
   // EULA・プライバシーポリシーリンク
   const handleOpenEULA = () => {
@@ -88,18 +81,90 @@ export default function SettingsScreen() {
   };
 
 
+  const clearAllData = async () => {
+    Alert.alert(
+      '確認',
+      '本当にすべてのデータを削除しますか？',
+      [
+        {
+          text: 'キャンセル',
+          style: 'cancel',
+        },
+        {
+          text: '削除する',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              '最終確認',
+              '本当に本当に削除してもよろしいですか？この操作は取り消せません。',
+              [
+                {
+                  text: 'やめる',
+                  style: 'cancel',
+                },
+                {
+                  text: '削除実行',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await AsyncStorage.multiRemove(keysToClear);
+                      Alert.alert('データクリア完了', '指定したストレージデータをすべて削除しました。');
+                    } catch (e) {
+                      console.error('データクリアエラー:', e);
+                      Alert.alert('クリアエラー', 'データ削除に失敗しました。');
+                    }
+                  },
+                },
+              ],
+              { cancelable: true }
+            );
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+
   return (
     <>
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#222' : '#F4F8FB' }]}> 
-        {/* タイトル */}
+      <View style={[styles.container, { backgroundColor: '#E3E5F2' }]}> 
+      <ScrollView
+      style={styles.container}
+      horizontal={false}
+      showsHorizontalScrollIndicator={false}
+    >
+        <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
+          プラン比較
+        </Text>
 
-        {/* 設定セクション */}
-        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2c2c2c' : '#fff', shadowColor: isDarkMode ? '#000' : '#aaa' }]}> 
-          <TouchableOpacity style={styles.rowButton} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
-            <Ionicons name="list" size={22} color={isDarkMode ? '#6cf' : '#4169e1'} style={styles.icon} />
-            <Text style={[styles.buttonText2, { color: isDarkMode ? '#6cf' : '#4169e1' }]}>有料プランを見る</Text>
+        <View style={[styles.purchaseContainer]}> 
+          <PurchaseScreen customerInfo={customerInfo} />
+        </View>
+        {/* EULAとプライバシーポリシーのリンク */}
+        <View style={styles.linksContainer}>
+          <TouchableOpacity onPress={handleOpenEULA} style={styles.linkButton}>
+            <Text style={styles.linkText}>EULA</Text>
+          </TouchableOpacity>
+          <Text style={styles.linkSeparator}>|</Text>
+          <TouchableOpacity onPress={handleOpenPrivacyPolicy} style={styles.linkButton}>
+            <Text style={styles.linkText}>プライバシーポリシー</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>設定</Text>
+        
+
+        {/* 設定セクション */}
+
+        <TouchableOpacity onPress={clearAllData} style={styles.clearButton}>
+          <Text style={styles.clearButtonText}>データの完全削除</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 100 }} />
+
+        </ScrollView>
+
       </View>
 
 
@@ -107,30 +172,7 @@ export default function SettingsScreen() {
       <Footer activeIcon="settings" />
 
       {/* 下からスライドして表示されるモーダル */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={modalStyles.modalContainer}>
-          <View style={modalStyles.modalContent}>
-            <TouchableOpacity style={modalStyles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={modalStyles.closeButtonText}>閉じる</Text>
-            </TouchableOpacity>
-            <PurchaseScreen customerInfo={customerInfo} />
-            <View style={styles.linksContainer}>
-            <TouchableOpacity onPress={handleOpenEULA}>
-              <Text style={styles.linkText}>利用規約</Text>
-            </TouchableOpacity>
-            <Text style={styles.separator}>|</Text>
-            <TouchableOpacity onPress={handleOpenPrivacyPolicy}>
-              <Text style={styles.linkText}>プライバシーポリシー</Text>
-            </TouchableOpacity>
-          </View>
-          </View>
-        </View>
-      </Modal>
+
     </>
   );
 }
@@ -138,10 +180,9 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    padding: 0, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    backgroundColor: '#EBF3FF'
+    padding: 16, 
+    paddingTop: 60,
+    backgroundColor: '#E3E5F2'
   },
   title: {
     fontSize: 28,
@@ -237,39 +278,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  linkButton: {
     paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   linkText: {
-    color: '#666',
-    fontSize: 12,
+    color: '#4169e1',
+    fontSize: 14,
     textDecorationLine: 'underline',
   },
-  separator: {
+  linkSeparator: {
     color: '#666',
-    fontSize: 12,
     marginHorizontal: 8,
+  },
+  clearButtonText: {
+    color: '#ff4d4f',
+    fontWeight: 'bold',
+    fontSize: 16,
+    
+  },
+  purchaseContainer: {
+    width: '100%',
+    marginBottom: 32,
+    backgroundColor: 'transparent',
+  },
+  clearButton: {
+    marginBottom: 100,
   },
 });
 
-const modalStyles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',  // 下部から表示
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    padding: 16,
-  },
-  closeButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 10,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    color: '#00f',
-  },
-});

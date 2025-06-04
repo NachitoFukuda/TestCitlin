@@ -1061,7 +1061,7 @@ export default function QuestionScreen() {
 }
 function createStyles(isDark) {
   // テーマに応じた色を一元管理
-  const backgroundColor = isDark ? '#303030' : '#EBF3FF';
+  const backgroundColor = isDark ? '#303030' : '#E3E5F2';
   const textColor       = isDark ? '#ccc'    : '#666';
   const questionColor   = isDark ? '#ddd'    : '#666';
   const buttonBg        = isDark ? '#444'    : '#6200ee';
