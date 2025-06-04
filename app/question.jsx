@@ -34,13 +34,12 @@ import useQuestionData from '../components/questioncomp/useQuestionData'; // パ
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
 import { storage } from '../firebaseConfig';
 import { getDownloadURL, ref } from 'firebase/storage';
+import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const QCOUNT_KEY = '@RotatingNeomorphicButton_counter';
 const STORAGE_KEY = 'correctData';
-
-
 
 const checkDeadlineData = async () => {
   const data = await AsyncStorage.getItem('@deadline_days');
@@ -408,9 +407,13 @@ export default function QuestionScreen() {
 
   const showCorrectAnimation = async () => {
     try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setTimeout(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }, 300);
       await playSoundAsync(correctSound);
-      playSound()
-     
+      playSound();
+  
     } catch (error) {
       console.error('[showCorrectAnimation] エラー:', error);
     }
@@ -1027,6 +1030,7 @@ export default function QuestionScreen() {
               <View style={styles.nextButtoncontainer}>
               <TouchableOpacity
                 style={[styles.nextButton, { opacity: fadeAnim }]}
+                onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
                 onPress={handleNextQuestion}
                 accessibilityLabel="次へボタン"
                 accessibilityHint="タップすると次の質問に進みます"
@@ -1088,8 +1092,8 @@ function createStyles(isDark) {
   },
   // LottieView 自体のサイズ指定（例：画面の50%の幅、高さにする）
   lottieStyle: {
-    width: '150%',
-    height: '150%',
+    width: '300%',
+    height: '300%',
     // 背景色を除去して、アニメーションの内容が見えるようにする
   },
   container: {
