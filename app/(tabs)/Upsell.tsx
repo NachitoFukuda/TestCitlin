@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -66,6 +67,7 @@ const slides = [
 
 const UpsellScreen = () => {
   const [index, setIndex] = useState(0);
+  const [audioKey, setAudioKey] = useState(0); // trigger audio even if index is 0
   const navigation = useNavigation();
   const slide = slides[index];
   const [currentGradientIndex, setCurrentGradientIndex] = useState(0);
@@ -184,7 +186,7 @@ const UpsellScreen = () => {
       };
     }, [fadeAnim]);
 
-  // Text fade-in animation and audio playback on index change
+  // Text fade-in animation and audio playback on index change or audioKey change
   useEffect(() => {
     // Reset audio completion state
     setIsAudioComplete(false);
@@ -217,7 +219,7 @@ const UpsellScreen = () => {
         setIsAudioComplete(true);
       }
     })();
-  }, [index]);
+  }, [index, audioKey]);
 
 
   // Cleanup audio on component unmount
@@ -232,17 +234,51 @@ const UpsellScreen = () => {
     };
   }, []);
 
+  
   useFocusEffect(
     useCallback(() => {
+      // ✅ ステート初期化
       setIndex(0);
-      // アニメーションと状態のリセット
+      setAudioKey(k => k + 1); // force trigger audio reload
       setCurrentGradientIndex(0);
+      currentGradientIndexRef.current = 0;
       setIsAudioComplete(false);
       setShowEmojiRain(false);
       setIsAnimating(false);
+  
+      // ✅ 音声を止めてリセット
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+  
+      // ✅ 絵文字関連をリセット
       emojiPositions.current = [];
       emojiRotations.current = [];
       emojiScales.current = [];
+  
+      // ✅ グラデーションアニメーションを初期状態に
+      fadeAnim.setValue(1);
+  
+      // ✅ BGM を再開（必要に応じて）
+      const playBGM = async () => {
+        if (bgmRef.current) {
+          try {
+            await bgmRef.current.setVolumeAsync(0.3);
+            await bgmRef.current.playAsync();
+          } catch (error) {
+            console.error('Error resuming BGM:', error);
+          }
+        }
+      };
+      playBGM();
+  
+      // ✅ クリーンアップ：画面が離れたら BGM を止める
+      return () => {
+        if (bgmRef.current) {
+          bgmRef.current.pauseAsync();
+        }
+      };
     }, [])
   );
 
@@ -310,7 +346,11 @@ const UpsellScreen = () => {
           {index >= slides.length - 1 && (
             <View style={{ alignItems: 'center' }}>
               <TouchableOpacity
-                onPress={() => router.replace('./SettingsScreen')}
+                onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPressOut={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPress={() => {
+                  router.replace('./SettingsScreen');
+                }}
                 style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   borderWidth: 1,
@@ -326,7 +366,11 @@ const UpsellScreen = () => {
                 <Text style={[styles.ctaButtonText, { color: '#fff' }]}>無料で推しを作ってみる</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={startEmojiRain}
+                onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPressOut={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPress={() => {
+                  startEmojiRain();
+                }}
                 disabled={isAnimating}
                 style={{
                   backgroundColor: 'rgba(0, 0, 0, 0.3)',
@@ -378,31 +422,39 @@ const UpsellScreen = () => {
       )}
 
       {/* 次へボタンと進捗表示を画面下部に固定 */}
-      {index < slides.length - 1 && isAudioComplete && (
+      {index < slides.length - 1 && isAudioComplete && !isAnimating && (
         <View style={styles.bottomContainer}>
           {(index === 0 || index === 1) && (
-            <TouchableOpacity
-              onPress={startEmojiRain}
-              disabled={isAnimating}
-              style={{
-                backgroundColor: 'rgba(77, 77, 77, 0.32)',
-                borderWidth: 1,
-                borderColor: 'rgba(82, 82, 82, 0.33)',
-                borderRadius: 8,
-                paddingHorizontal: 24,
-                paddingVertical: 10,
-                backdropFilter: 'blur(10px)',
-                width: '80%',
-                marginBottom: 20,
-              }}
-            >
-              <Text style={[styles.navButton, { color: '#fff', backgroundColor: 'transparent', shadowOpacity: 0, textAlign: 'center' }]}>
-              {navNoButtonLabels[index]}
-              </Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            onPressOut={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            onPress={() => {
+              startEmojiRain();
+            }}
+            disabled={isAnimating}
+            style={{
+              backgroundColor: 'rgba(77, 77, 77, 0.32)',
+              borderWidth: 1,
+              borderColor: 'rgba(82, 82, 82, 0.33)',
+              borderRadius: 8,
+              paddingHorizontal: 24,
+              paddingVertical: 10,
+              backdropFilter: 'blur(10px)',
+              width: '80%',
+              marginBottom: 20,
+            }}
+          >
+            <Text style={[styles.navButton, { color: '#fff', backgroundColor: 'transparent', shadowOpacity: 0, textAlign: 'center' }]}>
+            {navNoButtonLabels[index]}
+            </Text>
+          </TouchableOpacity>
           )}
           <TouchableOpacity
-            onPress={() => setIndex(index + 1)}
+            onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            onPressOut={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            onPress={() => {
+              setIndex(index + 1);
+            }}
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               borderWidth: 1,

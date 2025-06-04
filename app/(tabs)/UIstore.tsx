@@ -13,18 +13,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TapIndicator from '../../components/ui/TapIndicator';
-import { View as RNView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from '@/components/ui/Footer';
 import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
-
-// 画面サイズとセル数の計算
 import { WidgetId } from '@/components/uistore/widgetConfig';
 import { ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useRouter } from 'expo-router';
 import NeomorphBox from '@/components/ui/NeomorphBox';
-
+import * as Haptics from 'expo-haptics';
 // UIstore.tsx 上部
 type ShopItem = {
   id: WidgetId;
@@ -162,6 +159,7 @@ export default function UIstore() {
               styles.tabButton,
               selectedTag === tag && styles.tabButtonActive
             ]}
+            onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
             onPress={() => setSelectedTag(tag)}
           >
             <Text
@@ -187,6 +185,7 @@ export default function UIstore() {
         renderItem={({ item, index }) => (
           <TouchableOpacity
             style={WIDGET_CONFIG[item.id]?.component ? styles.card1 : styles.card}
+            onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
             onPress={() => {
               setOverlayItem(item);
             }}
@@ -248,6 +247,7 @@ export default function UIstore() {
             />
             <TouchableOpacity
               style={styles.closeButton}
+              onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
               onPress={() => setOverlayItem(null)}
             >
               <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>

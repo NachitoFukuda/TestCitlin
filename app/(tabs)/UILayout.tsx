@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
 import TapIndicator from '../../components/ui/TapIndicator';
 import NeomorphBox from '@/components/ui/NeomorphBox';
+import * as Haptics from 'expo-haptics';
 
 // 画面サイズとセル数の計算
 const windowWidth = Dimensions.get('window').width;
@@ -336,6 +337,7 @@ export default function UILayout() {
 
                     // 4. 最終的なピクセル位置をセットし、state を更新
                     pan.setValue({ x: newGridX * smallCellScaled, y: newGridY * smallCellScaled });
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); // ← ここを追加
                     setPositions(prev => {
                       const next = { ...prev, [item.id]: { gridX: newGridX, gridY: newGridY } };
                       return next;
@@ -380,7 +382,7 @@ export default function UILayout() {
                         </View>
                       )}
                     {/* Remove button */}
-                    <TouchableOpacity style={styles.removeButton} onPress={() => removeWidget(item)}>
+                    <TouchableOpacity style={styles.removeButton} onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)} onPress={() => removeWidget(item)}>
                       <Text style={styles.removeButtonText}>×</Text>
                     </TouchableOpacity>
                   </Animated.View>
@@ -400,6 +402,7 @@ export default function UILayout() {
         if (available.length === 0) {
           return (
             <TouchableOpacity
+              onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
               onPress={() => router.push('/UIstore')}
             >
                 <NeomorphBox
@@ -427,6 +430,7 @@ export default function UILayout() {
                   <Text numberOfLines={1} style={styles.bottomItemText}>{item.name}</Text>
                   <TouchableOpacity
                     style={[styles.addButton, { position: 'relative' }]}
+                    onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
                     onPress={async () => {
                       // アイテム追加 & 保存完了を待つ
                       await addItemToGrid(item);

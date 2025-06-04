@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TapIndicator from './TapIndicator';
+import * as Haptics from 'expo-haptics';
 
 const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
@@ -79,10 +80,12 @@ export default function Footer({
 
   // Animate icon on press
   const handlePress = (key: keyof typeof iconAnims, route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); // アニメーション開始時
     Animated.sequence([
       Animated.timing(iconAnims[key], { toValue: -10, duration: 300, useNativeDriver: true }),
       Animated.timing(iconAnims[key], { toValue: 0, duration: 100, useNativeDriver: true }),
     ]).start(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); // アニメーション終了時
       if (!isDemoMode) {
         router.push(route as any);
       }
