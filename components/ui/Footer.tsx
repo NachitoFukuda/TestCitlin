@@ -282,7 +282,7 @@ export default function Footer({
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => {
-                handlePress('chat', '/Upsell');
+                handlePress('chat', '/ChatListScreen');
               
             }}
           >

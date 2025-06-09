@@ -10,7 +10,6 @@ import DraggableItem from '../../components/uistore/Indexwiget';
 import { Dimensions } from 'react-native';
 import Footer from '@/components/ui/Footer';
 
-
 const windowWidth = Dimensions.get('window').width;
 const smallCell = windowWidth / 4;
 // If the file does not exist, create it or update the import path to the correct location

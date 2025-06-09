@@ -69,9 +69,6 @@ const checkDeadlineData = async () => {
       return diffDays;
   }
 
-function addDays(date, days) {
-  return date+days;
-}
 
 export default function QuestionScreen() {
   const router = useRouter();
@@ -128,7 +125,6 @@ export default function QuestionScreen() {
 
   const [isCountingDown, setIsCountingDown] = useState(true);
   const [C, setCount] = useState(3.5);
-  const [Qcount, setQCount] = useState(5);
   const confettiRef = useRef(null);
   const soundRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -233,122 +229,21 @@ export default function QuestionScreen() {
   }, [uniqueQuestions]);
   
   const loadCorrectDataAndFilterQuestions = async () => {
-    try {
-      // AsyncStorageから正解データの読み込み
-      const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsedData = storedData ? JSON.parse(storedData) : {};
-      const updatedData = { ...parsedData };
-      setCorrectData(updatedData);
-  
-      // Qcountの読み込み
-      const savedQcount = await AsyncStorage.getItem(QCOUNT_KEY);
-      if (savedQcount !== null) {
-        const parsedQcount = parseInt(savedQcount, 10);
-        setQCount(parsedQcount);
-      } else {
-        console.warn('[loadCorrectDataAndFilterQuestions] Qcount が null のためデフォルト値を使用する可能性があります');
-      }
-  
-      // 現在の日付を取得し、getPreviousQuarterHour を呼び出す
-      const now = new Date();
-      const Todaynamber = await getPreviousQuarterHour(now);
-  
-      const correctCountToIntervalMap = {
-        2: 1,
-        3: 1,
-        4: 6,
-        5: 6,
-        6: 19,
-        7: 19,
-        8: 39,
-        9: 39,
-      };
-  
-      // uniqueQuestions の状態をログに出力
-      if (uniqueQuestions.length === 0) {
-        console.error('[loadCorrectDataAndFilterQuestions] uniqueQuestions が空です。問題データの読み込みに問題がある可能性があります。');
-      }
-  
-      // uniqueQuestionsを元にフィルタリング実施
-      const filtered = uniqueQuestions.filter((question) => {
-        const { C: cc = 0, L } = updatedData[question.id] || {};
-        const lastCorrectDate = L ? L : null;
-        const interval = correctCountToIntervalMap[cc];
-  
-        if (interval !== undefined && interval !== null) {
-          if (lastCorrectDate) {
-            const nextPossibleTime = addDays(lastCorrectDate, interval);
-            const oneDayAfterNext = addDays(nextPossibleTime, 1);
-            if (Todaynamber < nextPossibleTime) {
-              return false;
-            } else if (Todaynamber >= oneDayAfterNext) {
-              // 出題期限オーバーのため count を 2 にリセット
-              updatedData[question.id] = {
-                ...parsedData[question.id],
-                C: 2,
-                L: lastCorrectDate,
-              };
-              return false;
-            } else {
-              return true;
-            }
-          } else {
-            return false;
-          }
-        } else if (cc <= 2) {
-          // 無条件で出題
-          updatedData[question.id] = {
-            ...parsedData[question.id],
-          };
-          return true;
-        }
-        return false;
-      });
-  
-      // 更新したデータをAsyncStorageに保存
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
-  
-      // フィルタ後の問題を、正解数に応じた問題データにマッピング
-      const mappedFiltered = filtered
-        .map((question) => {
-          const cc = updatedData[question.id]?.C || 0;
-          const mappedQuestion = getQuestionsBasedOnCorrectCount(cc, question.id);
-          return mappedQuestion;
-        })
-        .filter((q) => {
-          const valid = Boolean(q);
-          if (!valid) {
-            console.error('[loadCorrectDataAndFilterQuestions] マッピング処理で null が返されています。');
-          }
-          return valid;
-        })
-        .reduce((unique, question) => {
-          if (!question) {
-            console.error('[loadCorrectDataAndFilterQuestions] reduce 中に null の質問が見つかりました。');
-            return unique;
-          }
-          if (!unique.find((q) => q.id === question.id)) {
-            unique.push(question);
-          }
-          return unique;
-        }, [])
-        .sort((a, b) => {
-          if (!a || !b) {
-            console.error('[loadCorrectDataAndFilterQuestions] sort 中に null が見つかりました。');
-            return 0;
-          }
-          const countA = updatedData[a.id]?.C || 0;
-          const countB = updatedData[b.id]?.C || 0;
-          return countB - countA;
-        });
-  
-      // 出題数に応じた問題をスライスして最終結果とする
-      const slicedQuestions = mappedFiltered.slice(0, 5);
-      setFilteredQuestions(slicedQuestions);
-      } catch (error) {
-      console.error('[loadCorrectDataAndFilterQuestions] エラー:', error);
-    }
+    // AsyncStorage から正解データを読み込む
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    const parsedData = stored ? JSON.parse(stored) : {};
+    setCorrectData(parsedData);
+
+    // 全てのユニークな質問を、保存データに基づいてマッピング
+    const mappedQuestions = uniqueQuestions
+      .map((question) => {
+        const correctCount = parsedData[question.id]?.C || 0;
+        return getQuestionsBasedOnCorrectCount(correctCount, question.id);
+      })
+      .filter((q) => q);
+    setFilteredQuestions(mappedQuestions);
   };
+
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
 
   useEffect(() => {
@@ -400,6 +295,7 @@ export default function QuestionScreen() {
   // 解答を保存
   const saveCorrectData = useCallback(async (updatedData) => {
     try {
+      console.log(updatedData)
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
     } catch (error) {
     }
@@ -473,10 +369,10 @@ export default function QuestionScreen() {
       setScore(newScore);
       updatedData[currentQuestion.id] = {
         C: currentCorrectCount + 1,
-        L: formattedDate,
       };
       setCorrectData(updatedData);
       await saveCorrectData(updatedData);
+      console.log('データ保存されてる？',updatedData)
       await showCorrectAnimation();
       setShowNextButton(true);
     } else {
@@ -503,25 +399,12 @@ export default function QuestionScreen() {
 
   //不正解時の処理
   const [missedQuestions, setMissedQuestions] = useState([]);
+
+  
   const handleIncorrectAnswer = useCallback(async (questionId, correctAnswer) => {
     setIsTransitioning(true);  // 即座にフィードバック表示
     let updatedData = { ...correctData };
-    let currentCorrectCount = updatedData[questionId]?.count || 0;
-    let updatedCount = currentCorrectCount;
     
-    // 正解数が1,4,6,8の場合のみカウントを減少
-    if ([1, 4, 6, 8].includes(currentCorrectCount)) {
-      updatedCount = Math.max(currentCorrectCount - 1, 0);
-    }
-  
-    // M が存在しない場合は 1、既に存在する場合は +1
-    const currentM = updatedData[questionId]?.M;
-    updatedData[questionId] = {
-      C: updatedCount,
-      L: updatedData[questionId]?.L || null, // "YYYY-MM-DD" 形式を保持
-      M: currentM ? currentM + 1 : 1,
-    };
-  
     setCorrectData(updatedData);
     await saveCorrectData(updatedData);
 
@@ -706,18 +589,14 @@ export default function QuestionScreen() {
         await loadedSound.unloadAsync();
         setLoadedSound(null);
       }
-  
       // ① 元のレベル文字列をそのまま取得（ドットもアンダースコアも変換しない）
       const folder = level || "3";  // 例: "1.5"
-  
-  
       // ② そのままパスを組み立て
       const filePath = `${folder}/${question.id}.mp3`;  // => "1.5/2.mp3"
-  
       // ③ ダウンロードURLを取得
       const soundUrl = await getDownloadURL(ref(storage, filePath));
-  
       // ④ Audio をロード＆準備
+      console.log(soundUrl)
       const source = { uri: soundUrl };
       const sound = new Audio.Sound();
       await sound.loadAsync(source, { shouldPlay: false }, true);
@@ -727,7 +606,6 @@ export default function QuestionScreen() {
         throw new Error('Sound failed to load properly');
       }
       setLoadedSound(sound);
-  
     } catch (error) {
       console.error('音声リロードエラー:', error);
       setLoadedSound(null);
@@ -828,17 +706,6 @@ export default function QuestionScreen() {
           paddingBottom: 50,
         }}
       >
-        {/* 上部ウィジェット 
-        <View style={styles.widgetsContainer}>
-          <SquareWidgets
-            questionId={currentQuestion.id}
-            correctCount={correctCount}
-            minutesElapsed={minutesElapsed}
-            isAnswerCorrect={isAnswerCorrect}
-          />
-        </View>
-
-        {/* フィードバック用の「正解」または「不正解」のテキストを NeomorphBox の外側に表示 */}
 
           {isTransitioning ? (
               <>
@@ -857,18 +724,6 @@ export default function QuestionScreen() {
 
       <View style={styles.Adcontainer}>
           <BannerAdComponent />
-          {/* <NeomorphBox
-            width={320}
-            height={50}
-            forceTheme={isDarkMode ? 'dark' : 'light'}
-            style={{ justifyContent: 'center', alignItems: 'center' }}
-          >
-            {/* <Text style={{ fontSize: 16, color: isDarkMode ? '#fff' : '#000' }}>
-              {customerInfo?.entitlements?.active?.premium
-                ? customerInfo.entitlements.active.premium.productIdentifier
-                : 'プラン情報なし'}
-            </Text> 
-          </NeomorphBox> */}
       </View>
 
       <View style={styles.mLabelContainer}>
