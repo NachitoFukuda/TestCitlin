@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-const FSRS_STORAGE_PREFIX = 'FSRS_CARD_';
 import { useFocusEffect, useRouter } from 'expo-router';
 import KeyboardExample from '../components/questioncomp/KeyboardExample';
 import HanahubukiAnimation from '../assets/lottie/Hanahubuki.json';
@@ -29,7 +28,7 @@ import LottieView from 'lottie-react-native';
 import MLabel from '@/components/questioncomp/MLabel';
 import { getOrSaveImageFileUrlRTDB } from '../utils/getOrSaveImageFileUrlRTDB';
 import AnimatedRemoteImage from '../components/questioncomp/AnimatedRemoteImage';
-import { createEmptyCard, generatorParameters, fsrs, Rating } from 'ts-fsrs';
+
 //import useSoundFiles from '../components/questioncomp/useSoundFiles'
 import useQuestionData from '../components/questioncomp/useQuestionData'; // パスは実際の配置に合わせて調整
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
@@ -38,6 +37,8 @@ import { getDownloadURL, ref } from 'firebase/storage';
 import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const QCOUNT_KEY = '@RotatingNeomorphicButton_counter';
 const STORAGE_KEY = 'correctData';
 
 const checkDeadlineData = async () => {
@@ -70,16 +71,6 @@ const checkDeadlineData = async () => {
 
 
 export default function QuestionScreen() {
-  // FSRSスケジューラ初期化
-  const fsrsParams = generatorParameters({ retention: 0.9, hardInterval: 1, easyBonus: 1.3 });
-  const scheduler = fsrs(fsrsParams);
-  // ユーザー向け復習評価ラベル（日本語）
-  const nextButtonLabels = [
-    '再学習',  // Again
-    '難しい',  // Hard
-    '普通',    // Good
-    '簡単',    // Easy
-  ];
   const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [filteredQuestions, setFilteredQuestions] = useState([]);
@@ -90,11 +81,14 @@ export default function QuestionScreen() {
   const [isAnswerCorrect, setIsAnswerCorrect] = useState(null); // null: 未回答, true: 正解, false: 不正解
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isQuizFinished, setIsQuizFinished] = useState(false);
+  // New state variable to store the displayed question
   const [displayedQuestion, setDisplayedQuestion] = useState(null);
   const [risaltQuestion, setRisaltQuestion] = useState(null);
   const [showNextButton, setShowNextButton] = useState(false);
   const [showImage, setShowImage] = useState(false);
   const [imageData, setImageData] = useState(null);
+  const [QentionID, setQentionID] = useState(null);
+  // ✅ createStylesを呼び出して「テーマ対応した styles オブジェクト」を取得
   const [isDarkMode, setIsDarkMode] = useState(null);
   const isDark = isDarkMode === true;
   const styles = createStyles(isDark);
@@ -235,39 +229,19 @@ export default function QuestionScreen() {
   }, [uniqueQuestions]);
   
   const loadCorrectDataAndFilterQuestions = async () => {
-    // 1. 正解データを読み込み
-    const correctStored = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsedCorrectData = correctStored ? JSON.parse(correctStored) : {};
-    setCorrectData(parsedCorrectData);
-    
-    // 2. FSRS と correctData を照合して出題判定
-    const now = new Date();
-    const dueQuestions = [];
-    for (const question of uniqueQuestions) {
-      const qid = question.id;
-      // ユーザーに回答履歴があれば FSRS 判定
-      if (parsedCorrectData[qid] != null) {
-        const key = `${FSRS_STORAGE_PREFIX}${qid}`;
-        const storedCard = await AsyncStorage.getItem(key);
-        if (storedCard) {
-          const card = JSON.parse(storedCard);
-          card.due = new Date(card.due);
-          if (card.due <= now) {
-            dueQuestions.push(question);
-          }
-        } else {
-          // FSRS 未初期化なら初期化のみ行い出題
-          const card = createEmptyCard(new Date());
-          await AsyncStorage.setItem(key, JSON.stringify(card));
-          dueQuestions.push(question);
-        }
-      } else {
-        // 回答履歴がなければ常に出題
-        dueQuestions.push(question);
-      }
-    }
-    // 最大5問まで出題
-    setFilteredQuestions(dueQuestions.slice(0, 5));
+    // AsyncStorage から正解データを読み込む
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    const parsedData = stored ? JSON.parse(stored) : {};
+    setCorrectData(parsedData);
+
+    // 全てのユニークな質問を、保存データに基づいてマッピング
+    const mappedQuestions = uniqueQuestions
+      .map((question) => {
+        const correctCount = parsedData[question.id]?.C || 0;
+        return getQuestionsBasedOnCorrectCount(correctCount, question.id);
+      })
+      .filter((q) => q);
+    setFilteredQuestions(mappedQuestions);
   };
 
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
@@ -321,6 +295,7 @@ export default function QuestionScreen() {
   // 解答を保存
   const saveCorrectData = useCallback(async (updatedData) => {
     try {
+      console.log(updatedData)
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
     } catch (error) {
     }
@@ -351,20 +326,20 @@ export default function QuestionScreen() {
 
   // 答えをチェックする関数内（handleAnswer）
   const handleAnswer = async (choice = null) => {
-    setShowImage(true);//画像表示
+    setShowImage(true)//画像表示
     const currentQuestion = displayedQuestion; // state から取得
     if (!currentQuestion || !currentQuestion.correctAnswer) {
       return;
     }
-
+  
     const Useranswer = choice !== null ? choice : userAnswer.trim();
-
+  
     if (!Useranswer) {
       // 回答が空欄の場合、不正解と同様の処理を実行
       await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
       return;
     }
-
+  
     let updatedData = { ...correctData };
     let newScore = score;
     const currentCorrectCount = updatedData[currentQuestion.id]?.C || 0;
@@ -372,18 +347,18 @@ export default function QuestionScreen() {
 
     // 認める語尾
     const optionalEndings = ['な', 'の', 'する','して','は','である'];
-
+    
     const candidates = [answer];
-
+    
     // 語尾を取り除いたバージョンを候補に追加
     optionalEndings.forEach(ending => {
       if (answer.endsWith(ending)) {
         candidates.push(answer.slice(0, -ending.length));
       }
     });
-
+    
     const isCorrect = candidates.includes(Useranswer);
-
+    
     if (isCorrect) {
       // 正解の場合
       setIsAnswerCorrect(true);
@@ -395,37 +370,13 @@ export default function QuestionScreen() {
       updatedData[currentQuestion.id] = {
         C: currentCorrectCount + 1,
       };
-      // FSRSカードを更新・保存 (正解と仮定してGood評価を使用)
-      const fsrsKey = `${FSRS_STORAGE_PREFIX}${currentQuestion.id}`;
-      // 既存カード読み込み or 新規作成
-      const storedFSRS = await AsyncStorage.getItem(fsrsKey);
-      let oldCard = storedFSRS ? JSON.parse(storedFSRS) : createEmptyCard(new Date());
-      // 評価に応じた次回スケジュールを計算
-      const nowFSRS = new Date();
-      const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Good];
-      const newFSRSCard = result.card;
-      // 保存
-      await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
       setCorrectData(updatedData);
       await saveCorrectData(updatedData);
+      console.log('データ保存されてる？',updatedData)
       await showCorrectAnimation();
       setShowNextButton(true);
     } else {
-      //不正解
-      // 不正解時にFSRSカードを更新 (Again評価)
-      const fsrsKey = `${FSRS_STORAGE_PREFIX}${currentQuestion.id}`;
-      // 既存カード読み込み or 新規作成
-      const storedFSRS = await AsyncStorage.getItem(fsrsKey);
-      let oldCard = storedFSRS
-        ? JSON.parse(storedFSRS)
-        : createEmptyCard(new Date());
-      // Again評価で次回スケジュールを計算
-      const nowFSRS = new Date();
-      const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Again];
-      const newFSRSCard = result.card;
-      // 保存
-      await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
-      // 既存の不正解処理
+      // 不正解
       await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
     }
   };
@@ -477,18 +428,7 @@ export default function QuestionScreen() {
   
   const timeoutRef = useRef(null);
 
-  const handleNextQuestion = async (buttonIndex) => {
-    // FSRSカードを buttonIndex に応じた評価で更新
-    setIsTransitioning(false);
-    const ratingMap = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
-    const rating = ratingMap[buttonIndex - 1] ?? Rating.Good;
-    const fsrsKey = `${FSRS_STORAGE_PREFIX}${displayedQuestion.id}`;
-    const storedCard = await AsyncStorage.getItem(fsrsKey);
-    const oldCard = storedCard ? JSON.parse(storedCard) : createEmptyCard(new Date());
-    const fsrsResult = scheduler.repeat(oldCard, new Date())[rating];
-    const newFSRSCard = fsrsResult.card;
-    await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
-    await loadCorrectDataAndFilterQuestions();
+  const handleNextQuestion = () => {
     setShowImage(false)
     setShowNextButton(false);
     Animated.timing(fadeAnim, {
@@ -498,16 +438,12 @@ export default function QuestionScreen() {
     }).start(() => {
       setUserAnswer('');
       setIsAnswerCorrect(null);
-           if (currentQuestionIndex < filteredQuestions.length - 1) {
-            const nextIndex = currentQuestionIndex + 1;
-            setCurrentQuestionIndex(nextIndex);
-             // index 更新直後に音声と画像をロード
-             const nextQ = filteredQuestions[nextIndex];
-             loadAudio(nextQ);
-             loadImage(nextQ);
-           } else {
-             setIsQuizFinished(true);
-            }
+      if (currentQuestionIndex < filteredQuestions.length - 1) {
+        setCurrentQuestionIndex((prev) => prev + 1);
+      } else {
+        setIsQuizFinished(true);
+      }
+      
       // タイマーのIDを保存
       timeoutRef.current = setTimeout(() => {
         Animated.timing(fadeAnim, {
@@ -660,6 +596,7 @@ export default function QuestionScreen() {
       // ③ ダウンロードURLを取得
       const soundUrl = await getDownloadURL(ref(storage, filePath));
       // ④ Audio をロード＆準備
+      console.log(soundUrl)
       const source = { uri: soundUrl };
       const sound = new Audio.Sound();
       await sound.loadAsync(source, { shouldPlay: false }, true);
@@ -766,7 +703,7 @@ export default function QuestionScreen() {
         contentContainerStyle={{
           flexGrow: 1,
           alignItems: 'center',
-          paddingBottom: 0,
+          paddingBottom: 50,
         }}
       >
 
@@ -944,53 +881,29 @@ export default function QuestionScreen() {
             </>
             }
             {/* 1秒後に表示される次へボタン */}
-            {/* 正解時：FSRS評価4択を表示 */}
-            {showNextButton && isAnswerCorrect && (
-              <>
-                <Text style={styles.evalTitle}>復習評価を選択してください</Text>
-                <View style={styles.nextButtoncontainer}>
-                  <View style={styles.nextButtonGrid}>
-                    {Array.from({ length: 4 }).map((_, idx) => (
-                      <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
-                        <TouchableOpacity
-                          onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                          onPress={() => handleNextQuestion(idx + 1)}
-                          accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
-                          accessibilityHint="タップすると評価が適用されます"
-                        >
-                          <NeomorphBox
-                            width={(SCREEN_WIDTH * 0.85) / 2 - 5}
-                            height={60}
-                            forceTheme={forceTheme}
-                          >
-                            <Text style={styles.nextButtonText}>
-                              {nextButtonLabels[idx]}
-                            </Text>
-                          </NeomorphBox>
-                        </TouchableOpacity>
-                      </Animated.View>
-                    ))}
-                  </View>
-                </View>
-              </>
-            )}
-            {/* 不正解時：Next ボタンのみ表示 */}
-            {showNextButton && isAnswerCorrect === false && (
-              <View style={styles.nextButtoncontainer1}>
-                <TouchableOpacity
-                  onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                  onPress={() => handleNextQuestion(1)}
-                  accessibilityLabel="次へボタン"
-                  accessibilityHint="タップすると次の問題に進みます"
+            {showNextButton && (
+              <View style={styles.nextButtoncontainer}>
+              <TouchableOpacity
+                style={[styles.nextButton, { opacity: fadeAnim }]}
+                onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPress={handleNextQuestion}
+                accessibilityLabel="次へボタン"
+                accessibilityHint="タップすると次の質問に進みます"
+              >
+                <NeomorphBox
+                  width={SCREEN_WIDTH * 0.85}
+                  height={60}
+                  style={styles.neomorphStyle1}
+                  forceTheme={forceTheme}
                 >
-                  <NeomorphBox
-                    width={SCREEN_WIDTH * 0.85}
-                    height={60}
-                    forceTheme={forceTheme}
-                  >
-                    <Text style={styles.nextButtonText}>次へ</Text>
-                  </NeomorphBox>
-                </TouchableOpacity>
+                  <Text style={styles.nextButtonText}>
+                    {currentQuestionIndex < filteredQuestions.length - 1
+                      ? '次へ'
+                      : '終了'}
+                  </Text>
+                </NeomorphBox>
+              </TouchableOpacity>
+              <View style={{ height: 20 }} />
               </View>
             )}
         </View>
@@ -1005,7 +918,6 @@ export default function QuestionScreen() {
     </KeyboardAvoidingView>
   );
 }
-
 function createStyles(isDark) {
   // テーマに応じた色を一元管理
   const backgroundColor = isDark ? '#303030' : '#E3E5F2';
@@ -1210,17 +1122,14 @@ function createStyles(isDark) {
     color: textColor,
     textAlign: 'center',
   },
+  nextButton: {
+
+  },
 nextButtoncontainer:{
   flex: 1,
   backgroundColor,
   justifyContent: 'flex-end', // 子要素を下部に配置
   },
-  nextButtoncontainer1:{
-    flex: 1,
-    backgroundColor,
-    justifyContent: 'flex-end', // 子要素を下部に配置
-    marginBottom:50,
-    },
   nextButtonText: {
     color:textColor,
     fontWeight: 'bold',
@@ -1237,24 +1146,7 @@ nextButtoncontainer:{
     width: '100%',
     alignItems: 'center',
   },
-  nextButtonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginHorizontal: '5%',
-    marginTop: 10,
-    paddingBottom: 20,
-  },
-  evalTitle: {
-    fontSize: 16,
-    marginBottom: 8,
-    color: textColor,
-    textAlign: 'center',
-  },
-  nextButtonGridItem: {
-    width: '50%',
-    marginBottom: 10,
-  },
+
   });
   return styles;
 }

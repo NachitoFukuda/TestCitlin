@@ -114,24 +114,16 @@ const WeekProgressChart: React.FC<WeekProgressChartProps> = ({
   const renderBarChart = () => (
     <View style={[styles.bars, { width: '100%', height: innerHeight * 0.8 }]}>
       {weekData.map((value, i) => {
-        const h = (value / maxVal) * (innerHeight * 0.6);
+        const h = (value / maxVal) * (innerHeight * 0.8);
         return (
           <NeomorphBox
             key={i}
             width={10}
-            height={innerHeight * 0.6}
-            style={[styles.bar]}
-            variant="graph"
+            height={innerHeight * 0.75}
+            style={[styles.bar, { width:10 }]}
+            variant={'graph'}
           >
-            <View 
-              style={{ 
-                width: '100%',
-                height: h,
-                backgroundColor: '#999',
-                position: 'absolute',
-                bottom: 0
-              }} 
-            />
+            <View style={{ flex: 1 }} />
           </NeomorphBox>
         );
       })}
@@ -227,8 +219,8 @@ const styles = StyleSheet.create({
   },
   bar: {
     flex: 1,
-    marginRight:18,
-    marginLeft:18
+    marginHorizontal: 4,
+    borderRadius: 4,
   },
   labels: {
     flexDirection: 'row',

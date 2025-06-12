@@ -193,7 +193,7 @@ interface StreakProgressCardProps {
       >
         {/* STREAK */}
         <View style={styles.headerRow}>
-          <FontAwesome5 name="fire" size={18} color="rgb(255, 0, 81)" />
+          <FontAwesome5 name="fire" size={18} color="rgba(0, 255, 191, 0.79)" />
           <View style={{ marginLeft: 8 }}>
             <Text style={[styles.headerLabel, { color: textColor }]}>STREAK</Text>
             <Text style={[styles.headerValue, { color: textColor }]}>Day {dayCount}</Text>
@@ -208,8 +208,6 @@ interface StreakProgressCardProps {
             const isFull = v === todayGoal;
             const radius = 10;
             const strokeWidth = 2;
-            const circumference = 2 * Math.PI * (radius - strokeWidth);
-            // Adjust radius so stroke sits inside SVG bounds to match dot size
             const adjustedRadius = radius - strokeWidth / 2;
             const adjustedCircumference = 2 * Math.PI * adjustedRadius;
             const percentValue = percent;
@@ -419,13 +417,13 @@ const styles = StyleSheet.create({
     marginTop:15,
     height: 12,  // ゲージの高さを小さく
     flexDirection: 'row',
-    backgroundColor: '#333',
+    backgroundColor: '#ccc',
     borderRadius: 4,
     overflow: 'hidden',
     marginHorizontal: 8,
   },
   barFill: {
-    backgroundColor: '#4CD964',
+    backgroundColor: 'rgba(0, 255, 191, 0.79)',
   },
   percentLabel: {
     fontWeight: 'bold',

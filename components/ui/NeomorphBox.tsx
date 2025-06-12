@@ -105,7 +105,7 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
           ],
         })
       : variant === 'VIP'
-      ? '#E3E5F2'
+      ? '#000'
       : variant === 'blue'
       ? 'rgba(0, 123, 255, 0.79)'
       : variant === 'graph'
