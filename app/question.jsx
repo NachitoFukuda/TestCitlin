@@ -70,6 +70,24 @@ const checkDeadlineData = async () => {
 
 
 export default function QuestionScreen() {
+  // 不正解時のリトライ処理
+  const handleRetryQuestion = () => {
+    // UIリセット
+    setShowNextButton(false);
+    setIsAnswerCorrect(null);
+    setIsTransitioning(false);
+    // 現在の問題に対して音声・画像を再ロード
+    if (displayedQuestion) {
+      loadAudio(displayedQuestion);
+      loadImage(displayedQuestion);
+    }
+    // フェードインアニメーション
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  };
   // FSRSスケジューラ初期化
   const fsrsParams = generatorParameters({ retention: 0.9, hardInterval: 1, easyBonus: 1.3 });
   const scheduler = fsrs(fsrsParams);
@@ -278,14 +296,6 @@ export default function QuestionScreen() {
     }
   }, [displayedQuestion?.id]);
 
-  // Update displayedQuestion whenever filteredQuestions or currentQuestionIndex changes
-  useEffect(() => {
-    if (filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
-      setDisplayedQuestion(filteredQuestions[currentQuestionIndex]);
-      const currentQuestion = filteredQuestions[currentQuestionIndex].question;
-      setRisaltQuestion(currentQuestion)
-    }
-  }, [filteredQuestions, currentQuestionIndex]);
 
   // filteredQuestionsとcurrentQuestionIndexが変化したらシャッフル更新
   useEffect(() => {
@@ -316,7 +326,6 @@ export default function QuestionScreen() {
   
     return () => clearInterval(interval); // クリーンアップ
   }, [isCountingDown]);
-  
 
   // 解答を保存
   const saveCorrectData = useCallback(async (updatedData) => {
@@ -469,6 +478,7 @@ export default function QuestionScreen() {
     });
 
     setIsAnswerCorrect(false);
+    setShowImage(false);
     setIsTransitioning(true);
     await showCorrectAnimation1();
     setShowNextButton(true);
@@ -479,9 +489,17 @@ export default function QuestionScreen() {
 
   const handleNextQuestion = async (buttonIndex) => {
     // FSRSカードを buttonIndex に応じた評価で更新
-    setIsTransitioning(false);
     const ratingMap = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
     const rating = ratingMap[buttonIndex - 1] ?? Rating.Good;
+    // ─────────── デバッグログ追加 ───────────
+    console.log('[DEBUG] handleNextQuestion called', {
+      buttonIndex,
+      currentQuestionIndex,
+      isTransitioning,
+      showNextButton,
+    });
+    // ────────────────────────────────────────
+
     const fsrsKey = `${FSRS_STORAGE_PREFIX}${displayedQuestion.id}`;
     const storedCard = await AsyncStorage.getItem(fsrsKey);
     const oldCard = storedCard ? JSON.parse(storedCard) : createEmptyCard(new Date());
@@ -491,24 +509,43 @@ export default function QuestionScreen() {
     await loadCorrectDataAndFilterQuestions();
     setShowImage(false)
     setShowNextButton(false);
+    // ─────────── デバッグログ追加 ───────────
+    console.log('[DEBUG] before fadeAnim.start', {
+      currentQuestionIndex,
+      displayedQuestionId: displayedQuestion?.id,
+    });
+    // ────────────────────────────────────────
+
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 500,
       useNativeDriver: true,
     }).start(() => {
+      // ─────────── デバッグログ追加 ───────────
+      console.log('[DEBUG] fadeAnim callback start', {
+        currentQuestionIndex,
+        displayedQuestionId: displayedQuestion?.id,
+      });
+      // ────────────────────────────────────────
+
       setUserAnswer('');
       setIsAnswerCorrect(null);
-           if (currentQuestionIndex < filteredQuestions.length - 1) {
-            const nextIndex = currentQuestionIndex + 1;
-            setCurrentQuestionIndex(nextIndex);
-             // index 更新直後に音声と画像をロード
-             const nextQ = filteredQuestions[nextIndex];
-             loadAudio(nextQ);
-             loadImage(nextQ);
-           } else {
-             setIsQuizFinished(true);
-            }
-      // タイマーのIDを保存
+      if (currentQuestionIndex < filteredQuestions.length - 1) {
+        const nextIndex = currentQuestionIndex + 1;
+        setCurrentQuestionIndex(nextIndex);
+        // ─────────── デバッグログ追加 ───────────
+        console.log('[DEBUG] setCurrentQuestionIndex ->', nextIndex);
+        // ────────────────────────────────────────
+
+        // index 更新直後に音声と画像をロード
+        const nextQ = filteredQuestions[nextIndex];
+        loadAudio(nextQ);
+        loadImage(nextQ);
+      } else {
+        setIsQuizFinished(true);
+      }
+      // フィードバック状態を解除
+      // タイマーのIDを保存し、フェードイン開始
       timeoutRef.current = setTimeout(() => {
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -604,16 +641,16 @@ export default function QuestionScreen() {
 
   
   useEffect(() => {
-    if (filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
+    if (!isTransitioning && filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
       const question = filteredQuestions[currentQuestionIndex];
       setDisplayedQuestion(question);
+      // ─────────── デバッグログ追加 ───────────
+      // ────────────────────────────────────────
       setRisaltQuestion(question.question);
-  
-      // 音声と画像をそれぞれ読み込む
       loadAudio(question);
       loadImage(question);
     }
-  }, [filteredQuestions, currentQuestionIndex]);
+  }, [filteredQuestions, currentQuestionIndex, isTransitioning]);
 
 
     // 🖼️ 画像読み込み処理
@@ -639,12 +676,10 @@ export default function QuestionScreen() {
           setImageData(null);
         }
       } catch (error) {
-        console.error('画像取得エラー:', error);
         setImageData(null);
       }
     };
     
-  
   // 🔊 音声読み込み処理
   const loadAudio = async (question) => {
     setReloading(true);
@@ -943,59 +978,54 @@ export default function QuestionScreen() {
               </NeomorphBox>
             </>
             }
-            {/* 1秒後に表示される次へボタン */}
-            {/* 正解時：FSRS評価4択を表示 */}
-            {showNextButton && isAnswerCorrect && (
-              <>
-                <Text style={styles.evalTitle}>復習評価を選択してください</Text>
-                <View style={styles.nextButtoncontainer}>
-                  <View style={styles.nextButtonGrid}>
-                    {Array.from({ length: 4 }).map((_, idx) => (
-                      <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
-                        <TouchableOpacity
-                          onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                          onPress={() => handleNextQuestion(idx + 1)}
-                          accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
-                          accessibilityHint="タップすると評価が適用されます"
-                        >
-                          <NeomorphBox
-                            width={(SCREEN_WIDTH * 0.85) / 2 - 5}
-                            height={60}
-                            forceTheme={forceTheme}
-                          >
-                            <Text style={styles.nextButtonText}>
-                              {nextButtonLabels[idx]}
-                            </Text>
-                          </NeomorphBox>
-                        </TouchableOpacity>
-                      </Animated.View>
-                    ))}
-                  </View>
-                </View>
-              </>
-            )}
-            {/* 不正解時：Next ボタンのみ表示 */}
-            {showNextButton && isAnswerCorrect === false && (
-              <View style={styles.nextButtoncontainer1}>
-                <TouchableOpacity
-                  onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                  onPress={() => handleNextQuestion(1)}
-                  accessibilityLabel="次へボタン"
-                  accessibilityHint="タップすると次の問題に進みます"
-                >
-                  <NeomorphBox
-                    width={SCREEN_WIDTH * 0.85}
-                    height={60}
-                    forceTheme={forceTheme}
-                  >
-                    <Text style={styles.nextButtonText}>次へ</Text>
-                  </NeomorphBox>
-                </TouchableOpacity>
-              </View>
-            )}
         </View>
         </ScrollView>
 
+        {/* 1秒後に表示される次へボタン */}
+        {/* 正解時：FSRS評価4択を表示 */}
+        {showNextButton && isAnswerCorrect && (
+          <View style={styles.nextButtonContainer}>
+            <View style={styles.nextButtonGrid}>
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
+                  <TouchableOpacity
+                    onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                    onPress={() => handleNextQuestion(idx + 1)}
+                    accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
+                    accessibilityHint="タップすると評価が適用されます"
+                  >
+                    <NeomorphBox
+                      width={(SCREEN_WIDTH * 0.85) / 2 - 5}
+                      height={60}
+                      forceTheme={forceTheme}
+                    >
+                      <Text style={styles.nextButtonText}>
+                        {nextButtonLabels[idx]}
+                      </Text>
+                    </NeomorphBox>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+            </View>
+          </View>
+        )}
+        {/* 不正解時：Next ボタンのみ表示 */}
+        {showNextButton && isAnswerCorrect === false && (
+          <View style={styles.nextButtonIncorrectContainer}>
+            <TouchableOpacity
+              onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+              onPress={() => handleNextQuestion(1)}
+            >
+              <NeomorphBox
+                width={SCREEN_WIDTH * 0.85}
+                height={60}
+                forceTheme={forceTheme}
+              >
+                <Text style={styles.nextButtonText}>次へ</Text>
+              </NeomorphBox>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* キーボード (count===3,4,5,6,8) で表示 */}
         {showKeyboardExample && !isTransitioning && (
             <SafeAreaView style={styles.keyboardContainer}>
@@ -1210,10 +1240,19 @@ function createStyles(isDark) {
     color: textColor,
     textAlign: 'center',
   },
-nextButtoncontainer:{
-  flex: 1,
-  backgroundColor,
-  justifyContent: 'flex-end', // 子要素を下部に配置
+  nextButtoncontainer:{
+    flex: 1,
+    backgroundColor,
+    justifyContent: 'flex-end', // 子要素を下部に配置
+  },
+  // 新しい nextButtonContainer を追加（存在しなければ）
+  nextButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor, // テーマ対応変数
+    paddingVertical: 10,
+    alignItems: 'center',
   },
   nextButtoncontainer1:{
     flex: 1,
@@ -1255,6 +1294,14 @@ nextButtoncontainer:{
     width: '50%',
     marginBottom: 10,
   },
+  // 不正解時の下部表示用スタイル
+nextButtonIncorrectContainer: {
+  position: 'absolute',
+  bottom: 50,        // 画面下部に配置
+  left: 0,
+  right: 0,          // 横幅いっぱいに広げて中央揃えを効かせる
+  alignItems: 'center',
+},
   });
   return styles;
 }
