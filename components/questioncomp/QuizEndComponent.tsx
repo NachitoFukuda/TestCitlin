@@ -1,18 +1,141 @@
 // QuizEndComponent.tsx
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  Dimensions,
-} from 'react-native';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import {View,StyleSheet,Text,TouchableOpacity,Dimensions} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
 import { router } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import EndLabel from '../questioncomp/EndLabel'; // EndLabelコンポーネントのインポート
+import { useSubscription } from '@/components/contexts/SubscriptionContext';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import { Card } from 'ts-fsrs';
+import ScoreSummary from './ScoreSummary';
+import useQuestionData from './useQuestionData';
+
+type QuizEndComponentProps = {
+  score: number;
+  total: number;
+  QentionID: number;
+  correctQuestions: Array<{ id: string | number; question: string; correctAnswer: string; japan?: string }>;
+  incorrectQuestions?: Array<{ id: string | number; question: string; correctAnswer: string; japan?: string }>;
+  questions?: Array<{ id: string | number; question: string; correctAnswer: string; japan?: string }>;
+  nextReviewInfo?: { id: string | number; daysUntilDue: number }[];
+  visibleCount?: number;
+  themeColors?: { textColor: string };
+};
+
+type ReviewListProps = {
+  questions: Array<{ id: string | number; question: string; correctAnswer: string; japan?: string }>;
+  nextReviewInfo: { id: string | number; daysUntilDue: number }[];
+  incorrectQuestions: Array<{ id: string | number; question: string; correctAnswer: string; japan?: string }>;
+  visibleCount: number;
+  themeColors: { textColor: string };
+};
+
+const ReviewList: React.FC<ReviewListProps> = ({
+  questions,
+  nextReviewInfo,
+  incorrectQuestions,
+  visibleCount,
+  themeColors,
+}) => (
+  <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+    <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+      <NeomorphBox
+        width={SCREEN_WIDTH * 0.9}
+        height={330}
+        style={{
+          marginBottom: 20,
+          marginTop: 30,
+          marginHorizontal: 20,
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          paddingTop: 10,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 10,
+            width: '100%',
+            justifyContent: 'flex-start',
+            paddingHorizontal: 20,
+          }}
+        >
+          <Text style={{ flex: 4, textAlign: 'center', fontWeight: 'bold', color: themeColors.textColor }}>
+            英語
+          </Text>
+          <Text style={{ flex: 4, textAlign: 'center', fontWeight: 'bold', color: themeColors.textColor }}>
+            日本語
+          </Text>
+          <Text style={{ flex: 2, textAlign: 'center', fontWeight: 'bold', color: themeColors.textColor }}>
+            次の出題
+          </Text>
+        </View>
+        {questions.map((q, idx) => {
+          if (idx >= visibleCount) return null;
+          const isMiss = incorrectQuestions.some(m => String(m.id) === String(q.id));
+          const info = nextReviewInfo.find(item => item.id === q.id);
+          return (
+            <NeomorphBox
+              key={q.id}
+              width={SCREEN_WIDTH * 0.8}
+              height={40}
+              style={{ marginBottom: 12, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  width: '100%',
+                  justifyContent: 'flex-start',
+                }}
+              >
+                <Text
+                  style={{
+                    flex: 4,
+                    textAlign: 'center',
+                    color: isMiss ? 'red' : themeColors.textColor,
+                    fontSize: 16,
+                    lineHeight: 22,
+                  }}
+                >
+                  {q.question}
+                </Text>
+                <Text
+                  style={{
+                    flex: 4,
+                    textAlign: 'center',
+                    color: isMiss ? 'red' : themeColors.textColor,
+                    fontSize: 16,
+                    opacity: isMiss ? 1 : 0.7,
+                    lineHeight: 22,
+                  }}
+                >
+                  {q.japan ?? q.correctAnswer}
+                </Text>
+                <Text
+                  style={{
+                    flex: 2,
+                    color: isMiss ? 'red' : themeColors.textColor,
+                    fontSize: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  {typeof info?.daysUntilDue === 'number' && info.daysUntilDue <= 0
+                    ? '本日'
+                    : `${info?.daysUntilDue ?? 0}日後`}
+                  </Text>
+              </View>
+            </NeomorphBox>
+          );
+        })}
+      </NeomorphBox>
+    </View>
+  </View>
+);
+const FSRS_STORAGE_PREFIX = 'FSRS_CARD_';
 
 function calculateCompletionRates(
   results: number[],
@@ -29,32 +152,125 @@ function calculateCompletionRates(
     return Math.min(rate, 100);
   });
 }
+
 const POINTS_STORAGE_KEY = '@quiz_points';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-type QuizEndComponentProps = {
-  score: number;
-  total: number;
-  QentionID: number;
-  missedQuestions?: { id: string | number, question: string, correctAnswer: string }[];
-  onFinish: () => void; // ここに onFinish を追加
-  forceTheme: "light" | "dark";
-};
-
 
 const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   score,
   total,
   QentionID,
-  missedQuestions = [],
-  forceTheme = 'light',
+  correctQuestions,
+  incorrectQuestions = [],
+  questions: propQuestions,
+  nextReviewInfo: propNextReviewInfo,
+  visibleCount: propVisibleCount,
+  themeColors: propThemeColors,
 }) => {
 
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      staysActiveInBackground: false,
+    });
+  }, []);
 
+  // Audio 再生用の refs とロード済みフラグ
+const soundRef = useRef<Audio.Sound>(new Audio.Sound());
+const wrongSoundRef = useRef<Audio.Sound>(new Audio.Sound());
+const fullSoundRef = useRef<Audio.Sound>(new Audio.Sound());
+const [soundLoaded, setSoundLoaded] = useState(false);
+const [wrongSoundLoaded, setWrongSoundLoaded] = useState(false);
+const [fullSoundLoaded, setFullSoundLoaded] = useState(false);
+  // 音声再生用リピート防止フラグ
+  const revealPlayedRef = useRef(false);
+
+// 正解音ロード
+useEffect(() => {
+  (async () => {
+    try {
+      await soundRef.current.loadAsync(require('../../assets/sound/pa.mp3'));
+      setSoundLoaded(true);
+    } catch (e) {
+      console.error('正解音ロード失敗:', e);
+    }
+  })();
+  return () => { soundRef.current.unloadAsync(); };
+}, []);
+
+// 不正解音ロード
+useEffect(() => {
+  (async () => {
+    try {
+      await wrongSoundRef.current.loadAsync(require('../../assets/sound/kako.mp3'));
+      setWrongSoundLoaded(true);
+    } catch (e) {
+      console.error('不正解音ロード失敗:', e);
+    }
+  })();
+  return () => { wrongSoundRef.current.unloadAsync(); };
+}, []);
+
+// 満点音ロード
+useEffect(() => {
+  (async () => {
+    try {
+      await fullSoundRef.current.loadAsync(require('../../assets/sound/full.mp3'));
+      setFullSoundLoaded(true);
+    } catch (e) {
+      console.error('Failed to load full-score sound:', e);
+    }
+  })();
+  return () => {
+    fullSoundRef.current.unloadAsync();
+  };
+}, []);
+
+  const filteredQuestions = useMemo(
+    () => [...(correctQuestions ?? []), ...(incorrectQuestions ?? [])],
+    [correctQuestions, incorrectQuestions]
+  );
+
+// 順次表示＋音声再生 (TestCitlin と同じロジック)
+useEffect(() => {
+  if (revealPlayedRef.current) return;
+  if (!soundLoaded || !wrongSoundLoaded) return;
+  revealPlayedRef.current = true;
+  setVisibleCount(0);
+  const timeouts: NodeJS.Timeout[] = [];
+  filteredQuestions.forEach((q, idx) => {
+    const timeout = setTimeout(async () => {
+      const isMiss = incorrectQuestions.some(m => m.id === q.id);
+      setVisibleCount(prev => prev + 1);
+      try {
+        if (isMiss) {
+          await wrongSoundRef.current.setPositionAsync(0);
+          await wrongSoundRef.current.playAsync();
+        } else {
+          await soundRef.current.setPositionAsync(0);
+          await soundRef.current.playAsync();
+        }
+      } catch (e) {
+        console.error('音声再生エラー:', e);
+      }
+    }, idx * 300);
+    timeouts.push(timeout);
+  });
+  return () => timeouts.forEach(t => clearTimeout(t));
+}, [soundLoaded, wrongSoundLoaded]);
+  const { customerInfo } = useSubscription();
+  const isVIP = customerInfo?.entitlements?.active?.['citlin_ads_disabled']?.isActive === true;
   // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
+  const validQID =
+  typeof QentionID === 'number' && !isNaN(QentionID)
+    ? QentionID
+    : Number(filteredQuestions[filteredQuestions.length - 1]?.id) || 0;
   const basePoint = 10;
-  const idMultiplier = Math.pow(1.05, QentionID);
-  // 基本報酬
+  const idMultiplier = Math.pow(1.05, validQID);// 基本報酬
   const baseReward = Math.round(score * basePoint * idMultiplier);
   // 全問正解ボーナス
   let bonusPoints = 0;
@@ -62,12 +278,14 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     const fullBonusMultiplier = Math.pow(1.1, score);
     bonusPoints = Math.round(baseReward * (fullBonusMultiplier - 1));
   }
-  // VIPユーザーはポイント2倍
-  const vipMultiplier =  1;
-  // 合計ポイント
+  // VIPボーナス
+  const vipMultiplier = isVIP ? 2 : 1;
+
+  // 合計ポイント（基本報酬 + VIPボーナス + 全問正解ボーナス）
   const points = (baseReward + bonusPoints) * vipMultiplier;
-  
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [displayPoints, setDisplayPoints] = useState(baseReward);
   const [showConfetti, setShowConfetti] = useState(false);
   const [finishProcessing, setFinishProcessing] = useState(false);
   const confettiRef = useRef<LottieView>(null);
@@ -81,8 +299,15 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     [0, 0, 0, 0, 0, 0, 0],
   ];
   const [Data, setData] = useState<number[][]>(defaultHeatmapData);
+  const [nextReviewInfo, setNextReviewInfo] = useState<{ id: string | number; daysUntilDue: number }[]>([]);
+  const { level } = useQuestionData();
+  // ---- Level‑aware storage keys ----
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
+  const SCORE_BY_DATE_KEY = `@score_by_date_${sanitizedLevel}`
+  const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
-  // テーマに応じた色を一元管理
+
   const themeColors = useMemo(() => {
     return {
       containerBg: '#E3E5F2',
@@ -90,7 +315,7 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
       questionTextColor:  '#666',
       buttonTextColor: '#666',
     };
-  }, [forceTheme]);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -216,7 +441,6 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
           '@heatmap_data',
           JSON.stringify({ matrix, date: dateStr })
         );
-        // UI 更新
         setData(matrix);
       } catch (err) {
         console.error('[Heatmap] heatmap_data 更新エラー:', err);
@@ -266,24 +490,19 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   useEffect(() => {
     (async () => {
       try {
-        const storedData = await AsyncStorage.getItem('correctData');
+        const storedData = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
         // もしデータがなければ空オブジェクトにフォールバック
         const generatedData = storedData
           ? (JSON.parse(storedData) as Record<string, { C?: number; L?: number }> )
           : {};  
         // 値オブジェクトだけ取り出す
         const values = Object.values(generatedData);
-        // C が 2 or 3 の数
         const count2_3 = values.filter(obj => obj.C === 2 || obj.C === 3).length;
-        // C が 4 or 5 の数
         const count4_5 = values.filter(obj => obj.C === 4 || obj.C === 5).length;
-        // C が 6 or 7 の数
         const count6_7 = values.filter(obj => obj.C === 6 || obj.C === 7).length;
-        // C が 8 or 9 の数
         const count8_9 = values.filter(obj => obj.C === 8 || obj.C === 9).length;
 
         const results = todayGeneratedData?.result ?? [];
-        console.log('[QuizEndComponent] results:', todayGeneratedData);
         const counts = [count2_3, count4_5, count6_7, count8_9];
         const completionRates = await Promise.resolve(calculateCompletionRates(results, counts));
         const nonNullRates = completionRates.filter((r): r is number => r !== null);
@@ -321,32 +540,60 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     return () => clearInterval(interval);
   }, [animatedScore, score]);
 
+  // アニメーション完了時に全問正解ボーナスを付与
+  useEffect(() => {
+    const addPerfectBonus = async () => {
+      if (animatedScore === score && score === total && total > 0) {
+        try {
+          // 基本報酬の計算
+          const basePoint = 10;
+          const idMultiplier = Math.pow(1.05, QentionID);
+          const baseReward = Math.round(score * basePoint * idMultiplier);
+          // 全問正解ボーナスの計算
+          const fullBonusPoints = Math.round(baseReward * (Math.pow(1.1, score) - 1));
+          
+          // 現在のポイントを取得
+          const stored = await AsyncStorage.getItem(POINTS_STORAGE_KEY);
+          const currentPoints = stored ? JSON.parse(stored) : 0;
+          
+          // ボーナスを加算して保存
+          const totalPoints = currentPoints + fullBonusPoints;
+          await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
+          
+          console.log('[QuizEndComponent] Perfect bonus added:', fullBonusPoints);
+        } catch (e) {
+          console.error('[QuizEndComponent] Error adding perfect bonus:', e);
+        }
+      }
+    };
+
+    addPerfectBonus();
+  }, [animatedScore, score, total, QentionID]);
 
   // 満点の場合、コンフェッティと振動をトリガー
-// 変更後の useEffect
-useEffect(() => {
-  let isActive = true;  // ← これを追加
+  useEffect(() => {
+    let isActive = true;  // ← これを追加
 
-  if (animatedScore === score && score === total && !showConfetti) {
-    setShowConfetti(true);
-    if (confettiRef.current) {
-      confettiRef.current.play();
-    }
-    (async () => {
-      for (let i = 0; i < 10; i++) {
-        if (!isActive) break;  // ← フラグをチェックして停止
-        try {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch {}
-        await new Promise(resolve => setTimeout(resolve, 10));
+    if (animatedScore === score && score === total && !showConfetti) {
+      setShowConfetti(true);
+      if (confettiRef.current) {
+        confettiRef.current.play();
       }
-    })();
-  }
+      (async () => {
+        for (let i = 0; i < 10; i++) {
+          if (!isActive) break;  // ← フラグをチェックして停止
+          try {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } catch {}
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      })();
+    }
 
-  return () => {
-    isActive = false;  // ← アンマウント時／依存が変わったときにフラグを折る
-  };
-}, [animatedScore, score, total, showConfetti]);
+    return () => {
+      isActive = false;  // ← アンマウント時／依存が変わったときにフラグを折る
+    };
+  }, [animatedScore, score, total, showConfetti]);
 
   // 完了ボタン押下時の処理
   const handleFinish = async () => {
@@ -356,96 +603,97 @@ useEffect(() => {
       // ① 既存のポイントを取得
       const stored = await AsyncStorage.getItem(POINTS_STORAGE_KEY);
       const prevPoints = stored ? JSON.parse(stored) : 0;
-  
       // ② 今回獲得した points を加算
       const totalPoints = prevPoints + points;
-  
       // ③ 合計を保存
       await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
-  
       // ★ ④ 今日の正解数を保存
       const today = new Date().toISOString().split('T')[0]; // 例: "2025-05-23"
-      const CORRECT_KEY = '@daily_correct_data';
       const correctRaw = await AsyncStorage.getItem(CORRECT_KEY);
       const correctParsed = correctRaw ? JSON.parse(correctRaw) : {};
       correctParsed[today] = (correctParsed[today] || 0) + score;
       await AsyncStorage.setItem(CORRECT_KEY, JSON.stringify(correctParsed));
-  
+      // ※ スコア保存処理は useEffect 側に移動
     } catch (e) {
       console.error('保存エラー:', e);
     }
-  
+
     // 通常はホーム画面に遷移、20%の確率でUpsell画面に遷移
     const shouldShowUpsell = Math.random() < 0.2; // 20%の確率
     router.push(shouldShowUpsell ? '/Upsell' : '/');
-
   };
+
+    // スコア保存処理: マウント時に本日分初期化 or 追加
+    useEffect(() => {
+      (async () => {
+        const today = new Date().toISOString().split('T')[0];
+        const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+        const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
+        if (!scoreMap[today]) {
+          scoreMap[today] = 0;
+          await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
+        }
+        // 今日の日付をキーに累計スコアを上書きではなく加算保存
+        scoreMap[today] = (scoreMap[today] ?? 0) + score;
+        await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+      (async () => {
+        const now = new Date();
+        const info: { id: string | number; daysUntilDue: number }[] = [];
+        for (const q of filteredQuestions) {
+          const id = q.id;
+          try {
+            const json = await AsyncStorage.getItem(`${FSRS_STORAGE_PREFIX}${id}`);
+            if (json) {
+              const card: Card = JSON.parse(json);
+              const dueDate = new Date(card.due);
+              const diff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+              info.push({ id, daysUntilDue: diff });
+            } else {
+              // 初期カード未存在なら即出題のため0日後
+              info.push({ id, daysUntilDue: 0 });
+            }
+          } catch {
+            info.push({ id, daysUntilDue: -1 });
+          }
+        }
+        setNextReviewInfo(info);
+      })();
+    }, [filteredQuestions]);
+
+      // 満点判定時に displayPoints を合計値に更新
+  useEffect(() => {
+    if (
+      animatedScore === score &&
+      score === total &&
+      !showConfetti
+    ) {
+      setDisplayPoints(baseReward + bonusPoints);
+    }
+  }, [animatedScore, score, total, showConfetti, baseReward, bonusPoints]);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>
       {/* EndLabelを、スコアのカウントアップが完了したときに表示 */}
-      <View style={styles.mLabelContainer}>
-        {animatedScore === score ? (
-          <EndLabel Score={animatedScore} forceTheme={forceTheme} />
-        ) : (
-          <NeomorphBox
-            width={SCREEN_WIDTH * 0.85}
-            height={60}
-            style={styles.neomorphContainer}
-          >
-            <Text style={[styles.questionText, { color: themeColors.questionTextColor }]}>
-            </Text>
-          </NeomorphBox>
-        )}
-      </View>
-
-      <NeomorphBox
-        width={SCREEN_WIDTH * 0.85}
-        height={210 + missedQuestions.length * 44}
-        style={styles.neomorphBox}
-      >
-        <View style={styles.contentContainer}>
-          <Text style={[styles.questionText, { color: themeColors.questionTextColor }]}>
-            学習終了
-          </Text>
-          <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
-            スコア: {animatedScore}/{total}
-          </Text>
-          <View>
-            <Text style={[styles.scoreText, { color: themeColors.textColor }]}>
-              獲得ポイント: {points} pt
-            </Text>
-            { animatedScore === total && (
-              <Text style={[styles.bonusText, { marginTop: 10 }]}>
-                全問正解ボーナス: +{Math.floor(points * 0.5)} pt
-              </Text>
-            )}
-          </View>
-        </View>
-
-      {/* ここで下に表示 */}
-      {missedQuestions.length > 0 && (
-   <>
-      <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-        <Text style={{ color: 'rgba(255, 0, 0, 0.55)', fontWeight: 'bold', fontSize: 20, marginTop: 24, marginBottom: 16, textAlign: 'center' }}>
-          ミスした単語
-        </Text>
-        <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
-          {missedQuestions.map((q) => (
-            <View key={q.id} style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: themeColors.textColor, fontSize: 16, lineHeight: 22 }}>
-                {q.question}
-              </Text>
-              <Text style={{ color: themeColors.textColor, fontSize: 16, opacity: 0.7, marginLeft: 16, lineHeight: 22 }}>
-                {q.correctAnswer}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </>
-      )}
-        </NeomorphBox>
+      <ScoreSummary
+        animatedScore={animatedScore}
+        total={total}
+        points={displayPoints - Math.floor(displayPoints * 0.5)}
+        bonusPoints={Math.floor(displayPoints * 0.5)}
+        vipBonusPoints={Math.floor(displayPoints * 0.5)}
+        themeColors={themeColors}
+      />
+      <ReviewList
+        questions={filteredQuestions}
+        nextReviewInfo={nextReviewInfo}
+        incorrectQuestions={incorrectQuestions}
+        visibleCount={visibleCount}
+        themeColors={themeColors}
+      />
 
       <View style={styles.nextButtonContainer}>
         <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
@@ -514,7 +762,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bonusText: {
-    fontSize:20,
     color: '#FFD700',
     fontWeight: 'bold',
   },

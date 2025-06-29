@@ -3,11 +3,10 @@ import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-nati
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
 import { FontAwesome5 } from '@expo/vector-icons';
+import useQuestionData from '../questioncomp/useQuestionData';
 
 const POINTS_KEY = '@heatmap_data';
 const STEPS_KEY = '@steps_data';
-const CORRECT_KEY = 'correctData';
-const CORRECT_New_KEY = '@daily_correct_data';
 const GENERATED_KEY = '@generated_data';
 /**
  * 週次の学習ステータスと日別進捗、ステップカウントを
@@ -41,6 +40,10 @@ interface StreakProgressCardProps {
   const [dayCount, setDayCount] = useState<number>(1);
   const [TodayaverageRate, setTodayaverageRate] = useState<number>(0);
   const [counts, setCounts] = useState<number>(0);
+  const { level } = useQuestionData();
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
+  const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
   
   // 安全にデータを取得する関数
@@ -92,7 +95,7 @@ interface StreakProgressCardProps {
         setSteps(typeof stepsData === 'number' ? stepsData : 0);
 
         // 正解数の読み込み
-        const correctData = await safeGetData(CORRECT_KEY, {});
+        const correctData = await safeGetData(STORAGE_KEY_LEVEL, {});
         if (typeof correctData === 'object') {
           const values = Object.values(correctData);
           const count2_3 = values.filter((obj: any) => obj && (obj.C === 2 || obj.C === 3)).length;

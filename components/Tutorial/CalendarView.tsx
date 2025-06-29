@@ -57,7 +57,7 @@ const getTotalWordsByLevel = (level: string | null): number => {
     case '1_5':
       return 3400; 
     case '1':
-      return 3200; 
+      return 4280; 
     default:
       return 1000; // デフォルトの値
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, Animated, StyleProp, ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 interface TapIndicatorProps {
@@ -7,6 +7,7 @@ interface TapIndicatorProps {
   color?: string;
   strokeWidth?: number;
   duration?: number;
+  style?: StyleProp<ViewStyle>;   // ← add this
 }
 
 const TapIndicator: React.FC<TapIndicatorProps> = ({
@@ -14,6 +15,7 @@ const TapIndicator: React.FC<TapIndicatorProps> = ({
   color = '#000',
   strokeWidth = 20,
   duration = 300,
+  style,        // ← new
 }) => {
   const radiusAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -48,7 +50,7 @@ const TapIndicator: React.FC<TapIndicatorProps> = ({
   const AnimatedCircleComp = Animated.createAnimatedComponent(Circle);
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={[styles.container, style]} pointerEvents="none">
       <Svg width={size} height={size}>
       <Animated.View
         style={{

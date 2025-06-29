@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-const FSRS_STORAGE_PREFIX = 'FSRS_CARD_';
 import { useFocusEffect, useRouter } from 'expo-router';
 import KeyboardExample from '../components/questioncomp/KeyboardExample';
 import HanahubukiAnimation from '../assets/lottie/Hanahubuki.json';
@@ -23,6 +22,7 @@ import NeomorphBox from '../components/ui/NeomorphBox'; // ニューモフィズ
 import { Audio } from 'expo-av';
 import Countdown from '@/components/questioncomp/Countdown';
 import QuizEndComponent from '@/components/questioncomp/QuizEndComponent';
+import DailyLimitScreen from '@/components/questioncomp/DailyLimitScreen';
 import correctSound from '../assets/sound/button25.mp3'; // 正解音
 import beepSound from '../assets/sound/beepSound.mp3'; // 不正解音
 import LottieView from 'lottie-react-native';
@@ -30,7 +30,6 @@ import MLabel from '@/components/questioncomp/MLabel';
 import { getOrSaveImageFileUrlRTDB } from '../utils/getOrSaveImageFileUrlRTDB';
 import AnimatedRemoteImage from '../components/questioncomp/AnimatedRemoteImage';
 import { createEmptyCard, generatorParameters, fsrs, Rating } from 'ts-fsrs';
-//import useSoundFiles from '../components/questioncomp/useSoundFiles'
 import useQuestionData from '../components/questioncomp/useQuestionData'; // パスは実際の配置に合わせて調整
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
 import { storage } from '../firebaseConfig';
@@ -38,67 +37,17 @@ import { getDownloadURL, ref } from 'firebase/storage';
 import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const STORAGE_KEY = 'correctData';
-
-const checkDeadlineData = async () => {
-  const data = await AsyncStorage.getItem('@deadline_days');
-  return data ? JSON.parse(data) : null; // JSONデータをパース
-};
-
-    async function getPreviousQuarterHour(date) {
-    const adjustedDate = new Date(date);
-    adjustedDate.setSeconds(0);
-    adjustedDate.setMilliseconds(0);
-    const year = adjustedDate.getFullYear();
-    const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(adjustedDate.getDate()).padStart(2, '0');
-
-    // 非同期処理でデータを取得（awaitを使用）
-    const startday = await checkDeadlineData();
-
-      if (!startday || !startday.savedAt) {
-        return null; // 失敗時はnullを返す
-      }
-      const savedDate = new Date(startday.savedAt);
-      // 現在の日付を取得
-      const currentDate = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
-      // 差分日数を計算
-      const diffTime = currentDate - savedDate;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays;
-  }
-
 
 export default function QuestionScreen() {
-  // 不正解時のリトライ処理
-  const handleRetryQuestion = () => {
-    // UIリセット
-    setShowNextButton(false);
-    setIsAnswerCorrect(null);
-    setIsTransitioning(false);
-    // 現在の問題に対して音声・画像を再ロード
-    if (displayedQuestion) {
-      loadAudio(displayedQuestion);
-      loadImage(displayedQuestion);
-    }
-    // フェードインアニメーション
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
-  };
-  // FSRSスケジューラ初期化
   const fsrsParams = generatorParameters({ retention: 0.9, hardInterval: 1, easyBonus: 1.3 });
   const scheduler = fsrs(fsrsParams);
   // ユーザー向け復習評価ラベル（日本語）
   const nextButtonLabels = [
-    '再学習',  // Again
-    '難しい',  // Hard
-    '普通',    // Good
-    '簡単',    // Easy
+    '😭再学習',  // Again
+    '😵‍💫難しい',  // Hard
+    '😐普通',    // Good
+    '😍簡単',    // Easy
   ];
-  const router = useRouter();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [filteredQuestions, setFilteredQuestions] = useState([]);
   const [score, setScore] = useState(0);
@@ -110,57 +59,72 @@ export default function QuestionScreen() {
   const [isQuizFinished, setIsQuizFinished] = useState(false);
   const [displayedQuestion, setDisplayedQuestion] = useState(null);
   const [risaltQuestion, setRisaltQuestion] = useState(null);
+  const [correctQuestionsList, setCorrectQuestionsList] = useState([]);
   const [showNextButton, setShowNextButton] = useState(false);
   const [showImage, setShowImage] = useState(false);
   const [imageData, setImageData] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(null);
+  const [nextReviewInfo, setNextReviewInfo] = useState([]);
   const isDark = isDarkMode === true;
   const styles = createStyles(isDark);
 
   const { questionData, level } = useQuestionData();
+  // ---- Level‑aware storage keys ----
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
+  const FSRS_PREFIX_LEVEL = `FSRS_CARD_${sanitizedLevel}_`;
+  const MAX_DAILY_LIMIT_KEY_LEVEL = `@max_daily_limit_${sanitizedLevel}`;
+  const MAKE_DAYLY_COLECT = `DAYLY_CORRECT_${sanitizedLevel}`;
 
   // questionDataが取得された後で分割代入する
   const questions1 = questionData?.questions1 ?? [];
   const questions2 = questionData?.questions2 ?? [];
   const questions3 = questionData?.questions3 ?? [];
 
-  useFocusEffect(
-    useCallback(() => {
-      const loadstart02ndInitSDK = async () => {
-        // テーマの読み込み処理
+
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [isTodayMaxCount, setTodayMaxCount] = useState(60);
+  const [dailyCount, setDailyCount] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const storedMaxCount = await AsyncStorage.getItem(MAX_DAILY_LIMIT_KEY_LEVEL);
+      const today = new Date().toISOString().split('T')[0];
+      let parsedMaxCount = 20;
+
+      if (storedMaxCount) {
         try {
-          const storedTheme = await AsyncStorage.getItem('theme');
-          if (storedTheme === 'dark') {
-            setIsDarkMode(true);
-          } else {
-            setIsDarkMode(false);
+          const parsed = JSON.parse(storedMaxCount);
+          if (parsed.date === today) {
+            parsedMaxCount = parsed.value ?? 20;
           }
-        } catch (error) {
-          console.error('❌ テーマの読み込みに失敗しました:', error);
-          setIsDarkMode(false);
+        } catch {
+          parsedMaxCount = parseInt(storedMaxCount, 10) || 20;
         }
-        // RevenueCat SDK の初期化処
-      };
+      }
 
-      loadstart02ndInitSDK();
-    }, [])
-  );
+      setTodayMaxCount(parsedMaxCount);
+      const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const todayCount = parsed[today] || 0;
+      setDailyCount(todayCount);
+      if (todayCount <= parsedMaxCount) {
+        setIsCountingDown(true);
+      } else {
+        setIsCountingDown(false);
+        setIsQuizFinished(true); // クイズを終了扱いにして別画面表示
+      }
+    })();
+  }, []);
 
-
-  const [isCountingDown, setIsCountingDown] = useState(true);
-  const [C, setCount] = useState(3.5);
+  const [C, setCount] = useState(3);
   const confettiRef = useRef(null);
   const soundRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const forceTheme = isDarkMode === true ? 'dark' : 'light';
-  
+
   const uniqueQuestions = useMemo(() => {
     if (!questionData) return [];
     const allQuestions = [...(questions1 || []), ...(questions2 || [])];
-    if (allQuestions.length > 0) {
-    } else {
-    }
-        
     const uniqueQuestionsMap = new Map();
     allQuestions.forEach((question) => {
       if (!uniqueQuestionsMap.has(question.id)) {
@@ -170,14 +134,6 @@ export default function QuestionScreen() {
     const result = Array.from(uniqueQuestionsMap.values());
     return result;
   }, [questionData, questions1, questions2]);
-
-
-  
-  useEffect(() => {
-    if (!questionData) {
-      console.warn('[QuestionScreen] questionData is still null.');
-    }
-  }, [questionData]);
   
 
   const getQuestionsBasedOnCorrectCount = useCallback((correctCount, questionId) => {
@@ -196,8 +152,6 @@ export default function QuestionScreen() {
     return result;
   }, [questions1, questions2, questions3]);
   
-  
-    
   // ランダムシャッフル
   const shuffleArray = useCallback((array) => {
     return array
@@ -205,8 +159,6 @@ export default function QuestionScreen() {
       .sort((a, b) => a.sort - b.sort)
       .map(({ value }) => value);
     }, []);
-
-
 
   // 正解音・不正解音を再生
   const playSoundAsync = useCallback(async (sound) => {
@@ -254,47 +206,65 @@ export default function QuestionScreen() {
   
   const loadCorrectDataAndFilterQuestions = async () => {
     // 1. 正解データを読み込み
-    const correctStored = await AsyncStorage.getItem(STORAGE_KEY);
+    const correctStored = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
     const parsedCorrectData = correctStored ? JSON.parse(correctStored) : {};
     setCorrectData(parsedCorrectData);
-    
+    console.log(parsedCorrectData)
+
     // 2. FSRS と correctData を照合して出題判定
     const now = new Date();
     const dueQuestions = [];
+    const fsrsCards = [];
     for (const question of uniqueQuestions) {
       const qid = question.id;
-      // ユーザーに回答履歴があれば FSRS 判定
-      if (parsedCorrectData[qid] != null) {
-        const key = `${FSRS_STORAGE_PREFIX}${qid}`;
+      if (parsedCorrectData[qid] != null ) {
+        const key = `${FSRS_PREFIX_LEVEL}${qid}`;
         const storedCard = await AsyncStorage.getItem(key);
         if (storedCard) {
           const card = JSON.parse(storedCard);
           card.due = new Date(card.due);
+          fsrsCards.push({ id: qid, card });
           if (card.due <= now) {
-            dueQuestions.push(question);
+            // C値に応じて問題を取得
+            const nextQ = getQuestionsBasedOnCorrectCount(parsedCorrectData[qid].C, qid);
+            if (nextQ) dueQuestions.push(nextQ);
           }
         } else {
-          // FSRS 未初期化なら初期化のみ行い出題
-          const card = createEmptyCard(new Date());
-          await AsyncStorage.setItem(key, JSON.stringify(card));
-          dueQuestions.push(question);
+          // FSRS データがない場合はカードを作らずに出題のみ
+          const nextQ = getQuestionsBasedOnCorrectCount(0, qid);
+          if (nextQ) dueQuestions.push(nextQ);
         }
       } else {
-        // 回答履歴がなければ常に出題
-        dueQuestions.push(question);
+        // 回答履歴がない場合はカードを作らずに出題のみ
+        const nextQ = getQuestionsBasedOnCorrectCount(0, qid);
+        if (nextQ) dueQuestions.push(nextQ);
       }
     }
+    // FSRS カードから次回レビュー情報を計算して state に保存
+    const nextInfo = fsrsCards.map(({ id, card }) => {
+      const diffMs = card.due.getTime() - now.getTime();
+      const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      return { id, daysUntilDue: days };
+    });
+    const allKeys = await AsyncStorage.getAllKeys();
+    // ② FSRS プレフィックスのキーだけ抽出
+    const remainingFsrsKeys = allKeys.filter(key => key.startsWith(FSRS_PREFIX_LEVEL));
+    // ③ ログ出力
+    setNextReviewInfo(nextInfo);
     // 最大5問まで出題
     setFilteredQuestions(dueQuestions.slice(0, 5));
   };
 
-  const [currentQuestionId, setCurrentQuestionId] = useState(null);
 
   useEffect(() => {
-    if (displayedQuestion?.id != null) {
-      setCurrentQuestionId(displayedQuestion.id);
+    if (!isTransitioning && filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
+      const question = filteredQuestions[currentQuestionIndex];
+      setDisplayedQuestion(question);
+      setRisaltQuestion(question.question);
+      loadAudio(question);
+      loadImage(question);
     }
-  }, [displayedQuestion?.id]);
+  }, [filteredQuestions, currentQuestionIndex, isTransitioning]);
 
 
   // filteredQuestionsとcurrentQuestionIndexが変化したらシャッフル更新
@@ -330,16 +300,16 @@ export default function QuestionScreen() {
   // 解答を保存
   const saveCorrectData = useCallback(async (updatedData) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+      await AsyncStorage.setItem(STORAGE_KEY_LEVEL, JSON.stringify(updatedData));
     } catch (error) {
     }
-  }, []);
+  }, [STORAGE_KEY_LEVEL]);
 
   const showCorrectAnimation = async () => {
     try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       setTimeout(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }, 300);
       await playSoundAsync(correctSound);
       playSound();
@@ -397,45 +367,57 @@ export default function QuestionScreen() {
       // 正解の場合
       setIsAnswerCorrect(true);
       setIsTransitioning(true);
-      const now = new Date();
-      const formattedDate = await getPreviousQuarterHour(now);
       newScore += 1;
       setScore(newScore);
       updatedData[currentQuestion.id] = {
         C: currentCorrectCount + 1,
       };
-      // FSRSカードを更新・保存 (正解と仮定してGood評価を使用)
-      const fsrsKey = `${FSRS_STORAGE_PREFIX}${currentQuestion.id}`;
-      // 既存カード読み込み or 新規作成
-      const storedFSRS = await AsyncStorage.getItem(fsrsKey);
-      let oldCard = storedFSRS ? JSON.parse(storedFSRS) : createEmptyCard(new Date());
-      // 評価に応じた次回スケジュールを計算
-      const nowFSRS = new Date();
-      const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Good];
-      const newFSRSCard = result.card;
-      // 保存
-      await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
+      const shouldUpdateFSRS = !(currentCorrectCount === 0 || currentCorrectCount === 2|| currentCorrectCount === 4);
+      if (shouldUpdateFSRS) {
+        // FSRSカードを更新・保存 (正解と仮定してGood評価を使用)
+        const fsrsKey = `${FSRS_PREFIX_LEVEL}${currentQuestion.id}`;
+        // 既存カード読み込み or 新規作成
+        const storedFSRS = await AsyncStorage.getItem(fsrsKey);
+        let oldCard = storedFSRS ? JSON.parse(storedFSRS) : createEmptyCard(new Date());
+        // 評価に応じた次回スケジュールを計算
+        const nowFSRS = new Date();
+        const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Good];
+        const newFSRSCard = result.card;
+        // 保存
+        await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
+      }
       setCorrectData(updatedData);
       await saveCorrectData(updatedData);
       await showCorrectAnimation();
       setShowNextButton(true);
+      const correctObj = {
+        id: currentQuestion.id,
+        question: currentQuestion.question,
+        correctAnswer: currentQuestion.correctAnswer,
+        japan: currentQuestion.japan,
+      };
+      setCorrectQuestionsList(prev =>
+        prev.some(c => String(c.id) === String(correctObj.id))
+          ? prev
+          : [...prev, correctObj]
+      );
     } else {
       //不正解
-      // 不正解時にFSRSカードを更新 (Again評価)
-      const fsrsKey = `${FSRS_STORAGE_PREFIX}${currentQuestion.id}`;
-      // 既存カード読み込み or 新規作成
-      const storedFSRS = await AsyncStorage.getItem(fsrsKey);
-      let oldCard = storedFSRS
-        ? JSON.parse(storedFSRS)
-        : createEmptyCard(new Date());
-      // Again評価で次回スケジュールを計算
-      const nowFSRS = new Date();
-      const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Again];
-      const newFSRSCard = result.card;
-      // 保存
-      await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
-      // 既存の不正解処理
-      await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
+  // 不正解時にFSRSカードを更新 (Again評価) — 新規カードにも即時復習スケジュール生成
+  const fsrsKey = `${FSRS_PREFIX_LEVEL}${currentQuestion.id}`;
+  // 既存カード読み込み or 新規作成
+  const storedFSRS = await AsyncStorage.getItem(fsrsKey);
+  let oldCard = storedFSRS
+    ? JSON.parse(storedFSRS)
+    : createEmptyCard(new Date());
+  // Again評価で次回スケジュールを計算
+  const nowFSRS = new Date();
+  // 新規カードかつ不正解の場合もrepeatCardを実行して即時復習用スケジュールを生成
+  const result = scheduler.repeat(oldCard, nowFSRS)[Rating.Again];
+  const newFSRSCard = result.card;
+  await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
+  // 既存の不正解処理
+  await handleIncorrectAnswer(currentQuestion.id, currentQuestion.correctAnswer);
     }
   };
 
@@ -455,10 +437,10 @@ export default function QuestionScreen() {
     };
   }, [isAnswerCorrect]);
 
+  
   //不正解時の処理
   const [missedQuestions, setMissedQuestions] = useState([]);
 
-  
   const handleIncorrectAnswer = useCallback(async (questionId, correctAnswer) => {
     setIsTransitioning(true);  // 即座にフィードバック表示
     let updatedData = { ...correctData };
@@ -491,54 +473,50 @@ export default function QuestionScreen() {
     // FSRSカードを buttonIndex に応じた評価で更新
     const ratingMap = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
     const rating = ratingMap[buttonIndex - 1] ?? Rating.Good;
-    // ─────────── デバッグログ追加 ───────────
-    console.log('[DEBUG] handleNextQuestion called', {
-      buttonIndex,
-      currentQuestionIndex,
-      isTransitioning,
-      showNextButton,
-    });
-    // ────────────────────────────────────────
 
-    const fsrsKey = `${FSRS_STORAGE_PREFIX}${displayedQuestion.id}`;
+
+    // --- FSRS repeatCard (scheduling) の条件を修正 ---
+    // schedulingが存在する(=初出題ではない)場合のみrepeatCardを実行
+    const fsrsKey = `${FSRS_PREFIX_LEVEL}${displayedQuestion.id}`;
     const storedCard = await AsyncStorage.getItem(fsrsKey);
-    const oldCard = storedCard ? JSON.parse(storedCard) : createEmptyCard(new Date());
-    const fsrsResult = scheduler.repeat(oldCard, new Date())[rating];
-    const newFSRSCard = fsrsResult.card;
-    await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
+    let scheduling = null;
+    if (storedCard) {
+      const oldCard = JSON.parse(storedCard);
+      scheduling = oldCard.scheduling;
+    }
+    if (rating > 1 && scheduling) {
+      // repeatCard実行: 初出題(=scheduling===undefined)はスキップ
+      const oldCard = storedCard ? JSON.parse(storedCard) : createEmptyCard(new Date());
+      const fsrsResult = scheduler.repeat(oldCard, new Date())[rating];
+      const newFSRSCard = fsrsResult.card;
+      await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
+    } else {
+      console.log('[FSRS skipped]', {
+        reason: !scheduling ? 'No scheduling data (初出題)' : 'Incorrect answer (rating <= 1)',
+        reviewLog: { rating }
+      });
+    }
     await loadCorrectDataAndFilterQuestions();
     setShowImage(false)
     setShowNextButton(false);
-    // ─────────── デバッグログ追加 ───────────
-    console.log('[DEBUG] before fadeAnim.start', {
-      currentQuestionIndex,
-      displayedQuestionId: displayedQuestion?.id,
-    });
-    // ────────────────────────────────────────
 
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 500,
       useNativeDriver: true,
     }).start(() => {
-      // ─────────── デバッグログ追加 ───────────
-      console.log('[DEBUG] fadeAnim callback start', {
-        currentQuestionIndex,
-        displayedQuestionId: displayedQuestion?.id,
-      });
-      // ────────────────────────────────────────
 
       setUserAnswer('');
       setIsAnswerCorrect(null);
       if (currentQuestionIndex < filteredQuestions.length - 1) {
         const nextIndex = currentQuestionIndex + 1;
         setCurrentQuestionIndex(nextIndex);
-        // ─────────── デバッグログ追加 ───────────
-        console.log('[DEBUG] setCurrentQuestionIndex ->', nextIndex);
-        // ────────────────────────────────────────
+        const nextQ = filteredQuestions+1[nextIndex];
+        // フェードアウト後、フェードイン前に UI 上の問題を切り替える
+        setDisplayedQuestion(nextQ);
+        // フェードイン前に UI 上の問題表示に切り替え
+        setIsTransitioning(false);
 
-        // index 更新直後に音声と画像をロード
-        const nextQ = filteredQuestions[nextIndex];
         loadAudio(nextQ);
         loadImage(nextQ);
       } else {
@@ -551,8 +529,9 @@ export default function QuestionScreen() {
           toValue: 1,
           duration: 500,
           useNativeDriver: true,
-        }).start();
-        setIsTransitioning(false);
+        }).start(() => {
+          setIsTransitioning(false);
+        });
       }, 100);
     });
   };
@@ -639,19 +618,6 @@ export default function QuestionScreen() {
   const [reloading, setReloading] = useState(false);
   const [queuedPlay, setQueuedPlay] = useState(false);
 
-  
-  useEffect(() => {
-    if (!isTransitioning && filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
-      const question = filteredQuestions[currentQuestionIndex];
-      setDisplayedQuestion(question);
-      // ─────────── デバッグログ追加 ───────────
-      // ────────────────────────────────────────
-      setRisaltQuestion(question.question);
-      loadAudio(question);
-      loadImage(question);
-    }
-  }, [filteredQuestions, currentQuestionIndex, isTransitioning]);
-
 
     // 🖼️ 画像読み込み処理
     const loadImage = async (question) => {
@@ -705,7 +671,6 @@ export default function QuestionScreen() {
       }
       setLoadedSound(sound);
     } catch (error) {
-      console.error('音声リロードエラー:', error);
       setLoadedSound(null);
     }
     setReloading(false);
@@ -715,11 +680,9 @@ export default function QuestionScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   // 音声再生ボタンで呼び出す関数
-  const playSound = async () => {
-    // もしまだリロード中または音声がロードされていない場合は、
+  const playSound = async () => {    // もしまだリロード中または音声がロードされていない場合は、
     setIsLoading(true);    
     if (reloading || !loadedSound) {
-      console.warn('音声がまだロードされていません。再生をキューに追加します。');
       setIsLoading(false); // キューへ登録したらローディング状態を解除
       setQueuedPlay(true);
       return;
@@ -747,46 +710,67 @@ export default function QuestionScreen() {
   if (isCountingDown) {
     return (
         <Countdown 
-          count={3}
-          forceTheme={isDarkMode === true ? 'dark' : 'light'}
+          count={C}
         />
     );
   }
+
+  // 日次上限画面の表示
+  //  if (isTodayMaxCount) {
+  //   return <DailyLimitScreen level={3}/>;
+  //    }
 
   // 出題数0
   if (filteredQuestions.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.noQuestionsText}>出題する問題がありません。</Text>
       </View>
     );
   }
 
-  // クイズ終了
+  // クイズ終了時に正解・不正解問題を分類してレビュー画面へ
   if (isQuizFinished) {
+    // 正解リストは state から
+    const correctQuestions = correctQuestionsList;
+    // 不正解は既存の missedQuestions から
+    const incorrectQuestions = missedQuestions.map(m => ({
+      id: m.id,
+      question: m.question,
+      correctAnswer: m.correctAnswer,
+      japan: m.japan,
+    }));
+
     return (
       <QuizEndComponent
         score={score}
         total={filteredQuestions.length}
-        QentionID={currentQuestionId}
-        missedQuestions={missedQuestions}
-        onFinish={() => router.push('/')}
-        forceTheme={isDarkMode === true ? 'dark' : 'light'}
+        nextReviewInfo={nextReviewInfo}
+        correctQuestions={correctQuestions} 
+        incorrectQuestions={incorrectQuestions}
+        visibleCount={filteredQuestions.length}
+        themeColors={{ textColor: '#666' }}
       />
     );
   }
 
+  // displayedQuestion が未設定ならローディング表示
+  if (!displayedQuestion) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
   // 現在の問題 (using displayedQuestion from state)
   const currentQuestion = displayedQuestion;
   const correctCount = correctData[currentQuestion.id]?.C || 0;
-
+  // 1, 3, 5 の場合は FSRS を更新しない
+  const shouldUpdateFSRS = !(correctCount === 0 || correctCount === 2 || correctCount === 4);
   // 前回正解からの経過時間
   const L = correctData[currentQuestion.id]?.L
     ? new Date(correctData[currentQuestion.id].L)
     : null;
-
   const showKeyboardExample = [3, 4, 5, 6, 8, 9].includes(correctCount);
-
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingView}
@@ -828,7 +812,6 @@ export default function QuestionScreen() {
           <MLabel
             mValue={correctData[currentQuestion.id]?.M}
             questionId={currentQuestion.id}
-            forceTheme={isDarkMode === true ? 'dark' : 'light'}
           />
         </View>
 
@@ -837,7 +820,6 @@ export default function QuestionScreen() {
           width={SCREEN_WIDTH * 0.85}
           height={150} // isTransitioning の条件が同じ高さの場合は固定でも問題ありません
           style={styles.neomorphBox}
-          forceTheme={forceTheme}
         >
           <Animated.View style={[animatedStyles, { width: '100%', alignItems: 'center' }]}>
             {/* 右上に M のラベルを表示 */}
@@ -866,7 +848,6 @@ export default function QuestionScreen() {
                     <NeomorphBox
                       width={SCREEN_WIDTH * 0.60}
                       height={60}
-                      forceTheme={forceTheme}
                     >
                       { 
                         isLoading ? (
@@ -920,7 +901,6 @@ export default function QuestionScreen() {
                       <NeomorphBox
                         width={SCREEN_WIDTH * 0.85}
                         height={60}
-                        forceTheme={forceTheme}
                       >
                         <Text style={styles.choiceText}>{choice}</Text>
                       </NeomorphBox>
@@ -934,7 +914,7 @@ export default function QuestionScreen() {
               {(correctCount === 1 || correctCount === 7) && (
             <View style={styles.absoluteInputContainer}>
               <View style={styles.inputRow}>
-                <NeomorphBox width={SCREEN_WIDTH * 0.6} height={60}  forceTheme={forceTheme}>
+                <NeomorphBox width={SCREEN_WIDTH * 0.6} height={60}>
                 <TextInput
                   style={styles.input}
                   value={userAnswer}
@@ -946,7 +926,7 @@ export default function QuestionScreen() {
                 />
                 </NeomorphBox>
 
-                <NeomorphBox width={80} height={60}  forceTheme={forceTheme}> 
+                <NeomorphBox width={80} height={60}> 
                   <TouchableOpacity
                     style={styles.submitButton}
                     onPress={() => handleAnswer()}
@@ -966,14 +946,12 @@ export default function QuestionScreen() {
             <NeomorphBox
               width={SCREEN_WIDTH * 0.85}
               height={SCREEN_WIDTH * 0.85 * (2 / 3)}
-              forceTheme={forceTheme}
               style={styles.ImageBox}
             >
               <AnimatedRemoteImage
                 imageData={imageData}
                 width={SCREEN_WIDTH * 0.85}
                 height={SCREEN_WIDTH * 0.85 * (2 / 3)}
-                forceTheme={forceTheme}
               />
               </NeomorphBox>
             </>
@@ -982,32 +960,49 @@ export default function QuestionScreen() {
         </ScrollView>
 
         {/* 1秒後に表示される次へボタン */}
-        {/* 正解時：FSRS評価4択を表示 */}
+        {/* 正解時：FSRS評価4択または次へボタンを表示 */}
         {showNextButton && isAnswerCorrect && (
-          <View style={styles.nextButtonContainer}>
-            <View style={styles.nextButtonGrid}>
-              {Array.from({ length: 4 }).map((_, idx) => (
-                <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
-                  <TouchableOpacity
-                    onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                    onPress={() => handleNextQuestion(idx + 1)}
-                    accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
-                    accessibilityHint="タップすると評価が適用されます"
-                  >
-                    <NeomorphBox
-                      width={(SCREEN_WIDTH * 0.85) / 2 - 5}
-                      height={60}
-                      forceTheme={forceTheme}
-                    >
-                      <Text style={styles.nextButtonText}>
-                        {nextButtonLabels[idx]}
-                      </Text>
-                    </NeomorphBox>
-                  </TouchableOpacity>
-                </Animated.View>
-              ))}
+          shouldUpdateFSRS ? (
+            // FSRSを更新しない場合は次へボタンのみ
+            <View style={styles.nextButtonIncorrectContainer}>
+              <TouchableOpacity
+                onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                onPress={() => handleNextQuestion(1)}
+              >
+                <NeomorphBox
+                  width={SCREEN_WIDTH * 0.85}
+                  height={60}
+                >
+                  <Text style={styles.nextButtonText}>次へ</Text>
+                </NeomorphBox>
+              </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            // 通常の4評価ボタン
+            <View style={styles.nextButtonContainer}>
+              <View style={styles.nextButtonGrid}>
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
+                    <TouchableOpacity
+                      onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                      onPress={() => handleNextQuestion(idx + 1)}
+                      accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
+                      accessibilityHint="タップすると評価が適用されます"
+                    >
+                      <NeomorphBox
+                        width={(SCREEN_WIDTH * 0.85) / 2 - 5}
+                        height={60}
+                      >
+                        <Text style={styles.nextButtonText}>
+                          {nextButtonLabels[idx]}
+                        </Text>
+                      </NeomorphBox>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))}
+              </View>
+            </View>
+          )
         )}
         {/* 不正解時：Next ボタンのみ表示 */}
         {showNextButton && isAnswerCorrect === false && (
@@ -1019,7 +1014,6 @@ export default function QuestionScreen() {
               <NeomorphBox
                 width={SCREEN_WIDTH * 0.85}
                 height={60}
-                forceTheme={forceTheme}
               >
                 <Text style={styles.nextButtonText}>次へ</Text>
               </NeomorphBox>
@@ -1029,7 +1023,7 @@ export default function QuestionScreen() {
         {/* キーボード (count===3,4,5,6,8) で表示 */}
         {showKeyboardExample && !isTransitioning && (
             <SafeAreaView style={styles.keyboardContainer}>
-              <KeyboardExample onKeyPress={handleKeyPress} userAnswer={userAnswer} forceTheme={forceTheme}/>
+              <KeyboardExample onKeyPress={handleKeyPress} userAnswer={userAnswer}/>
             </SafeAreaView>
         )}
     </KeyboardAvoidingView>
@@ -1038,7 +1032,7 @@ export default function QuestionScreen() {
 
 function createStyles(isDark) {
   // テーマに応じた色を一元管理
-  const backgroundColor = isDark ? '#303030' : '#E3E5F2';
+  const backgroundColor = isDark ? '#E3E5F2' : '#E3E5F2';
   const textColor       = isDark ? '#ccc'    : '#666';
   const questionColor   = isDark ? '#ddd'    : '#666';
   const buttonBg        = isDark ? '#444'    : '#6200ee';
@@ -1065,8 +1059,8 @@ function createStyles(isDark) {
   },
   // LottieView 自体のサイズ指定（例：画面の50%の幅、高さにする）
   lottieStyle: {
-    width: '300%',
-    height: '300%',
+    width: '500%',
+    height: '500%',
     // 背景色を除去して、アニメーションの内容が見えるようにする
   },
   container: {

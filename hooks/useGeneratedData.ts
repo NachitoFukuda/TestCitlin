@@ -26,7 +26,7 @@ const getTotalWordsByLevel = (level: string | null): number => {
     case '2_5': return 1220;
     case '2': return 2300;
     case '1_5': return 3400;
-    case '1': return 3200;
+    case '1': return 4280;
     default: return 1000;
   }
 };

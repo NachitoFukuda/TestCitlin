@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Switch, Text, TouchableOpacity, Alert, Linking, Dimensions, ActivityIndicator, Modal, Button } from 'react-native';
-import { useRouter } from 'expo-router';
-import NeomorphBox from '@/components/ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PurchaseScreen from '../../components/etc/PurchaseScreen';
-
-import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/ui/Footer';
 import { ScrollView } from 'react-native-gesture-handler';
+import NeomorphBox from '@/components/ui/NeomorphBox';
 // import Purchases from 'react-native-purchases';
-
-const windowWidth = Dimensions.get('window').width;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EULA_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 const PRIVACY_POLICY_URL = "https://citlin.sakura.ne.jp/";
@@ -18,12 +14,14 @@ const PRIVACY_POLICY_URL = "https://citlin.sakura.ne.jp/";
 export default function SettingsScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const router = useRouter();
   const [customerInfo, setCustomerInfo] = useState<any>(null);
   const keysToClear = [
         '@deadline_days',
-        'correctData',
+        'correctData_1',
+        'correctData_1_5',
+        'correctData_2',
+        'correctData_2_5',
+        'correctData_3',
         '@RotatingNeomorphicButton_counter',
         'last_usage_date',
         'last_usage_month',
@@ -35,7 +33,16 @@ export default function SettingsScreen() {
         '@quiz:tutorialStep'
       ];
 
-
+      const handleSelectLevel = async (level: string) => {
+        try {
+          await AsyncStorage.removeItem('@selected_levels');
+          await AsyncStorage.setItem('@selected_levels', JSON.stringify([level]));
+          Alert.alert('保存完了', `${level}級に選択しました`);
+        } catch (e) {
+          console.error('選択レベル保存エラー:', e);
+          Alert.alert('エラー', '級の保存に失敗しました');
+        }
+      };
 
   useEffect(() => {
     const initialize = async () => {
@@ -134,6 +141,124 @@ export default function SettingsScreen() {
       horizontal={false}
       showsHorizontalScrollIndicator={false}
     >
+
+        <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
+          級を変更
+        </Text>
+
+        <View style={styles.levelcontainer}>
+              {/* 3級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('3')}>
+                  <NeomorphBox
+                    width={SCREEN_WIDTH * 0.6}
+                    height={50}
+                    style={[
+                      styles.levelBox,
+                    ]}
+                    forceTheme={'light'}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                      ]}
+                    >
+                      英検3級  1000単語
+                    </Text>
+                  </NeomorphBox>
+                </TouchableOpacity>
+              </View>
+
+              {/* 準2級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('2_5')}>
+                  <NeomorphBox
+                    width={SCREEN_WIDTH * 0.6}
+                    height={50}
+                    style={[
+                      styles.levelBox,
+                    ]}
+                    forceTheme={'light'}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                      ]}
+                    >
+                      英検準2級  1220単語
+                    </Text>
+                  </NeomorphBox>
+                </TouchableOpacity>
+              </View>
+
+              {/* 2級 準備中 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('2')}>
+                  <NeomorphBox
+                    width={SCREEN_WIDTH * 0.6}
+                    height={50}
+                    style={[
+                      styles.levelBox,
+                    ]}
+                    forceTheme={'light'}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                      ]}
+                    >
+                      英検2級  2300単語
+                    </Text>
+                  </NeomorphBox>
+                </TouchableOpacity>
+              </View>
+
+              {/* 準1級 準備中 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('1_5')}>
+                  <NeomorphBox
+                    width={SCREEN_WIDTH * 0.6}
+                    height={50}
+                    style={[
+                      styles.levelBox,
+                    ]}
+                    forceTheme={'light'}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                      ]}
+                    >
+                      英検準1級  3400単語
+                    </Text>
+                  </NeomorphBox>
+                </TouchableOpacity>
+              </View>
+
+              {/* 1級 準備中 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('1')}>
+                  <NeomorphBox
+                    width={SCREEN_WIDTH * 0.6}
+                    height={50}
+                    style={[
+                      styles.levelBox,
+                    ]}
+                    forceTheme={'light'}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                      ]}
+                    >
+                      英検1級  4280単語
+                    </Text>
+                  </NeomorphBox>
+                </TouchableOpacity>
+              </View>
+
+            </View>
+
         <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
           プラン比較
         </Text>
@@ -308,5 +433,17 @@ const styles = StyleSheet.create({
   clearButton: {
     marginBottom: 100,
   },
+  levelcontainer: {
+    alignItems: 'center',
+  },
+  levelBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 30,
+  },
+  levelButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: "rgb(59, 59, 59)",
+  },
 });
-

@@ -119,7 +119,6 @@ const MLabel: React.FC<MLabelProps> = ({ mValue, questionId, forceTheme }) => {
       width={SCREEN_WIDTH * 0.85}
       height={60}
       style={styles.neomorphContainer}
-      forceTheme={forceTheme}
     >
       <View style={styles.innerContainer}>
         <LottieView

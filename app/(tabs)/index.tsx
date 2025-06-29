@@ -1,21 +1,20 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { UIConfigContext } from '@/components/contexts/UIConfigContext';
-import { View, Alert, ScrollView, StyleSheet, Button, TouchableOpacity } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { View, Alert, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialSetup from '@/components/Tutorial/InitialSetup';
-import * as Haptics from 'expo-haptics';
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
 import DraggableItem from '../../components/uistore/Indexwiget';
 import { Dimensions } from 'react-native';
 import Footer from '@/components/ui/Footer';
+import useQuestionData from '@/components/questioncomp/useQuestionData';
 
 const windowWidth = Dimensions.get('window').width;
 const smallCell = windowWidth / 4;
 // If the file does not exist, create it or update the import path to the correct location
 
 const TUTORIAL_KEY = '@quiz:tutorialDone';
-const STORAGE_KEY_CORRECT_DATA = 'correctData';
 
 interface CorrectData {
   [key: string]: {
@@ -58,14 +57,9 @@ async function getPreviousQuarterHour(date: string | number | Date) {
   return diffDays;
 }
 
-// バイブレーションをトリガーする関数
-const triggerVibration = (style: Haptics.ImpactFeedbackStyle) => {
-  Haptics.impactAsync(style);
-};
 
 export default function HomeScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
-  const router = useRouter(); // ✅ ルーターを取得（ホームに戻るため）
   const uiCtx = React.useContext(UIConfigContext); // 🔥 UIConfigContextからコンテキストを取得
   const [tutorialDone, setTutorialDone] = useState<boolean>(false);
   useFocusEffect(
@@ -111,7 +105,10 @@ export default function HomeScreen() {
   const [showInitialSetup, setShowInitialSetup] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [daysSinceStart, setDaysSinceStart] = useState<number | null>(null);
-
+  const { level } = useQuestionData();
+  // ---- Level‑aware storage keys ----
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
   // 日付に指定日数を加算する（ミリ秒計算を使用）
   const addDays = useCallback((date: Date, days: number): Date => {
     return new Date(date.getTime() + days * 86400000);
@@ -182,10 +179,10 @@ export default function HomeScreen() {
   // データ読み込み処理
   const loadData = async () => {
     try {
-      const storedData = await AsyncStorage.getItem(STORAGE_KEY_CORRECT_DATA);
+      const storedData = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
       let parsedData: CorrectData = storedData ? JSON.parse(storedData) : initialData;
       if (!storedData) {
-        await AsyncStorage.setItem(STORAGE_KEY_CORRECT_DATA, JSON.stringify(initialData));
+        await AsyncStorage.setItem(STORAGE_KEY_LEVEL, JSON.stringify(initialData));
       }
       // 期限データのチェック
       await checkDeadlineData();
@@ -199,7 +196,7 @@ export default function HomeScreen() {
       // 各質問データの更新（指定の条件下で正解回数をリセット）・・・省略
 
       if (dataUpdated) {
-        await AsyncStorage.setItem(STORAGE_KEY_CORRECT_DATA, JSON.stringify(parsedData));
+        await AsyncStorage.setItem(STORAGE_KEY_LEVEL, JSON.stringify(parsedData));
       }
 
       // 今日学習した単語数を計算

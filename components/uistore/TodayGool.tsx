@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, Dimensions, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import NeomorphBox from '../ui/NeomorphBox';
+import useQuestionData from '../questioncomp/useQuestionData';
 
-const CORRECT_KEY = '@daily_correct_data';
 
 /**
  * ポイント数を AsyncStorage から読み込み、0からカウントアップで表示するコンポーネント
@@ -37,6 +37,9 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
   const animatedValue = useRef(new Animated.Value(0)).current;
   const isFocused = useIsFocused();
   const [dayCount, setDayCount] = useState<number>(1);
+  const { level } = useQuestionData();
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
   // AsyncStorage から読み込み
   useEffect(() => {

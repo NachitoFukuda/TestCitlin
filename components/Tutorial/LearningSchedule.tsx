@@ -55,10 +55,6 @@ const LearningSchedule: React.FC<LearningScheduleProps> = ({
       {/* カスタムピッカー */}
       <View style={styles.pickerContainer}>
         <CustomPicker
-          items={Array.from({ length: 91 }, (_, i) => ({
-            value: i + 10,
-            label: "問",
-          }))}
           selectedValue={dailyWordCount}
           onValueChange={(value) => setDailyWordCount(value)}
         />
@@ -66,11 +62,7 @@ const LearningSchedule: React.FC<LearningScheduleProps> = ({
 
       {/* 計算結果の表示 */}
         <View style={styles.resultContainer}>
-          <Text style={styles.resultText}>一日の出題数: {dailyWordCount*2}問 ～ {dailyWordCount*2 *5 }問</Text>
-        </View>
-
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultText}>必要日数: {learningDays} 日</Text>
+          <Text style={styles.resultText}>必要日数 約{learningDays} 日</Text>
         </View>
     </View>
   );
@@ -80,13 +72,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 20,
   },  
   pickerContainer: {
     width: '100%',
-    alignItems: 'center',
   },
   resultContainer: {
     width: '100%',
@@ -95,12 +84,10 @@ const styles = StyleSheet.create({
   },
   resultText: {
     fontSize: 16,
-    color: '#666',
+    color: '#fff',
     fontWeight: 'bold',
   },
-  neomorphStyle: {
-    marginBottom: 25
-  },
+
 });
 
 export default LearningSchedule;

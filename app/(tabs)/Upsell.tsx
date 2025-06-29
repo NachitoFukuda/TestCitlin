@@ -7,7 +7,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import { LinearGradient } from 'expo-linear-gradient';
 
-const router = useRouter();
 const navButtonLabels = [
   '飽きちゃう',
   'なる！！',
@@ -66,6 +65,7 @@ const slides = [
 ];
 
 const UpsellScreen = () => {
+  const router = useRouter();
   const [index, setIndex] = useState(0);
   const [audioKey, setAudioKey] = useState(0); // trigger audio even if index is 0
   const navigation = useNavigation();

@@ -11,7 +11,7 @@ import { storage } from '../../firebaseConfig';
 
 const NoteComp = ({  }) => {
   const navigation = useNavigation();
-  const { questionData } = useQuestionData();
+  const { questionData,level } = useQuestionData();
   const questions1 = questionData?.questions1 ?? [];
 
   const screenWidth = Dimensions.get('window').width;
@@ -26,17 +26,14 @@ const NoteComp = ({  }) => {
   };
   
   const [correctData, setCorrectData] = useState<CorrectDataType>({});
-
-  // Toggle swap of red sheet side
   const [isSwapped, setIsSwapped] = useState(false);
-
-  // Track which item’s audio is loading (by index), or null if none
   const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
-
   const redSheetPosition = useRef(new Animated.Value(0)).current;
-
-  // Store the initial Y position of the red sheet when gesture starts
   const initialRedY = useRef(0);
+  // ---- Level‑aware storage keys ----
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
+  
 
   const panResponder = useRef(
     PanResponder.create({
@@ -65,11 +62,10 @@ const NoteComp = ({  }) => {
   // Track ScrollView vertical scroll offset
   const [scrollY, setScrollY] = useState(0);
   // Compute red sheet height in pixels (70% of window height)
-  const redSheetHeight = Dimensions.get('window').height * 0.7;
   
   useEffect(() => {
     const loadCorrectData = async () => {
-      const data = await AsyncStorage.getItem('correctData');
+      const data = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
       if (data) {
         setCorrectData(JSON.parse(data));
       }
