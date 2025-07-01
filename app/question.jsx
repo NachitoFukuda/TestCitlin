@@ -85,37 +85,41 @@ export default function QuestionScreen() {
   const [isTodayMaxCount, setTodayMaxCount] = useState(60);
   const [dailyCount, setDailyCount] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      const storedMaxCount = await AsyncStorage.getItem(MAX_DAILY_LIMIT_KEY_LEVEL);
-      const today = new Date().toISOString().split('T')[0];
-      let parsedMaxCount = 20;
+useEffect(() => {
+  if (level == null) return;
+  (async () => {
+    const storedMaxCount = await AsyncStorage.getItem(MAX_DAILY_LIMIT_KEY_LEVEL);
+    const today = new Date().toISOString().split('T')[0];
+    let parsedMaxCount = 20;
 
-      if (storedMaxCount) {
-        try {
-          const parsed = JSON.parse(storedMaxCount);
-          if (parsed.date === today) {
-            parsedMaxCount = parsed.value ?? 20;
-          }
-        } catch {
-          parsedMaxCount = parseInt(storedMaxCount, 10) || 20;
+    if (storedMaxCount) {
+      try {
+        const parsed = JSON.parse(storedMaxCount);
+        if (parsed.date === today) {
+          parsedMaxCount = parsed.value ?? 20;
         }
+      } catch {
+        parsedMaxCount = parseInt(storedMaxCount, 10) || 20;
       }
+    }
 
-      setTodayMaxCount(parsedMaxCount);
-      const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
-      const parsed = raw ? JSON.parse(raw) : {};
-      console.log('parsed',parsed)
-      const todayCount = parsed[today] || 0;
-      setDailyCount(todayCount);
-      if (todayCount <= parsedMaxCount) {
-        setIsCountingDown(true);
-      } else {
-        setIsCountingDown(false);
-        setIsQuizFinished(true); // クイズを終了扱いにして別画面表示
-      }
-    })();
-  }, []);
+    setTodayMaxCount(parsedMaxCount);
+
+    // --- Daily correct key ---
+    const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
+    const parsed = raw ? JSON.parse(raw) : {};
+    console.log('MAKE_DAYLY_COLECT', MAKE_DAYLY_COLECT, 'raw', raw);
+    const todayCount = parsed[today] || 0;
+    console.log('todayCount', todayCount);
+    setDailyCount(todayCount);
+    if (todayCount <= parsedMaxCount) {
+      setIsCountingDown(true);
+    } else {
+      setIsCountingDown(false);
+      setIsQuizFinished(true); // クイズを終了扱いにして別画面表示
+    }
+  })();
+}, [level]);
 
   const [C, setCount] = useState(3);
   const confettiRef = useRef(null);
@@ -209,7 +213,6 @@ export default function QuestionScreen() {
     const correctStored = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
     const parsedCorrectData = correctStored ? JSON.parse(correctStored) : {};
     setCorrectData(parsedCorrectData);
-    console.log(parsedCorrectData)
 
     // 2. FSRS と correctData を照合して出題判定
     const now = new Date();
@@ -331,9 +334,7 @@ export default function QuestionScreen() {
       console.error('[showCorrectAnimation1] エラー:', error);
     }
   };
-  console.log(isTodayMaxCount)
 
-console.log(dailyCount)
   // 答えをチェックする関数内（handleAnswer）
   const handleAnswer = async (choice = null) => {
     setShowImage(true);//画像表示
