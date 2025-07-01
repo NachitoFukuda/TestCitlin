@@ -5,12 +5,11 @@ import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
 import { router } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSubscription } from '@/components/contexts/SubscriptionContext';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
-import { Card } from 'ts-fsrs';
 import ScoreSummary from './ScoreSummary';
 import useQuestionData from './useQuestionData';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type QuizEndComponentProps = {
   score: number;
@@ -116,16 +115,16 @@ const ReviewList: React.FC<ReviewListProps> = ({
                   {q.japan ?? q.correctAnswer}
                 </Text>
                 <Text
-                  style={{
-                    flex: 2,
-                    color: isMiss ? 'red' : themeColors.textColor,
-                    fontSize: 14,
-                    textAlign: 'center',
-                  }}
-                >
-                  {typeof info?.daysUntilDue === 'number' && info.daysUntilDue <= 0
-                    ? '本日'
-                    : `${info?.daysUntilDue ?? 0}日後`}
+                    style={{
+                      flex: 2,
+                      color: isMiss ? 'red' : themeColors.textColor,
+                      fontSize: 14,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {info?.daysUntilDue === 0
+                      ? '本日'
+                      : `${info?.daysUntilDue ?? 0}日後`}
                   </Text>
               </View>
             </NeomorphBox>
@@ -238,30 +237,55 @@ useEffect(() => {
 // 順次表示＋音声再生 (TestCitlin と同じロジック)
 useEffect(() => {
   if (revealPlayedRef.current) return;
-  if (!soundLoaded || !wrongSoundLoaded) return;
+  if (!soundLoaded || !wrongSoundLoaded || !fullSoundLoaded) return;
   revealPlayedRef.current = true;
   setVisibleCount(0);
   const timeouts: NodeJS.Timeout[] = [];
   filteredQuestions.forEach((q, idx) => {
     const timeout = setTimeout(async () => {
       const isMiss = incorrectQuestions.some(m => m.id === q.id);
+      // ログ: 音声再生タイミング
       setVisibleCount(prev => prev + 1);
       try {
-        if (isMiss) {
-          await wrongSoundRef.current.setPositionAsync(0);
-          await wrongSoundRef.current.playAsync();
-        } else {
-          await soundRef.current.setPositionAsync(0);
-          await soundRef.current.playAsync();
+        // 動的再生: 毎回新しいSoundインスタンスで再生
+        {
+          const source = isMiss
+            ? require('../../assets/sound/kako.mp3')
+            : require('../../assets/sound/pa.mp3');
+          const { sound: dynamicSound } = await Audio.Sound.createAsync(source);
+          await dynamicSound.setPositionAsync(0);
+          await dynamicSound.playAsync();
+          dynamicSound.setOnPlaybackStatusUpdate((status) => {
+            // ロード済みか確認
+            if (!status.isLoaded) {
+              // エラー時はエラーログ
+              if ('error' in status) {
+                console.error('再生ステータスエラー:', status.error);
+              }
+              return;
+            }
+            // 再生完了時にアンロード
+            if (status.didJustFinish) {
+              dynamicSound.unloadAsync();
+            }
+          });
+        }
+        // 全問正解時の音声再生（最後の問題の後に）
+        if (idx === filteredQuestions.length - 1 && score === total) {
+          await fullSoundRef.current.setPositionAsync(0);
+          await fullSoundRef.current.playAsync();
         }
       } catch (e) {
         console.error('音声再生エラー:', e);
       }
-    }, idx * 300);
+    }, idx * 200);
     timeouts.push(timeout);
   });
   return () => timeouts.forEach(t => clearTimeout(t));
-}, [soundLoaded, wrongSoundLoaded]);
+}, [soundLoaded, wrongSoundLoaded, fullSoundLoaded]);
+
+
+
   const { customerInfo } = useSubscription();
   const isVIP = customerInfo?.entitlements?.active?.['citlin_ads_disabled']?.isActive === true;
   // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
@@ -305,6 +329,21 @@ useEffect(() => {
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
   const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
   const SCORE_BY_DATE_KEY = `@score_by_date_${sanitizedLevel}`
+
+  // 初期表示時にスコア履歴データをログ出力
+  const initialScoreMapRef = useRef<Record<string, number> | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+        const map: Record<string, number> = json ? JSON.parse(json) : {};
+        console.log('[QuizEndComponent] 初期表示のスコア履歴:', map);
+        initialScoreMapRef.current = map;
+      } catch (e) {
+        console.error('[QuizEndComponent] 初期表示ログ取得エラー:', e);
+      }
+    })();
+  }, []);
   const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
 
@@ -559,7 +598,14 @@ useEffect(() => {
           // ボーナスを加算して保存
           const totalPoints = currentPoints + fullBonusPoints;
           await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
-          
+
+          // 全問正解時にもスコア履歴を保存
+          if (initialScoreMapRef.current) {
+            const baseMap = { ...initialScoreMapRef.current };
+            const today = new Date().toISOString().split('T')[0];
+            baseMap[today] = (baseMap[today] ?? 0) + score;
+            await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(baseMap));
+          }
           console.log('[QuizEndComponent] Perfect bonus added:', fullBonusPoints);
         } catch (e) {
           console.error('[QuizEndComponent] Error adding perfect bonus:', e);
@@ -613,6 +659,12 @@ useEffect(() => {
       const correctParsed = correctRaw ? JSON.parse(correctRaw) : {};
       correctParsed[today] = (correctParsed[today] || 0) + score;
       await AsyncStorage.setItem(CORRECT_KEY, JSON.stringify(correctParsed));
+
+      // 今日のスコア履歴を保存（全問正解以外も含める）
+      const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+      const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
+      scoreMap[today] = (scoreMap[today] ?? 0) + score;
+      await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
       // ※ スコア保存処理は useEffect 側に移動
     } catch (e) {
       console.error('保存エラー:', e);
@@ -623,47 +675,10 @@ useEffect(() => {
     router.push(shouldShowUpsell ? '/Upsell' : '/');
   };
 
-    // スコア保存処理: マウント時に本日分初期化 or 追加
-    useEffect(() => {
-      (async () => {
-        const today = new Date().toISOString().split('T')[0];
-        const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-        const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
-        if (!scoreMap[today]) {
-          scoreMap[today] = 0;
-          await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
-        }
-        // 今日の日付をキーに累計スコアを上書きではなく加算保存
-        scoreMap[today] = (scoreMap[today] ?? 0) + score;
-        await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
-      })();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     useEffect(() => {
-      (async () => {
-        const now = new Date();
-        const info: { id: string | number; daysUntilDue: number }[] = [];
-        for (const q of filteredQuestions) {
-          const id = q.id;
-          try {
-            const json = await AsyncStorage.getItem(`${FSRS_STORAGE_PREFIX}${id}`);
-            if (json) {
-              const card: Card = JSON.parse(json);
-              const dueDate = new Date(card.due);
-              const diff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-              info.push({ id, daysUntilDue: diff });
-            } else {
-              // 初期カード未存在なら即出題のため0日後
-              info.push({ id, daysUntilDue: 0 });
-            }
-          } catch {
-            info.push({ id, daysUntilDue: -1 });
-          }
-        }
-        setNextReviewInfo(info);
-      })();
-    }, [filteredQuestions]);
+      setNextReviewInfo(propNextReviewInfo ?? []);
+    }, [propNextReviewInfo]);
 
       // 満点判定時に displayPoints を合計値に更新
   useEffect(() => {

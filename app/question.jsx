@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useRouter } from 'expo-router';
 import KeyboardExample from '../components/questioncomp/KeyboardExample';
 import HanahubukiAnimation from '../assets/lottie/Hanahubuki.json';
 import NeomorphBox from '../components/ui/NeomorphBox'; // ニューモフィズム用コンポーネント
@@ -106,6 +105,7 @@ export default function QuestionScreen() {
       setTodayMaxCount(parsedMaxCount);
       const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
       const parsed = raw ? JSON.parse(raw) : {};
+      console.log('parsed',parsed)
       const todayCount = parsed[today] || 0;
       setDailyCount(todayCount);
       if (todayCount <= parsedMaxCount) {
@@ -242,8 +242,13 @@ export default function QuestionScreen() {
     }
     // FSRS カードから次回レビュー情報を計算して state に保存
     const nextInfo = fsrsCards.map(({ id, card }) => {
-      const diffMs = card.due.getTime() - now.getTime();
-      const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      // Compare dates by midnight to avoid time-zone zeros
+      const dueDate = new Date(card.due);
+      dueDate.setHours(0, 0, 0, 0);
+      const todayDate = new Date(now);
+      todayDate.setHours(0, 0, 0, 0);
+      const diffTime = dueDate.getTime() - todayDate.getTime();
+      const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return { id, daysUntilDue: days };
     });
     const allKeys = await AsyncStorage.getAllKeys();
@@ -326,8 +331,9 @@ export default function QuestionScreen() {
       console.error('[showCorrectAnimation1] エラー:', error);
     }
   };
-  
+  console.log(isTodayMaxCount)
 
+console.log(dailyCount)
   // 答えをチェックする関数内（handleAnswer）
   const handleAnswer = async (choice = null) => {
     setShowImage(true);//画像表示
@@ -716,9 +722,9 @@ export default function QuestionScreen() {
   }
 
   // 日次上限画面の表示
-  //  if (isTodayMaxCount) {
-  //   return <DailyLimitScreen level={3}/>;
-  //    }
+    if ( dailyCount > isTodayMaxCount) {
+     return <DailyLimitScreen level={3}/>;
+      }
 
   // 出題数0
   if (filteredQuestions.length === 0) {

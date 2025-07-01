@@ -14,6 +14,11 @@ interface InitialSetupProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BUTTON_ROW_HORIZONTAL_PADDING = 16 * 2; // left and right padding
+const BUTTON_ROW_CONTENT_WIDTH = SCREEN_WIDTH - BUTTON_ROW_HORIZONTAL_PADDING;
+const BUTTON_ROW_HEIGHT = 70;
+const BACK_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
+const NEXT_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
 const CARD_LEFT_OFFSET = (SCREEN_WIDTH - CARD_WIDTH) / 2;
 const SPACING = 20;  // spacing between cards during animation
@@ -292,6 +297,10 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       onSetupComplete();
     }
   };
+
+  const handlePrev = () => {
+    setCurrentStep(prev => (prev > 0 ? prev - 1 : 0));
+  };
 // 学習級の選択：既存の保存済みデータを削除し、新たな選択を保存
 const handleSelectLevel = (level: string) => {
   // 選択した級を state に保存
@@ -308,48 +317,38 @@ const handleSelectLevel = (level: string) => {
     .catch((error) => {
     });
 };
-
 const levelMap: { [key: string]: string } = {
   '1': '1級',
-  '1.5': '準1級',
+  '1_5': '準1級',
   '2': '2級',
-  '2.5': '準2級',
+  '2_5': '準2級',
   '3': '3級',
 };
 
 const levelColors: { [key: string]: string } = {
   '1': '#F9D65C',      // Gold-ish
-  '1.5': '#C1C1C1',    // Silver-ish
+  '1_5': '#C1C1C1',    // Silver-ish
   '2': '#CD7F32',      // Bronze-ish
-  '2.5': '#8FD4FF',    // Light Blue
+  '2_5': '#8FD4FF',    // Light Blue
   '3': '#1c6d6e',      // Light Green
-};
-
-// 各級ごとの累計学習時間（秒など数値）
-const levelbwardcount: { [key: string]: number } = {
-  '1': 4280,      
-  '1.5': 3400,    
-  '2': 2300,      
-  '2.5': 1220,    
-  '3': 1000,     
 };
 
 const levelCircleColors: {
   [key: string]: { large: string; small: string };
 } = {
   '1':   { large: '#F7E08B', small: '#F9D65C' },
-  '1.5': { large: '#D9D9D9', small: '#C1C1C1' },
+  '1_5': { large: '#D9D9D9', small: '#C1C1C1' },
   '2':   { large: '#D9A06B', small: '#CD7F32' },
-  '2.5': { large: '#B4E2FF', small: '#8FD4FF' },
+  '2_5': { large: '#B4E2FF', small: '#8FD4FF' },
   '3':   { large: '#89D98D', small: '#1c6d6e' },
 };
 
 // 各級ごとの買い切り価格
 const levelPriceMap: { [key: string]: string } = {
   '1': '¥1,100',
-  '1.5': '¥900',
+  '1_5': '¥900',
   '2': '¥700',
-  '2.5': '¥500',
+  '2_5': '¥500',
   '3': '¥300',
 };
 
@@ -361,9 +360,9 @@ const levelTextColorMap: {
   };
 } = {
   '1':   { badge: '#5B4100', price: '#9F7500', message: '#5B4100' },
-  '1.5': { badge: '#777',    price: '#555',    message: '#555'    },
+  '1_5': { badge: '#777',    price: '#555',    message: '#555'    },
   '2':   { badge: '#663A00', price: '#663A00', message: '#663A00' },
-  '2.5': { badge: '#135A7E', price: '#2787C8', message: '#135A7E' },
+  '2_5': { badge: '#135A7E', price: '#2787C8', message: '#135A7E' },
   '3':   { badge: '#ddd', price: '#eee', message: '#1F5E1F' },
 };
 
@@ -782,18 +781,28 @@ const handleTiltPress2 = () => {
           />
         ))}
       </View>
-      {/* 次へ or 決定 or 開始する ボタン */}
+      {/* Back ボタン & 次へ/決定ボタン (横並び) */}
+      <View style={styles.buttonRow}>
+        {currentStep !== 0 && (
+          <TouchableOpacity
+            style={styles.backButtonRow}
+            onPress={handlePrev}
+            disabled={currentStep === 0}
+          >
+            <GlassCard width={BACK_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
+              <Text style={styles.backButtonText}>戻る</Text>
+            </GlassCard>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          style={styles.button}
+          style={styles.nextButtonRow}
           onPress={currentStep === 5 ? handleSave : handleNext}
         >
-          <GlassCard
-            width={CARD_WIDTH}
-            height={70} 
-          >
+          <GlassCard width={NEXT_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
             <Text style={styles.buttonText}>{buttonLabel}</Text>
           </GlassCard>
         </TouchableOpacity>
+      </View>
     </LinearGradient>
   );
 };
@@ -884,6 +893,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 25, // ← 少し下げる
     fontWeight: 'bold',
+  },
+  backButton: {
+    marginBottom: 16,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    textAlign: 'center',
   },
   levelBox: {
     justifyContent: 'center',
@@ -1104,6 +1121,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#444',
     fontWeight: '500',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    width: '100%',
+    height: 70,
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    marginBottom: 60,
+  },
+  backButtonRow: {
+    flex: 2,
+    marginRight: 8,
+  },
+  nextButtonRow: {
+    flex: 8,
+  },
+  buttonCard: {
+    width: '100%',
+    height: '100%',
   },
 });
 

@@ -86,7 +86,6 @@ type DailyLimitScreenProps = {
 
 const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
   const [subscribed, setSubscribed] = useState(false);
-
   const [adLoaded, setAdLoaded] = useState(false);
   // --- First Card Tilt ---
   const [showIndicator1, setShowIndicator1] = useState(true);
@@ -135,16 +134,7 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
     loadDeadlineDays();
   }, []);
 
-  // ------ Card 1 Anim helpers ------
-  const handleTiltPress1 = () => {
-    setShowIndicator1(false);
-    Animated.timing(tiltProgress1, {
-      toValue: 1,
-      duration: 600,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  };
+
     // EULA・プライバシーポリシーリンク
     const handleOpenEULA = () => {
       Linking.openURL(EULA_URL).catch((err) => {
@@ -157,6 +147,17 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
         Alert.alert("エラー", `プライバシーポリシーページを開けませんでした:\n${String(err)}`);
       });
     };
+
+      // ------ Card 1 Anim helpers ------
+  const handleTiltPress1 = () => {
+    setShowIndicator1(false);
+    Animated.timing(tiltProgress1, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  };
   
 
   const rotateX1 = tiltProgress1.interpolate({
@@ -211,7 +212,7 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
 
   return (
     <View style={styles.container}>
-    <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress1}>
+    <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress2}>
         {showIndicator1 && (
           <TapIndicator
             size={250}
@@ -314,7 +315,7 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
         </Animated.View>
       </TouchableOpacity>
       {/* ----- All‑Access Card ----- */}
-      <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress2}>
+      <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress1}>
         {showIndicator2 && (
           <TapIndicator
             size={250}
