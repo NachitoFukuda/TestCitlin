@@ -105,12 +105,23 @@ useEffect(() => {
 
     setTodayMaxCount(parsedMaxCount);
 
-    // --- Daily correct key ---
+    const now = Date.now();
     const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
     const parsed = raw ? JSON.parse(raw) : {};
-    console.log('MAKE_DAYLY_COLECT', MAKE_DAYLY_COLECT, 'raw', raw);
-    const todayCount = parsed[today] || 0;
-    console.log('todayCount', todayCount);
+    const raw2 = await AsyncStorage.getItem(FIVE_MINUTES_LATER);
+    const FoveMinutesLater = raw2 ? JSON.parse(raw2) : {};
+    let todayCount = parsed[today] || 0;
+    // 購入済みならリセット
+    if (purchased) {
+      todayCount = 0;
+    }
+    // Use the parsedMaxCount from above, do not redeclare
+    if (
+      todayCount >= parsedMaxCount &&
+      typeof FoveMinutesLater === 'number' && FoveMinutesLater > now
+    ) {
+      todayCount = parsedMaxCount-1;
+    }
     setDailyCount(todayCount);
     if (todayCount <= parsedMaxCount) {
       setIsCountingDown(true);
