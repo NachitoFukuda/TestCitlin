@@ -15,6 +15,7 @@ export default function SettingsScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [customerInfo, setCustomerInfo] = useState<any>(null);
+
   const keysToClear = [
         '@deadline_days',
         'correctData_1',
@@ -278,7 +279,6 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>設定</Text>
-        
 
         {/* 設定セクション */}
 
@@ -330,13 +330,11 @@ const styles = StyleSheet.create({
   },
   rowButton: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 8,
-    borderRadius: 12,
-    marginBottom: 6,
-    backgroundColor: 'transparent',
-    width: '100%',
+    marginBottom: 16,
   },
   icon: {
     marginRight: 12,
@@ -344,8 +342,6 @@ const styles = StyleSheet.create({
   buttonText2: {
     fontSize: 17,
     fontWeight: '600',
-    letterSpacing: 0.5,
-    textAlign: 'left',
   },
   neomorphBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, margin: 20 },
   purchaseButton: {

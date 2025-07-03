@@ -81,7 +81,7 @@ export default function QuestionScreen() {
   const questions3 = questionData?.questions3 ?? [];
 
 
-  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [isCountingDown, setIsCountingDown] = useState(true);
   const [isTodayMaxCount, setTodayMaxCount] = useState(60);
   const [dailyCount, setDailyCount] = useState(null);
 
@@ -311,7 +311,7 @@ useEffect(() => {
           return prevCount; // 0 のまま維持
         }
       });
-    }, 700);
+    }, 1000);
   
     return () => clearInterval(interval); // クリーンアップ
   }, [isCountingDown]);
@@ -509,10 +509,6 @@ useEffect(() => {
       const newFSRSCard = fsrsResult.card;
       await AsyncStorage.setItem(fsrsKey, JSON.stringify(newFSRSCard));
     } else {
-      console.log('[FSRS skipped]', {
-        reason: !scheduling ? 'No scheduling data (初出題)' : 'Incorrect answer (rating <= 1)',
-        reviewLog: { rating }
-      });
     }
     await loadCorrectDataAndFilterQuestions();
     setShowImage(false)
@@ -724,11 +720,11 @@ useEffect(() => {
   }, [reloading, queuedPlay, loadedSound]);
 
 
-  // カウントダウン画面
   if (isCountingDown) {
     return (
         <Countdown 
-          count={C}
+          count={3}
+          onComplete={() => setIsCountingDown(false)}
         />
     );
   }

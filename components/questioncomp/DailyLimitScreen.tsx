@@ -106,7 +106,6 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
         const stored = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
         const parsed: Record<string, { C?: number }> = stored ? JSON.parse(stored) : {};
         const total = Object.values(parsed).reduce((sum, item) => sum + (item?.C || 0), 0);
-        console.log("[DailyLimitScreen] totalC from storage:", total);
         setTotalC(total);
       } catch (e) {
         console.error("correctDataの読み込みに失敗しました:", e);
@@ -122,10 +121,8 @@ const DailyLimitScreen: React.FC<DailyLimitScreenProps> = ({level }) => {
         const storedDeadline = await AsyncStorage.getItem('@deadline_days');
         if (storedDeadline) {
           const parsed: { days?: number; savedAt?: string } = JSON.parse(storedDeadline);
-          console.log('[DailyLimitScreen] learningDays:', parsed?.days);
           setAlldays(parsed?.days)
         } else {
-          console.log('[DailyLimitScreen] learningDays: not set');
         }
       } catch (e) {
         console.error('deadline_daysの読み込みに失敗しました:', e);

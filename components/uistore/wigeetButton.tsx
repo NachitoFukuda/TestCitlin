@@ -3,6 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, View, Dimensions } from 'react-nati
 import { useRouter } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Audio } from 'expo-av';
 
 type Action = {
   label: string;
@@ -70,10 +71,8 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
     ? screenWidth * 0.25
     : screenWidth * 0.25;
 
-
-    
-
   const handlePress = (action: Action) => () => {
+
     // コールバックがあれば先に実行
     if (action.onPress) {
       action.onPress();

@@ -51,7 +51,6 @@ const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
 export default function UILayout() {
   const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
-  console.log('tutorialStep',tutorialDoneState)
 
   React.useEffect(() => {
     AsyncStorage.getItem(TUTORIAL_STEP_KEY)
@@ -201,7 +200,6 @@ export default function UILayout() {
     // チュートリアル完了ステップを保存
     try {
       await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-      console.log('[UILayout] Tutorial step set to end in storage');
     } catch (err) {
       console.error('[UILayout] Failed to set tutorial step to end:', err);
     }
@@ -436,7 +434,6 @@ export default function UILayout() {
                       await addItemToGrid(item);
                       try {
                         await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-                        console.log('[UILayout] Tutorial step set to end in storage');
                       } catch (err) {
                         console.error('[UILayout] Failed to set tutorial step to end:', err);
                       }

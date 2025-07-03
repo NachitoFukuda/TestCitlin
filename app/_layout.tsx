@@ -39,15 +39,8 @@ export default function RootLayout() {
                 headerTransparent: true, // ヘッダーの背景を透明に
                 headerTitle: '', // タイトルは空文字で非表示
                 headerShadowVisible: false, // 影を非表示に
-                // デフォルトの戻るボタンを非表示にする（React Navigation 6 以降）
                 headerBackVisible: false,
                 // ヘッダー背景が自動的に描画されないようにする
-                headerBackground: () => <></>,
-                headerStyle: {
-                  backgroundColor: 'transparent',
-                  ...(Platform.OS === 'android' && { elevation: 0 }),
-                  ...(Platform.OS === 'ios' && { shadowOpacity: 0 }),
-                },
                 // 独自の戻るボタンを表示（必要ならここでカスタマイズ）
                 headerLeft: () => (
                   <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>

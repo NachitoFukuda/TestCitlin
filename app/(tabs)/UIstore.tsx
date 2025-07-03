@@ -94,13 +94,11 @@ export default function UIstore() {
   const [selectedTag, setSelectedTag] = useState<typeof TAGS[number]>('button');
   const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
   const [pushButton, seTpushButton] = React.useState<boolean>(false);
-  console.log(pushButton)
   // ボタンタップ時に呼び出されるコールバック
   const handleButtonTap = (buttontap: boolean) => {
     seTpushButton(buttontap);
   };
 
-  console.log('shopチュートリアル進捗step', tutorialDoneState);
   useFocusEffect(
     useCallback(() => {
       let isActive = true;

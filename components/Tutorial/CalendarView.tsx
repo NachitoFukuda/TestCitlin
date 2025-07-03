@@ -116,19 +116,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         
         if (data !== null) {
           const deadlineData: DeadlineData = JSON.parse(data);
-          console.log('[CalendarView] Parsed deadline data:', deadlineData);
 
+          
           if (deadlineData.days && deadlineData.savedAt) {
             const { days, savedAt } = deadlineData;
             const savedDateObj = new Date(savedAt);
             const daysSinceStartCalculated = calculateDaysSinceStart(savedAt);
             const deadlineDateCalculated = addDays(savedDateObj, days);
             
-            console.log('[CalendarView] Date calculations:', {
-              savedDate: savedDateObj,
-              daysSinceStart: daysSinceStartCalculated,
-              deadlineDate: deadlineDateCalculated
-            });
+
+            
 
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -162,15 +159,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               });
             }
 
-            console.log('[CalendarView] Generated data summary:', {
-              firstDay: generatedData[0],
-              lastDay: generatedData[generatedData.length - 1],
-              totalDays: generatedData.length,
-              sampleValues: generatedData.slice(0, 3) // 最初の3日分のデータを表示
-            });
+
 
             await AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData));
-            console.log('[CalendarView] Data generation complete');
           }
         }
       } catch (error) {

@@ -1,11 +1,13 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Text, Animated, Dimensions, InteractionManager, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TapIndicator from './TapIndicator';
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 
 const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
@@ -26,28 +28,9 @@ export default function Footer({
 
   // チュートリアル完了フラグを boolean で管理
   const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
-
-  console.log('チュートリアル進捗step', tutorialDoneState);
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-      const handleFocus = async () => {
-        // 既存テーマ読込…
-        // → ここでチュートリアルステップも読み直す
-        const val = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
-        console.log('[Footer] storage value:', val);  // ← ここを追加
-        if (isActive && val !== null) {
-          setTutorialStep(val === 'true');
-        }
-      };
-      handleFocus();
-      return () => { isActive = false; };
-    }, [])
-  );
-  console.log('pushButton',pushButton)
+  // Sound reference for playback
+  // BGM設定
   // tutorialDoneがtrueの時にTUTORIAL_STEP_KEYを更新
-
-
   const [isDarkMode, setIsDarkMode] = React.useState(false);
   /**
    * チュートリアル完了フラグと購入数から表示するボタン数を返す

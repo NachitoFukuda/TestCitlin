@@ -337,7 +337,6 @@ useEffect(() => {
       try {
         const json = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
         const map: Record<string, number> = json ? JSON.parse(json) : {};
-        console.log('[QuizEndComponent] 初期表示のスコア履歴:', map);
         initialScoreMapRef.current = map;
       } catch (e) {
         console.error('[QuizEndComponent] 初期表示ログ取得エラー:', e);
@@ -606,7 +605,6 @@ useEffect(() => {
             baseMap[today] = (baseMap[today] ?? 0) + score;
             await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(baseMap));
           }
-          console.log('[QuizEndComponent] Perfect bonus added:', fullBonusPoints);
         } catch (e) {
           console.error('[QuizEndComponent] Error adding perfect bonus:', e);
         }
