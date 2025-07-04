@@ -134,7 +134,6 @@ const ReviewList: React.FC<ReviewListProps> = ({
     </View>
   </View>
 );
-const FSRS_STORAGE_PREFIX = 'FSRS_CARD_';
 
 function calculateCompletionRates(
   results: number[],
@@ -178,13 +177,25 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
     });
   }, []);
 
-  // Audio 再生用の refs とロード済みフラグ
+// Audio 再生用の refs とロード済みフラグ
 const soundRef = useRef<Audio.Sound>(new Audio.Sound());
 const wrongSoundRef = useRef<Audio.Sound>(new Audio.Sound());
 const fullSoundRef = useRef<Audio.Sound>(new Audio.Sound());
 const [soundLoaded, setSoundLoaded] = useState(false);
 const [wrongSoundLoaded, setWrongSoundLoaded] = useState(false);
 const [fullSoundLoaded, setFullSoundLoaded] = useState(false);
+// サウンド配列とインデックスref
+const correctSounds = [
+  require('../../assets/sound/piko1.mp3'),
+  require('../../assets/sound/piko2.mp3'),
+  require('../../assets/sound/piko3.mp3'),
+  require('../../assets/sound/piko4.mp3'),
+  require('../../assets/sound/piko5.mp3'),
+];
+const incorrectSounds = [
+  require('../../assets/sound/kako.mp3'),
+];
+const soundIndexRef = useRef<{ correct: number; incorrect: number }>({ correct: 0, incorrect: 0 });
   // 音声再生用リピート防止フラグ
   const revealPlayedRef = useRef(false);
 
@@ -247,11 +258,15 @@ useEffect(() => {
       // ログ: 音声再生タイミング
       setVisibleCount(prev => prev + 1);
       try {
-        // 動的再生: 毎回新しいSoundインスタンスで再生
+        // 動的再生: 毎回新しいSoundインスタンスで再生 (サウンドをローテーション)
         {
-          const source = isMiss
-            ? require('../../assets/sound/kako.mp3')
-            : require('../../assets/sound/pa.mp3');
+          // サウンドリストとインデックスローテーション
+          let sourceList = isMiss ? incorrectSounds : correctSounds;
+          let key: 'correct' | 'incorrect' = isMiss ? 'incorrect' : 'correct';
+          const idx = soundIndexRef.current[key];
+          const source = sourceList[idx];
+          // advance index and wrap around
+          soundIndexRef.current[key] = (idx + 1) % sourceList.length;
           const { sound: dynamicSound } = await Audio.Sound.createAsync(source);
           await dynamicSound.setPositionAsync(0);
           await dynamicSound.playAsync();
@@ -326,7 +341,10 @@ useEffect(() => {
   const [nextReviewInfo, setNextReviewInfo] = useState<{ id: string | number; daysUntilDue: number }[]>([]);
   const { level } = useQuestionData();
   // ---- Level‑aware storage keys ----
-  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const sanitizedLevel = useMemo(
+    () => String(level ?? '').replace(/\./g, '_'),
+    [level]
+  );
   const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
   const SCORE_BY_DATE_KEY = `@score_by_date_${sanitizedLevel}`
 
@@ -641,6 +659,10 @@ useEffect(() => {
 
   // 完了ボタン押下時の処理
   const handleFinish = async () => {
+    // レベル取得を保証
+    if (level == null) {
+      return;
+    }
     if (finishProcessing) return;
     setFinishProcessing(true);
     try {
