@@ -37,26 +37,16 @@ const useCalendarDataGeneration = (
 ) => {
   useEffect(() => {
     if (currentStep === 5) {
-      console.log('[InitialSetup] Starting calendar data generation with:', {
-        dailyWordCount,
-        learningDays,
-        deadlineDays,
-        selectedLevel
-      });
+
 
       // 現在の日付を基準に計算
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
       // 締切日を計算
-      const deadlineDate = addDays(today, deadlineDays);
       const diffDays = deadlineDays;
       
-      console.log('[InitialSetup] Date calculations:', {
-        today,
-        deadlineDate,
-        diffDays
-      });
+
       const getTotalWordsByLevel = (level: string | null): number => {
         switch(level) {
           case '3':
@@ -76,14 +66,6 @@ const useCalendarDataGeneration = (
       const maxValue = getTotalWordsByLevel(selectedLevel);
       const divisor = diffDays - 41;
 
-      console.log('[InitialSetup] Generation parameters:', {
-        selectedLevel,
-        maxValue,
-        divisor,
-        diffDays,
-        dailyWordCount,
-        learningDays
-      });
 
       const generatedData: JsonData[] = [];
       for (let i = 1; i < diffDays; i++) {

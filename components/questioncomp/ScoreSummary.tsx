@@ -23,9 +23,6 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   vipBonusPoints,
   themeColors,
 }) => {
-  React.useEffect(() => {
-    console.log('[ScoreSummary] Displaying animatedScore/total:', animatedScore, '/', total);
-  }, [animatedScore, total]);
   const [history, setHistory] = React.useState<number[]>([]);
   const [totalBalance, setTotalBalance] = React.useState(0);
   // 日付ごとのスコア表示用ラベル
@@ -40,7 +37,10 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   // ---- Level‑aware storage keys ----
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
   const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
+  const SUCORE_STARK_LEVEL = `@sucore_stark_${sanitizedLevel}`;
 
+  const [showBadge, setShowBadge] = React.useState(false);
+  const [starkCount, setStarkCount] = React.useState<number>(0);
 
   React.useEffect(() => {
     if (animatedScore === total && bonusPoints > 0) {
@@ -75,7 +75,26 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
             useNativeDriver: true,
           }),
         ]),
-      ]).start();
+      ]).start(async () => {
+        try {
+          const json = await AsyncStorage.getItem(SUCORE_STARK_LEVEL);
+          const count: number = json ? JSON.parse(json) : 0;
+          let adjustedCount = count;
+          if (count === 4 || count === 5) {
+            adjustedCount = 0;
+            await AsyncStorage.setItem(SUCORE_STARK_LEVEL, JSON.stringify(adjustedCount));
+          } else if (count === 1 || count === 2) {
+            adjustedCount = count + 1;
+            await AsyncStorage.setItem(SUCORE_STARK_LEVEL, JSON.stringify(adjustedCount));
+          } // if count === 3, do nothing (保留)
+          setStarkCount(adjustedCount);
+          if (adjustedCount >= 2) {
+            setShowBadge(true);
+          }
+        } catch (e) {
+          console.error('[ScoreSummary] Failed to load SUCORE_STARK_LEVEL:', e);
+        }
+      });
     }
   }, [animatedScore, total, bonusPoints]);
 
@@ -100,8 +119,6 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
         setHistory(values);
         const total = values.reduce((sum, v) => sum + v, 0);
         setTotalBalance(total);
-        console.log('[ScoreSummary] Loaded CORRECT_KEY map:', scoreMap);
-        console.log('[ScoreSummary] Chart labels:', formattedLabels, 'values:', values);
       } catch (e) {
         console.error('Failed to load correct-history:', e);
       }
@@ -124,8 +141,6 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
         setHistory(values);
         const total = values.reduce((sum, val) => sum + val, 0);
         setTotalBalance(total);
-        console.log('[ScoreSummary] Reloaded CORRECT_KEY map:', scoreMap);
-        console.log('[ScoreSummary] Reloaded Chart labels:', formattedLabels, 'values:', values);
       } catch (e) {
         console.error('Failed to reload correct-history:', e);
       }
@@ -134,6 +149,11 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
 
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+      {showBadge && (
+        <View style={styles.starkBadge}>
+          <Text style={styles.starkBadgeText}>⭐️</Text>
+        </View>
+      )}
         <NeomorphBox
           width={SCREEN_WIDTH * 0.85}
           height={200}
@@ -273,5 +293,17 @@ const styles = StyleSheet.create({
   },
   chartStyle: {
     marginVertical: 8,
+  },
+  starkBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#fff',
+    padding: 4,
+    borderRadius: 12,
+    zIndex: 2,
+  },
+  starkBadgeText: {
+    fontSize: 16,
   },
 });

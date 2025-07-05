@@ -615,7 +615,6 @@ useEffect(() => {
           const today = new Date().toISOString().split('T')[0];
           existingMap[today] = (existingMap[today] ?? 0) + score;
           await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(existingMap));
-          console.log('[QuizEndComponent] Merged SCORE_BY_DATE_KEY after perfect bonus:', existingMap);
           // 全問正解時の正解数履歴も更新
           const mergedCorrectJson = await AsyncStorage.getItem(CORRECT_KEY);
           const mergedCorrect: Record<string, number> = mergedCorrectJson
@@ -692,7 +691,6 @@ useEffect(() => {
 
       // ← ここから追加
       const savedCorrect = await AsyncStorage.getItem(CORRECT_KEY);
-      console.log('[QuizEndComponent] Saved CORRECT_KEY:', savedCorrect);
       // 保存後に state にも反映
       const savedCorrectParsed: Record<string, number> = savedCorrect
         ? JSON.parse(savedCorrect)
@@ -705,7 +703,6 @@ useEffect(() => {
       await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
       // 追記: 保存されたスコア履歴をログ出力
       const savedScoreByDate = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-      console.log('[QuizEndComponent] Saved SCORE_BY_DATE_KEY:', savedScoreByDate);
       // ※ スコア保存処理は useEffect 側に移動
     } catch (e) {
       console.error('保存エラー:', e);
@@ -741,7 +738,6 @@ useEffect(() => {
         const map: Record<string, number> = json ? JSON.parse(json) : {};
         initialScoreMapRef.current = map;
         setHistoryLoaded(true);
-        console.log('[QuizEndComponent] Loaded SCORE_BY_DATE_KEY:', map);
       } catch (e) {
         console.error('[QuizEndComponent] 初期表示ログ取得エラー:', e);
       }
@@ -755,7 +751,6 @@ useEffect(() => {
       try {
         const correctJson = await AsyncStorage.getItem(CORRECT_KEY);
         const correctMap: Record<string, number> = correctJson ? JSON.parse(correctJson) : {};
-        console.log('[QuizEndComponent] Loaded CORRECT_KEY:', correctMap);
         setCorrectHistory(correctMap);
       } catch (e) {
         console.error('[QuizEndComponent] 初期表示CORRECT_KEY取得エラー:', e);

@@ -91,7 +91,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       .then((data) => {
         if (data) {
           const levels = JSON.parse(data);
-          console.log('[CalendarView] Loaded levels:', levels);
           setSavedLevels(levels);
         }
       })
@@ -102,17 +101,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // データ生成と読み込み
   useEffect(() => {
-    console.log('[CalendarView] Starting calculations with props:', {
-      dailyWordCount,
-      learningDays,
-      deadlineDays,
-      selectedLevel
-    });
 
     const generateAndLoadData = async () => {
       try {
         const data = await AsyncStorage.getItem('@deadline_days');
-        console.log('[CalendarView] Raw deadline data:', data);
         
         if (data !== null) {
           const deadlineData: DeadlineData = JSON.parse(data);
