@@ -1,5 +1,4 @@
 import LottieView from 'lottie-react-native';
-import { useFonts } from 'expo-font';
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, Animated } from 'react-native';
 import NeomorphBox from '../ui/NeomorphBox';
@@ -24,6 +23,9 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   vipBonusPoints,
   themeColors,
 }) => {
+  React.useEffect(() => {
+    console.log('[ScoreSummary] Displaying animatedScore/total:', animatedScore, '/', total);
+  }, [animatedScore, total]);
   const [history, setHistory] = React.useState<number[]>([]);
   const [totalBalance, setTotalBalance] = React.useState(0);
   // 日付ごとのスコア表示用ラベル
@@ -37,7 +39,7 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   const { level } = useQuestionData();
   // ---- Level‑aware storage keys ----
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const SCORE_BY_DATE_KEY = `@score_by_date_${sanitizedLevel}`
+  const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
 
   React.useEffect(() => {
@@ -77,33 +79,40 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
     }
   }, [animatedScore, total, bonusPoints]);
 
-  // Load score by date on mount
+  // Load correct answer history on mount
   React.useEffect(() => {
     (async () => {
       try {
-        const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-        const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
-        const rawDateKeys = Object.keys(scoreMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        const scoreJson = await AsyncStorage.getItem(CORRECT_KEY);
+        // now scoreMap は { '2025-06-27': 10, ..., '2025-07-05': 51 } のようになる
+        const scoreMap: Record<string, number> = scoreJson
+          ? JSON.parse(scoreJson)
+          : {};
+        const rawDateKeys = Object.keys(scoreMap).sort(
+          (a, b) => new Date(a).getTime() - new Date(b).getTime()
+        );
         const formattedLabels = rawDateKeys.map(date => {
-          const [year, month, day] = date.split('-');
-          return `${parseInt(month)}/${parseInt(day)}`;
+          const [y, m, d] = date.split('-');
+          return `${parseInt(m)}/${parseInt(d)}`;
         });
         const values = rawDateKeys.map(date => scoreMap[date]);
         setLabels(formattedLabels);
         setHistory(values);
-        const total = values.reduce((sum, val) => sum + val, 0);
+        const total = values.reduce((sum, v) => sum + v, 0);
         setTotalBalance(total);
+        console.log('[ScoreSummary] Loaded CORRECT_KEY map:', scoreMap);
+        console.log('[ScoreSummary] Chart labels:', formattedLabels, 'values:', values);
       } catch (e) {
-        console.error('Failed to load score by date:', e);
+        console.error('Failed to load correct-history:', e);
       }
     })();
-  }, []);
+  }, [sanitizedLevel]);
 
   // Reload score-by-date mapping when points change
   React.useEffect(() => {
     (async () => {
       try {
-        const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+        const scoreJson = await AsyncStorage.getItem(CORRECT_KEY);
         const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
         const rawDateKeys = Object.keys(scoreMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
         const formattedLabels = rawDateKeys.map(date => {
@@ -115,11 +124,13 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
         setHistory(values);
         const total = values.reduce((sum, val) => sum + val, 0);
         setTotalBalance(total);
+        console.log('[ScoreSummary] Reloaded CORRECT_KEY map:', scoreMap);
+        console.log('[ScoreSummary] Reloaded Chart labels:', formattedLabels, 'values:', values);
       } catch (e) {
-        console.error('Failed to reload score by date:', e);
+        console.error('Failed to reload correct-history:', e);
       }
     })();
-  }, [points]);
+  }, [points, sanitizedLevel]);
 
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>

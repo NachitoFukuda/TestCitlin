@@ -434,11 +434,20 @@ const handleTiltPress2 = () => {
   // Build step-specific content nodes dynamically from messages array
   const stepContents = messages.map((msg, i) => (
     <View key={i} style={{ alignItems: 'center', paddingTop: 70 }}>
-      <Animated.Text
-        style={[styles.text, { opacity: fadeAnim, fontSize: fontSizes[i], marginTop: fontTop[i] ?? 0 }]}
-      >
-        {msg}
-      </Animated.Text>
+      {i === 0 ? (
+        <LottieView
+          source={require('../../assets/lottie/hello.json')}
+          autoPlay
+          loop
+          style={{ width: SCREEN_WIDTH * 0.6, height: SCREEN_WIDTH * 0.6, alignSelf: 'center', marginTop: 80 }}
+        />
+      ) : (
+        <Animated.Text
+          style={[styles.text, { opacity: fadeAnim, fontSize: fontSizes[i], marginTop: fontTop[i] ?? 0 }]}
+        >
+          {msg}
+        </Animated.Text>
+      )}
       {i === 2 && (
         <View style={{ width: SCREEN_WIDTH * 0.7, marginTop: 250 }}>
           <GlassCard width={SCREEN_WIDTH * 0.7} height={50}>

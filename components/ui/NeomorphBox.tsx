@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 interface NeomorphBoxProps {
   width: number;
   height?: number;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   forceTheme?: 'light' ;
   /** 親要素から 'AI' を渡すと、背景色がアニメーション */

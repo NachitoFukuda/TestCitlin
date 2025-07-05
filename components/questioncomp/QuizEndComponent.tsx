@@ -350,18 +350,10 @@ useEffect(() => {
 
   // 初期表示時にスコア履歴データをログ出力
   const initialScoreMapRef = useRef<Record<string, number> | null>(null);
-  useEffect(() => {
-    (async () => {
-      try {
-        const json = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-        const map: Record<string, number> = json ? JSON.parse(json) : {};
-        initialScoreMapRef.current = map;
-      } catch (e) {
-        console.error('[QuizEndComponent] 初期表示ログ取得エラー:', e);
-      }
-    })();
-  }, []);
+  const [isHistoryLoaded, setHistoryLoaded] = useState(false);
   const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
+  // 読み込んだ正解数履歴を保持
+  const [correctHistory, setCorrectHistory] = useState<Record<string, number>>({});
 
 
   const themeColors = useMemo(() => {
@@ -599,6 +591,7 @@ useEffect(() => {
   // アニメーション完了時に全問正解ボーナスを付与
   useEffect(() => {
     const addPerfectBonus = async () => {
+      if (!isHistoryLoaded) return;
       if (animatedScore === score && score === total && total > 0) {
         try {
           // 基本報酬の計算
@@ -616,13 +609,19 @@ useEffect(() => {
           const totalPoints = currentPoints + fullBonusPoints;
           await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
 
-          // 全問正解時にもスコア履歴を保存
-          if (initialScoreMapRef.current) {
-            const baseMap = { ...initialScoreMapRef.current };
-            const today = new Date().toISOString().split('T')[0];
-            baseMap[today] = (baseMap[today] ?? 0) + score;
-            await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(baseMap));
-          }
+          // 全問正解時にもスコア履歴をマージして保存
+          const existingJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+          const existingMap: Record<string, number> = existingJson ? JSON.parse(existingJson) : {};
+          const today = new Date().toISOString().split('T')[0];
+          existingMap[today] = (existingMap[today] ?? 0) + score;
+          await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(existingMap));
+          console.log('[QuizEndComponent] Merged SCORE_BY_DATE_KEY after perfect bonus:', existingMap);
+          // 全問正解時の正解数履歴も更新
+          const mergedCorrectJson = await AsyncStorage.getItem(CORRECT_KEY);
+          const mergedCorrect: Record<string, number> = mergedCorrectJson
+            ? JSON.parse(mergedCorrectJson)
+            : {};
+          setCorrectHistory(mergedCorrect);
         } catch (e) {
           console.error('[QuizEndComponent] Error adding perfect bonus:', e);
         }
@@ -630,7 +629,7 @@ useEffect(() => {
     };
 
     addPerfectBonus();
-  }, [animatedScore, score, total, QentionID]);
+  }, [animatedScore, score, total, QentionID, isHistoryLoaded]);
 
   // 満点の場合、コンフェッティと振動をトリガー
   useEffect(() => {
@@ -663,6 +662,17 @@ useEffect(() => {
     if (level == null) {
       return;
     }
+    // 履歴読み込み完了まで待機
+    if (!isHistoryLoaded) {
+      await new Promise<void>(resolve => {
+        const iv = setInterval(() => {
+          if (isHistoryLoaded) {
+            clearInterval(iv);
+            resolve();
+          }
+        }, 50);
+      });
+    }
     if (finishProcessing) return;
     setFinishProcessing(true);
     try {
@@ -674,17 +684,28 @@ useEffect(() => {
       // ③ 合計を保存
       await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
       // ★ ④ 今日の正解数を保存
-      const today = new Date().toISOString().split('T')[0]; // 例: "2025-05-23"
+      const today = new Date().toISOString().split('T')[0];
       const correctRaw = await AsyncStorage.getItem(CORRECT_KEY);
       const correctParsed = correctRaw ? JSON.parse(correctRaw) : {};
       correctParsed[today] = (correctParsed[today] || 0) + score;
       await AsyncStorage.setItem(CORRECT_KEY, JSON.stringify(correctParsed));
 
+      // ← ここから追加
+      const savedCorrect = await AsyncStorage.getItem(CORRECT_KEY);
+      console.log('[QuizEndComponent] Saved CORRECT_KEY:', savedCorrect);
+      // 保存後に state にも反映
+      const savedCorrectParsed: Record<string, number> = savedCorrect
+        ? JSON.parse(savedCorrect)
+        : {};
+      setCorrectHistory(savedCorrectParsed);
       // 今日のスコア履歴を保存（全問正解以外も含める）
       const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
       const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
       scoreMap[today] = (scoreMap[today] ?? 0) + score;
       await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
+      // 追記: 保存されたスコア履歴をログ出力
+      const savedScoreByDate = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+      console.log('[QuizEndComponent] Saved SCORE_BY_DATE_KEY:', savedScoreByDate);
       // ※ スコア保存処理は useEffect 側に移動
     } catch (e) {
       console.error('保存エラー:', e);
@@ -710,6 +731,37 @@ useEffect(() => {
       setDisplayPoints(baseReward + bonusPoints);
     }
   }, [animatedScore, score, total, showConfetti, baseReward, bonusPoints]);
+
+  // 初期表示時にスコア履歴データをログ出力
+  useEffect(() => {
+    if (!sanitizedLevel) return;
+    (async () => {
+      try {
+        const json = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+        const map: Record<string, number> = json ? JSON.parse(json) : {};
+        initialScoreMapRef.current = map;
+        setHistoryLoaded(true);
+        console.log('[QuizEndComponent] Loaded SCORE_BY_DATE_KEY:', map);
+      } catch (e) {
+        console.error('[QuizEndComponent] 初期表示ログ取得エラー:', e);
+      }
+    })();
+  }, [sanitizedLevel]);
+
+  // 初期表示時に今日の正解数データをログ出力
+  useEffect(() => {
+    if (!sanitizedLevel) return;
+    (async () => {
+      try {
+        const correctJson = await AsyncStorage.getItem(CORRECT_KEY);
+        const correctMap: Record<string, number> = correctJson ? JSON.parse(correctJson) : {};
+        console.log('[QuizEndComponent] Loaded CORRECT_KEY:', correctMap);
+        setCorrectHistory(correctMap);
+      } catch (e) {
+        console.error('[QuizEndComponent] 初期表示CORRECT_KEY取得エラー:', e);
+      }
+    })();
+  }, [sanitizedLevel]);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>

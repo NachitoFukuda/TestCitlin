@@ -283,10 +283,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
   },
-  container: {
-    width: '100%',
-    alignItems: 'center',
-  },
   UIstoreButtonContainer: {
     position: 'absolute',
     bottom: 70,
