@@ -80,13 +80,7 @@ const useCalendarDataGeneration = (
           result: [firstValue, secondValue, thirdValue, fourthValue, fifthValue],
         });
       }
-
-      console.log('[InitialSetup] Generated data summary:', {
-        firstDay: generatedData[0],
-        lastDay: generatedData[generatedData.length - 1],
-        totalDays: generatedData.length,
-        sampleValues: generatedData.slice(0, 3)
-      });
+;
 
       // データを保存
       AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData))

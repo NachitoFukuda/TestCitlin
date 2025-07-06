@@ -1,6 +1,8 @@
 import LottieView from 'lottie-react-native';
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 import NeomorphBox from '../ui/NeomorphBox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-chart-kit';
@@ -10,9 +12,11 @@ type ScoreSummaryProps = {
   animatedScore: number;
   total: number;
   points: number;
-  bonusPoints: number;
-  vipBonusPoints: number;
+  bonusPoints: boolean;
+  vipBonusPoints: boolean;
   themeColors: { textColor: string };
+  scoreStarkLevelValue: number;
+  pointFontFamily?: string;
 };
 
 const ScoreSummary: React.FC<ScoreSummaryProps> = ({
@@ -22,7 +26,12 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   bonusPoints,
   vipBonusPoints,
   themeColors,
+  scoreStarkLevelValue,
+  pointFontFamily = 'System',
 }) => {
+  const { level } = useQuestionData();
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+
   const [history, setHistory] = React.useState<number[]>([]);
   const [totalBalance, setTotalBalance] = React.useState(0);
   // 日付ごとのスコア表示用ラベル
@@ -31,78 +40,106 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
 
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(20)).current;
+
   const vipFadeAnim = React.useRef(new Animated.Value(0)).current;
   const vipTranslateY = React.useRef(new Animated.Value(20)).current;
-  const { level } = useQuestionData();
-  // ---- Level‑aware storage keys ----
-  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
-  const SUCORE_STARK_LEVEL = `@sucore_stark_${sanitizedLevel}`;
 
-  const [showBadge, setShowBadge] = React.useState(false);
-  const [starkCount, setStarkCount] = React.useState<number>(0);
+  // ストリーク表示用アニメーション
+  const streakScale = React.useRef(new Animated.Value(0)).current;
+  // 振動（シェイク）用アニメーション値
+  const shakeAnim = React.useRef(new Animated.Value(0)).current;
+
+  // アニメーション完了フラグ
+  const [animDone, setAnimDone] = React.useState(false);
 
   React.useEffect(() => {
-    if (animatedScore === total && bonusPoints > 0) {
-      Animated.sequence([
+    // ボーナスとVIPボーナスを順番にアニメーション、フェードアウト開始で完了判定
+    const runAnimation = () => {
+      if (bonusPoints) {
         Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(translateY, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.delay(1500),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 500,
+          Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+        ]).start(() => {
+          Animated.delay(1500).start(() => {
+            // フェードアウト開始前に完了とみなす
+            setAnimDone(true);
+            Animated.timing(fadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
+              // ボーナス後にVIPボーナスを続ける
+              if (vipBonusPoints) {
+                Animated.parallel([
+                  Animated.timing(vipFadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+                  Animated.timing(vipTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+                ]).start(() => {
+                  Animated.delay(1500).start(() => {
+                    Animated.timing(vipFadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start();
+                  });
+                });
+              }
+            });
+          });
+        });
+      } else if (vipBonusPoints) {
+        Animated.parallel([
+          Animated.timing(vipFadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(vipTranslateY, { toValue: 0, duration: 500, useNativeDriver: true }),
+        ]).start(() => {
+          Animated.delay(1500).start(() => {
+            Animated.timing(vipFadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
+              setAnimDone(true);
+            });
+          });
+        });
+      } else {
+        setAnimDone(true);
+      }
+    };
+    runAnimation();
+  }, [bonusPoints, vipBonusPoints]);
+
+  // animDone 後にストリークをバウンド表示
+  React.useEffect(() => {
+    if (animDone && scoreStarkLevelValue >= 2) {
+      // バウンド＋シェイク＋デバイス振動
+      Animated.parallel([
+        Animated.spring(streakScale, {
+          toValue: 1,
+          friction: 4,
+          tension: 100,
           useNativeDriver: true,
         }),
-        Animated.parallel([
-          Animated.timing(vipFadeAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(vipTranslateY, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start(async () => {
-        try {
-          const json = await AsyncStorage.getItem(SUCORE_STARK_LEVEL);
-          const count: number = json ? JSON.parse(json) : 0;
-          let adjustedCount = count;
-          if (count === 4 || count === 5) {
-            adjustedCount = 0;
-            await AsyncStorage.setItem(SUCORE_STARK_LEVEL, JSON.stringify(adjustedCount));
-          } else if (count === 1 || count === 2) {
-            adjustedCount = count + 1;
-            await AsyncStorage.setItem(SUCORE_STARK_LEVEL, JSON.stringify(adjustedCount));
-          } // if count === 3, do nothing (保留)
-          setStarkCount(adjustedCount);
-          if (adjustedCount >= 2) {
-            setShowBadge(true);
-          }
-        } catch (e) {
-          console.error('[ScoreSummary] Failed to load SUCORE_STARK_LEVEL:', e);
-        }
-      });
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
+            Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
+            Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+          ]),
+          { iterations: 3 }
+        ),
+      ]).start();
+      // デバイスハプティクス
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // サウンド再生: ストリーク描画時に効果音を再生
+      (async () => {
+        const { sound } = await Audio.Sound.createAsync(require('../../assets/sound/streak.mp3'));
+        await sound.playAsync();
+      })();
     }
-  }, [animatedScore, total, bonusPoints]);
+  }, [animDone, scoreStarkLevelValue]);
+
+  // コンポーネント内でボーナス額を計算
+  const bonusCount = (bonusPoints ? 1 : 0) + (vipBonusPoints ? 1 : 0);
+  const computedBonusPoints = bonusCount === 2
+    ? Math.round(points * 0.25)
+    : bonusCount === 1
+      ? Math.round(points * 0.5)
+      : 0;
+
 
   // Load correct answer history on mount
   React.useEffect(() => {
     (async () => {
       try {
-        const scoreJson = await AsyncStorage.getItem(CORRECT_KEY);
+        const scoreJson = await AsyncStorage.getItem(`DAYLY_CORRECT_${sanitizedLevel}`);
         // now scoreMap は { '2025-06-27': 10, ..., '2025-07-05': 51 } のようになる
         const scoreMap: Record<string, number> = scoreJson
           ? JSON.parse(scoreJson)
@@ -129,7 +166,7 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
   React.useEffect(() => {
     (async () => {
       try {
-        const scoreJson = await AsyncStorage.getItem(CORRECT_KEY);
+        const scoreJson = await AsyncStorage.getItem(`DAYLY_CORRECT_${sanitizedLevel}`);
         const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
         const rawDateKeys = Object.keys(scoreMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
         const formattedLabels = rawDateKeys.map(date => {
@@ -147,13 +184,13 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
     })();
   }, [points, sanitizedLevel]);
 
+
+  // Lottie streak size calculation
+  const cycleIndex = (scoreStarkLevelValue - 3) % 4; // 0〜3
+  const lottieSize = 70 + cycleIndex * 10;
+
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-      {showBadge && (
-        <View style={styles.starkBadge}>
-          <Text style={styles.starkBadgeText}>⭐️</Text>
-        </View>
-      )}
         <NeomorphBox
           width={SCREEN_WIDTH * 0.85}
           height={200}
@@ -200,41 +237,66 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
           />
         )}
         </NeomorphBox>
-        <NeomorphBox
-          width={SCREEN_WIDTH * 0.85}
-          height={100}
-          style={styles.neomorphBox1}
-        >
+        <View style={styles.bottomContainer}>
+          <NeomorphBox
+            width={SCREEN_WIDTH * 0.55}
+            height={100}
+            style={styles.neomorphBox1}
+          >
+            {bonusPoints && (
+              <Animated.Text
+                style={[styles.bonusText, { opacity: fadeAnim, transform: [{ translateY }] }]}
+              >
+                ＋全問正解 {computedBonusPoints}
+              </Animated.Text>
+            )}
+            {vipBonusPoints && (
+              <Animated.Text
+                style={[styles.vipBonusText, { opacity: vipFadeAnim, transform: [{ translateY: vipTranslateY }] }]}
+              >
+                ＋VIP {computedBonusPoints}
+              </Animated.Text>
+            )}
+            <Text style={[styles.pointscoreText, { fontFamily: pointFontFamily }]}>
+              ₵ {points}
+            </Text>
+          </NeomorphBox>
 
-      {animatedScore === total && (
-        <Animated.Text
-          style={[
-            styles.bonusText,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          +{bonusPoints}
-        </Animated.Text>
-      )}
-      <Animated.Text
-        style={[
-          styles.vipBonusText,
-          {
-            opacity: vipFadeAnim,
-            transform: [{ translateY: vipTranslateY }],
-          },
-        ]}
-      >
-        VIPボーナス +{vipBonusPoints}
-      </Animated.Text>
-        <Text style={styles.pointscoreText }>
-          ₵ {points}
-        </Text>
-
-        </NeomorphBox>
+          <NeomorphBox
+            width={SCREEN_WIDTH * 0.25}
+            height={100}
+            style={styles.neomorphBox1}
+          >
+          {animDone && scoreStarkLevelValue >= 2 && (
+            <Animated.View
+              style={{
+                position: 'absolute',
+                bottom: 5,
+                right: 20,
+                alignItems: 'center',
+                transform: [
+                  { scale: streakScale },
+                  { translateX: shakeAnim },
+                ],
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <LottieView
+                  source={require('../../assets/lottie/streak.json')}
+                  autoPlay
+                  loop
+                  speed={1 + (scoreStarkLevelValue - 2) * 0.2}
+                  style={{ width: lottieSize, height: lottieSize }}
+                />
+                <Text style={[{ fontFamily: pointFontFamily }, { color: '#333', fontWeight: 'bold',marginLeft:-25, fontSize: 40, top: 17 }]}>
+                  {scoreStarkLevelValue}
+                </Text>
+              </View>
+              <Text style={{ color: '#333', fontSize: 20, marginTop: 2, marginLeft: 15  }}>連続</Text>
+            </Animated.View>
+          )}
+          </NeomorphBox>
+        </View>
 
     </View>
   );
@@ -249,10 +311,16 @@ const styles = StyleSheet.create({
   neomorphBox1: {
     marginTop: 20,
   },
+  bottomContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 10,
+  },
   pointscoreText: {
     position:'absolute',
     color:'#777',
-    fontSize: 30,
+    fontSize: 25,
   },
   scoreText1: {
     position:'absolute',
@@ -283,27 +351,15 @@ const styles = StyleSheet.create({
     position:'absolute',
     fontSize: 20,
     top:10,
-    color: 'rgb(8, 235, 0)',
+    color: 'rgb(65, 187, 61)',
   },
   vipBonusText: {
     position:'absolute',
     fontSize: 20,
     top: 10,
-    color: '#FFD700', // 金色
+    color: 'rgb(190, 187, 0)', // 金色
   },
   chartStyle: {
     marginVertical: 8,
-  },
-  starkBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: '#fff',
-    padding: 4,
-    borderRadius: 12,
-    zIndex: 2,
-  },
-  starkBadgeText: {
-    fontSize: 16,
   },
 });

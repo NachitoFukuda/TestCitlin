@@ -84,6 +84,7 @@ export default function QuestionScreen() {
   const [isCountingDown, setIsCountingDown] = useState(true);
   const [isTodayMaxCount, setTodayMaxCount] = useState(60);
   const [dailyCount, setDailyCount] = useState(null);
+  const [isButtonPressed, setIsButtonPressed] = useState(false);
 
 useEffect(() => {
   if (level == null) return;
@@ -488,6 +489,12 @@ useEffect(() => {
   const timeoutRef = useRef(null);
 
   const handleNextQuestion = async (buttonIndex) => {
+    // 連続押下防止ガード
+    if (isButtonPressed) {
+      return;
+    }
+    setIsButtonPressed(true);
+
     // FSRSカードを buttonIndex に応じた評価で更新
     const ratingMap = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
     const rating = ratingMap[buttonIndex - 1] ?? Rating.Good;
@@ -545,6 +552,8 @@ useEffect(() => {
           useNativeDriver: true,
         }).start(() => {
           setIsTransitioning(false);
+          // アニメーション完了後にボタンを再度有効化
+          setIsButtonPressed(false);
         });
       }, 100);
     });
@@ -980,6 +989,7 @@ useEffect(() => {
             // FSRSを更新しない場合は次へボタンのみ
             <View style={styles.nextButtonIncorrectContainer}>
               <TouchableOpacity
+                disabled={isButtonPressed}
                 onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
                 onPress={() => handleNextQuestion(1)}
               >
@@ -987,7 +997,7 @@ useEffect(() => {
                   width={SCREEN_WIDTH * 0.85}
                   height={60}
                 >
-                  <Text style={styles.nextButtonText}>次へ</Text>
+                  <Text style={[styles.nextButtonText, isButtonPressed && styles.disabledText]}>次へ</Text>
                 </NeomorphBox>
               </TouchableOpacity>
             </View>
@@ -998,6 +1008,7 @@ useEffect(() => {
                 {Array.from({ length: 4 }).map((_, idx) => (
                   <Animated.View key={idx} style={[styles.nextButtonGridItem, { opacity: fadeAnim }]}>
                     <TouchableOpacity
+                      disabled={isButtonPressed}
                       onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
                       onPress={() => handleNextQuestion(idx + 1)}
                       accessibilityLabel={`復習評価ボタン：${nextButtonLabels[idx]}`}
@@ -1007,7 +1018,7 @@ useEffect(() => {
                         width={(SCREEN_WIDTH * 0.85) / 2 - 5}
                         height={60}
                       >
-                        <Text style={styles.nextButtonText}>
+                        <Text style={[styles.nextButtonText, isButtonPressed && styles.disabledText]}>
                           {nextButtonLabels[idx]}
                         </Text>
                       </NeomorphBox>
@@ -1022,6 +1033,7 @@ useEffect(() => {
         {showNextButton && isAnswerCorrect === false && (
           <View style={styles.nextButtonIncorrectContainer}>
             <TouchableOpacity
+              disabled={isButtonPressed}
               onPressIn={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
               onPress={() => handleNextQuestion(1)}
             >
@@ -1029,7 +1041,7 @@ useEffect(() => {
                 width={SCREEN_WIDTH * 0.85}
                 height={60}
               >
-                <Text style={styles.nextButtonText}>次へ</Text>
+                <Text style={[styles.nextButtonText, isButtonPressed && styles.disabledText]}>次へ</Text>
               </NeomorphBox>
             </TouchableOpacity>
           </View>
@@ -1303,13 +1315,16 @@ function createStyles(isDark) {
     marginBottom: 10,
   },
   // 不正解時の下部表示用スタイル
-nextButtonIncorrectContainer: {
+  nextButtonIncorrectContainer: {
   position: 'absolute',
   bottom: 50,        // 画面下部に配置
   left: 0,
   right: 0,          // 横幅いっぱいに広げて中央揃えを効かせる
   alignItems: 'center',
 },
+  disabledText: {
+    opacity: 0.5,
+  },
   });
   return styles;
 }

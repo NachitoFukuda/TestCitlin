@@ -122,9 +122,9 @@ const ReviewList: React.FC<ReviewListProps> = ({
                       textAlign: 'center',
                     }}
                   >
-                    {info?.daysUntilDue === 0
+                    {(info?.daysUntilDue ?? 0) <= 0
                       ? '本日'
-                      : `${info?.daysUntilDue ?? 0}日後`}
+                      : `${info?.daysUntilDue}日後`}
                   </Text>
               </View>
             </NeomorphBox>
@@ -302,7 +302,7 @@ useEffect(() => {
 
 
   const { customerInfo } = useSubscription();
-  const isVIP = customerInfo?.entitlements?.active?.['citlin_ads_disabled']?.isActive === true;
+  const isVIP = true;
   // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
   const validQID =
   typeof QentionID === 'number' && !isNaN(QentionID)
@@ -311,17 +311,16 @@ useEffect(() => {
   const basePoint = 10;
   const idMultiplier = Math.pow(1.05, validQID);// 基本報酬
   const baseReward = Math.round(score * basePoint * idMultiplier);
-  // 全問正解ボーナス
+  // ボーナス: VIPと全問正解時はそれぞれベースリワードの半分を加算
   let bonusPoints = 0;
-  if (score === total && total > 0) {
-    const fullBonusMultiplier = Math.pow(1.1, score);
-    bonusPoints = Math.round(baseReward * (fullBonusMultiplier - 1));
+  if (isVIP) {
+    bonusPoints += Math.round(baseReward * 0.5);
   }
-  // VIPボーナス
-  const vipMultiplier = isVIP ? 2 : 1;
-
-  // 合計ポイント（基本報酬 + VIPボーナス + 全問正解ボーナス）
-  const points = (baseReward + bonusPoints) * vipMultiplier;
+  if (score === total && total > 0) {
+    bonusPoints += Math.round(baseReward * 0.5);
+  }
+  // 合計ポイント（基本報酬 + ボーナス）
+  const points = baseReward + bonusPoints;
   const [animatedScore, setAnimatedScore] = useState(0);
   const [visibleCount, setVisibleCount] = useState(0);
   const [displayPoints, setDisplayPoints] = useState(baseReward);
@@ -345,6 +344,35 @@ useEffect(() => {
     () => String(level ?? '').replace(/\./g, '_'),
     [level]
   );
+  // Compute storage key for Stark level
+  const SCORE_STARK_LEVEL = `@score_stark_${sanitizedLevel}`;
+  const [scoreStarkLevelValue, setScoreStarkLevelValue] = useState<number>(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const json = await AsyncStorage.getItem(SCORE_STARK_LEVEL);
+        const val: number = json ? JSON.parse(json) : 0;
+
+        // Determine new storage value based on current score
+        let newVal = val;
+        if (score === 4 || score === 5) {
+          newVal = val + 1;
+        } else if (score === 1 || score === 2 || score === 0) {
+          // increment when score is 1 or 2
+          newVal = 0;
+        } // else leave newVal unchanged
+        // Save updated value if it has changed
+        if (newVal !== val) {
+          await AsyncStorage.setItem(SCORE_STARK_LEVEL, JSON.stringify(newVal));
+        }
+        setScoreStarkLevelValue(newVal);
+      } catch (e) {
+        console.error('[QuizEndComponent] Error loading SCORE_STARK_LEVEL:', e);
+      }
+    })();
+  }, [SCORE_STARK_LEVEL]);
+
   const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
   const SCORE_BY_DATE_KEY = `@score_by_date_${sanitizedLevel}`
 
@@ -760,14 +788,15 @@ useEffect(() => {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>
-      {/* EndLabelを、スコアのカウントアップが完了したときに表示 */}
+
       <ScoreSummary
         animatedScore={animatedScore}
         total={total}
-        points={displayPoints - Math.floor(displayPoints * 0.5)}
-        bonusPoints={Math.floor(displayPoints * 0.5)}
-        vipBonusPoints={Math.floor(displayPoints * 0.5)}
+        points={displayPoints}
+        bonusPoints={score === total && total > 0}
+        vipBonusPoints={isVIP}
         themeColors={themeColors}
+        scoreStarkLevelValue={scoreStarkLevelValue}
       />
       <ReviewList
         questions={filteredQuestions}
