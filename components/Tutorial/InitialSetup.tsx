@@ -414,7 +414,6 @@ const handleTiltPress2 = () => {
         <LottieView
           source={require('../../assets/lottie/hello.json')}
           autoPlay
-          loop
           style={{ width: SCREEN_WIDTH * 0.6, height: SCREEN_WIDTH * 0.6, alignSelf: 'center', marginTop: 80 }}
         />
       ) : (
