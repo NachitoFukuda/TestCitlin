@@ -19,7 +19,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from '@/components/ui/Footer';
 import { useRouter } from 'expo-router';
 import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
-import TapIndicator from '../../components/ui/TapIndicator';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import * as Haptics from 'expo-haptics';
 
@@ -47,25 +46,8 @@ type ShopItem = {
 type Position = { gridX: number; gridY: number; };
 
 const PURCHASES_KEY = '@quiz:purchases';
-const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
 export default function UILayout() {
-  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    AsyncStorage.getItem(TUTORIAL_STEP_KEY)
-      .then(val => {
-        if (val !== null) {
-          setTutorialStep(val === 'true');
-        }
-      })
-      .catch(err => {
-        console.error('[Footer] Failed to load tutorial step:', err);
-        setTutorialStep(false);
-      });
-  }, []);
-
-
   const [positions, setPositions] = useState<Record<string, Position | null>>({});
   const isFirstLoad = useRef(true);
   useEffect(() => {
@@ -197,13 +179,7 @@ export default function UILayout() {
     });
     // Removedリストから除外
     setRemovedWidgets(prev => prev.filter(w => w.id !== item.id));
-    // チュートリアル完了ステップを保存
-    try {
-      await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-    } catch (err) {
-      console.error('[UILayout] Failed to set tutorial step to end:', err);
-    }
-    setTutorialStep(true);
+
   };
 
   return (
@@ -395,8 +371,8 @@ export default function UILayout() {
       {positionsLoaded && (() => {
         // 配置可能アイテム一覧
         const rawAvailable = Object.values(purchases).filter(item => positions[item.id] == null);
-        // チュートリアル未完了時は最初の1つだけ表示
-        const available = tutorialDoneState ? rawAvailable : rawAvailable.slice(0, 1);
+        // 未配置の購入済みウィジェットはすべて表示
+        const available = rawAvailable;
         if (available.length === 0) {
           return (
             <TouchableOpacity
@@ -432,34 +408,9 @@ export default function UILayout() {
                     onPress={async () => {
                       // アイテム追加 & 保存完了を待つ
                       await addItemToGrid(item);
-                      try {
-                        await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-                      } catch (err) {
-                        console.error('[UILayout] Failed to set tutorial step to end:', err);
-                      }
-                      setTutorialStep(true);
                     }}
                   >
-                    {tutorialDoneState  && (
-                      <View style={{
-                        position: 'absolute',
-                        top: -20,
-                        left: -20,
-                        right: -20,
-                        bottom: -20,
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                     {tutorialDoneState  && index == 0&& (
-                        <TapIndicator
-                          size={160}
-                          color="#000"
-                          strokeWidth={2}
-                          duration={1000}
-                        />
-                        )}
-                      </View>
-                    )}
+
                     <View
                       pointerEvents="none" 
                       style={{
@@ -503,7 +454,6 @@ export default function UILayout() {
            <Footer
               activeIcon="layout"
               purchasesLength={Object.keys(purchases).length}
-              pushButton={true}
               />
       </>
   );

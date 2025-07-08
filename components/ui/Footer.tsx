@@ -4,33 +4,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import TapIndicator from './TapIndicator';
-import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 
-const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 
 export default function Footer({
   activeIcon,
   layoutdemo,
-  tutorialDone ,
-  pushButton,
+  tutorialDone
 }: {
   activeIcon: string;
   layoutdemo?: boolean;
   purchasesLength?: number;
   tutorialDone?: boolean;
-  pushButton?: boolean;
 }) {
   const router = useRouter();
 
-  // チュートリアル完了フラグを boolean で管理
-  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
-  // Sound reference for playback
-  // BGM設定
-  // tutorialDoneがtrueの時にTUTORIAL_STEP_KEYを更新
   const [isDarkMode, setIsDarkMode] = React.useState(false);
   /**
    * チュートリアル完了フラグと購入数から表示するボタン数を返す
@@ -111,13 +100,6 @@ export default function Footer({
         <TouchableOpacity
           onPress={async () => {
             try {
-              const stored = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
-              if (stored === 'true') {
-                setTutorialStep(true);
-              } else if (stored === null) {
-                await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'false');
-                setTutorialStep(false);
-              }
             } catch (e) {
               console.error('[Footer] Failed to update tutorial step:', e);
             }
@@ -135,14 +117,6 @@ export default function Footer({
                   { transform: [{ translateY: iconAnims.shop }] },
                 ]}
               >
-                  {!tutorialDoneState && !isDemoMode && !(activeIcon === 'shop') && !(activeIcon === 'layout')&& (
-                    <TapIndicator
-                      size={iconWrapperSize * 2.4}
-                      color={'#000'}
-                      strokeWidth={2}
-                      duration={1000}
-                    />
-                  )}
                 <Ionicons
                   name={activeIcon === 'shop' ? 'pricetag' : 'pricetag-outline'}
                   size={iconSize}
@@ -160,14 +134,11 @@ export default function Footer({
             </Text>
           </View>
         </TouchableOpacity>
-        {((tutorialDone === true && !isDemoMode ) || pushButton || tutorialDoneState ) ? (
           <TouchableOpacity
             onPress={async () => {
               handlePress('layout', '/UILayout');
               if (!isDemoMode && tutorialDone === true) {
                 try {
-                  await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-                  setTutorialStep(true);
                 } catch (e) {
                   console.error('[Footer] Failed to update tutorial step:', e);
                 }
@@ -177,14 +148,6 @@ export default function Footer({
           >
             <View style={styles.iconWithLabel}>
               <Animated.View style={[styles.iconWrapper, isDemoMode && { width: iconWrapperSize, height: iconWrapperSize }, { transform: [{ translateY: iconAnims.layout }] }]}>
-              {((tutorialDone === true && !isDemoMode ) || pushButton && !(activeIcon === 'layout'))&&!tutorialDoneState&& (
-                  <TapIndicator
-                  size={iconWrapperSize * 2.4}
-                  color={'#000'}
-                  strokeWidth={2}
-                  duration={1000}
-                  />
-                )}
                 <Ionicons
                   name={activeIcon === 'layout' ? 'grid' : 'grid-outline'}
                   size={iconSize}
@@ -202,16 +165,12 @@ export default function Footer({
               </Text>
             </View>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.iconButton} />
-        )}
       </View>
 
       {/* 中央: home */}
       <TouchableOpacity
         onPress={() => {
             handlePress('home', '/');
-          
         }}
         style={styles.iconButton}
         accessibilityLabel="Home"

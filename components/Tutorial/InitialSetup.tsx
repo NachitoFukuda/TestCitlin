@@ -13,20 +13,17 @@ interface InitialSetupProps {
   onSetupComplete: () => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BUTTON_ROW_HORIZONTAL_PADDING = 16 * 2; // left and right padding
 const BUTTON_ROW_CONTENT_WIDTH = SCREEN_WIDTH - BUTTON_ROW_HORIZONTAL_PADDING;
 const BUTTON_ROW_HEIGHT = 70;
 const BACK_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
 const NEXT_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
+const CARD_HIGHT = SCREEN_HEIGHT * 0.8;
 const CARD_LEFT_OFFSET = (SCREEN_WIDTH - CARD_WIDTH) / 2;
 const SPACING = 20;  // spacing between cards during animation
-const addDays = (date: Date, days: number): Date => {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-};
+
 // カスタムフックを作成
 const useCalendarDataGeneration = (
   currentStep: number,
@@ -108,7 +105,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   // メッセージ
   const messages = [
     'こんにちは', 
-    'AIが\n最適なタイミングで\n自動出題！',
+    'AIがあなたに合わせた\n最適なタイミングで\n自動出題！',
     'ニックネームを\n入力してね',
     'どの級を学習する？',  
     '',  
@@ -117,18 +114,8 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // 各ステップに応じたフォントサイズ・位置
   const fontSizes = [60, 30, 40, 30, 30, 30];
-  const fontTop   = [150, 90, 100, 30, 30, -60];
+  const fontTop   = [150, 300, 350, 0, 30, -60];
 
-  // NeomorphBox の高さ
-  const neomorphHeights = [
-    600, // 0
-    600, // 1
-    600, // 2
-    600, // 3
-    600, // 4
-    600, // 5
-    600, // 6
-  ];
 
   // 予定設定用ステート
   const [scheduleOption, setScheduleOption] = useState<'deadline' | 'daily'>('deadline');
@@ -158,6 +145,80 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       .catch((error) => {
         console.log('保存された級の取得に失敗しました:', error);
       });
+  }, []);
+
+  // 初期ポジション・購入データを保存
+  useEffect(() => {
+    const initializeQuizData = async () => {
+      try {
+        const positions = {
+          "start01":  { "gridX": 1, "gridY": 6 },
+          "chach04": { "gridX": 0, "gridY": 1 },
+          "TodayGool0": { "gridX": 2, "gridY": 3 },
+          "TodayGool01": { "gridX": 2, "gridY": 2 },
+          "WeekProgress08": { "gridX": 0, "gridY": 2 },
+          "WeekProgress065": { "gridX": 0, "gridY": 4 }
+        };
+        await AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
+
+        const purchases = {
+          "start01": {
+            "id": "start01",
+            "name": "Start Mini",
+            "price": 0,
+            "widthCells": 2,
+            "heightCells": 1,
+            "tag": "button"
+          },
+          "chach04": {
+            "id": "chach04",
+            "name": "Wallet View",
+            "price": 0,
+            "widthCells": 4,
+            "heightCells": 1,
+            "tag": "sticker"
+          },
+          "TodayGool0": {
+            "id": "TodayGool0",
+            "name": "Daily Target",
+            "price": 0,
+            "widthCells": 2,
+            "heightCells": 1,
+            "tag": "theme"
+          },
+          "TodayGool01": {
+            "id": "TodayGool01",
+            "name": "Daily Target Pro",
+            "price": 0,
+            "widthCells": 2,
+            "heightCells": 1,
+            "tag": "theme"
+          },
+          "WeekProgress08": {
+            "id": "WeekProgress08",
+            "name": "Weekly Tracker Mini B",
+            "price": 0,
+            "widthCells": 2,
+            "heightCells": 2,
+            "tag": "theme"
+          },
+          "WeekProgress065": {
+            "id": "WeekProgress065",
+            "name": "Weekly Tracker",
+            "price": 0,
+            "widthCells": 4,
+            "heightCells": 2,
+            "tag": "theme"
+          }
+        };
+        await AsyncStorage.setItem('@quiz:purchases', JSON.stringify(purchases));
+
+        console.log('[InitialSetup] 初期ポジションと購入データを保存しました');
+      } catch (e) {
+        console.error('[InitialSetup] 初期データの保存に失敗しました', e);
+      }
+    };
+    initializeQuizData();
   }, []);
 
   // フェードインアニメーション
@@ -227,6 +288,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // 次へ or 決定ボタン
   const handleNext = async () => {
+    if (isSliding) return;
     // ニックネーム入力ステップでの保存
     if (currentStep === 2) {
       const cleanName = nickname.trim();
@@ -249,18 +311,18 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       Animated.parallel([
         Animated.timing(exitAnim, {
           toValue: -(CARD_WIDTH + SPACING),
-          duration: 300,
+          duration: 600,
           easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(exitOpacity, {
           toValue: 0,
-          duration: 100,
+          duration: 300,
           useNativeDriver: true,
         }),
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 300,
+          duration: 600,
           easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }),
@@ -375,7 +437,6 @@ const handleTiltPress2 = () => {
           await AsyncStorage.setItem('@deadline_days', JSON.stringify(deadlineData));
           console.log('[InitialSetup] Saved deadline data:', deadlineData);
           setIsDataSaved(true);
-          Alert.alert('作成成功', `${deadlineDays}日間の予定を立てたよ！`);
           handleNext();
         } else {
           Alert.alert('作成失敗', '単語数が選択できてないよ！');
@@ -415,7 +476,7 @@ const handleTiltPress2 = () => {
           source={require('../../assets/lottie/hello.json')}
           autoPlay
           loop={false}
-          style={{ width: SCREEN_WIDTH * 0.6, height: SCREEN_WIDTH * 0.6, alignSelf: 'center', marginTop: 80 }}
+          style={{ width: SCREEN_WIDTH , height: SCREEN_WIDTH , alignSelf: 'center'}}
         />
       ) : (
         <Animated.Text
@@ -424,13 +485,37 @@ const handleTiltPress2 = () => {
           {msg}
         </Animated.Text>
       )}
+      {i === 1 && (
+        <Animated.Image
+          source={require('../../assets/images/citlinAI.png')}
+          style={{
+            width: SCREEN_WIDTH * 0.7,
+            height: SCREEN_WIDTH * 0.7,
+            marginTop: 40,
+            marginBottom: 20,
+            alignSelf: 'center',
+            opacity: fadeAnim,
+          }}
+          resizeMode="contain"
+        />
+      )}
       {i === 2 && (
-        <View style={{ width: SCREEN_WIDTH * 0.7, marginTop: 250 }}>
+        <View style={{ width: SCREEN_WIDTH * 0.7, alignItems: 'center', marginTop: 0 }}>
+          <Animated.Image
+            source={require('../../assets/images/nameTag.png')}
+            style={{
+              width: SCREEN_WIDTH * 0.6,
+              height: SCREEN_WIDTH * 0.6,
+              marginBottom: 10,
+              opacity: fadeAnim,
+            }}
+            resizeMode="contain"
+          />
           <GlassCard width={SCREEN_WIDTH * 0.7} height={50}>
             <TextInput
               style={{ flex: 1, paddingHorizontal: 10, color: '#fff' }}
               placeholder="ニックネームを入力..."
-              placeholderTextColor="rgba(0,0,0,0.5)"
+              placeholderTextColor="rgb(255, 255, 255)"
               value={nickname}
               onChangeText={text => setNickname(text.normalize())}
               autoCapitalize="none"
@@ -712,7 +797,7 @@ const handleTiltPress2 = () => {
       <View
         style={{
           width: SCREEN_WIDTH,
-          height: neomorphHeights[currentStep] || 250,
+          height: CARD_HIGHT,
           position: 'relative',
         }}
       >
@@ -729,7 +814,7 @@ const handleTiltPress2 = () => {
             borderRadius: 40,
             zIndex: 1,
           }}>
-            <GlassCard width={CARD_WIDTH} height={neomorphHeights[prevStep] || 250} style={{ marginTop: 70, zIndex: 1 }}>
+            <GlassCard width={CARD_WIDTH} height={CARD_HIGHT} style={{ marginTop: 70, zIndex: 1 }}>
               <View style={styles.contentContainer}>
                 {!isSliding && stepContents[prevStep]}
               </View>
@@ -747,7 +832,7 @@ const handleTiltPress2 = () => {
           borderRadius: 40,
           zIndex: 2,
         }}>
-          <GlassCard width={CARD_WIDTH} height={neomorphHeights[currentStep] || 250} style={{ marginTop: 70, zIndex: 1 }}>
+          <GlassCard width={CARD_WIDTH} height={CARD_HIGHT} style={{ marginTop: 70, zIndex: 1 }}>
             <View style={styles.contentContainer}>
               {!isSliding && stepContents[currentStep]}
             </View>
@@ -782,6 +867,7 @@ const handleTiltPress2 = () => {
         <TouchableOpacity
           style={styles.nextButtonRow}
           onPress={currentStep === 5 ? handleSave : handleNext}
+          disabled={isSliding}
         >
           <GlassCard width={NEXT_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
             <Text style={styles.buttonText}>{buttonLabel}</Text>
@@ -901,7 +987,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   selectedLevelText: {
-    color: "rgb(0, 0, 0)",
+    color: "rgb(0, 255, 132)",
   },
   LongWidgetcontainer: {
     marginTop: 130,
@@ -924,6 +1010,7 @@ const styles = StyleSheet.create({
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop:16,
     marginBottom: 16,
   },
   dot: {

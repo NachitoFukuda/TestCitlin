@@ -24,7 +24,7 @@ const safeGetData = async (key: string, defaultValue: any) => {
 interface PTodayGoolProps {
   fromShop?: boolean;
   size?: string;
-  desigin: string;
+  desigin: 'rainbow' | 'simple' | string;
   display: string;
 }
 const TodayGool: React.FC<PTodayGoolProps> = ({
@@ -97,32 +97,65 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
   const valueFontSize =  fromShop ? 12 : 16;
 
   return (
-    <View style={[styles.container, { height: cobtainerhight, width:cobtainerWidth }]}>
-      <NeomorphBox
-        width={width}
-        height={height}
-        variant={desigin === 'rainbow' ? 'AI' : undefined}
-      >
-        <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-          {display === 'Howday' ? (
-            <>
-              <Text style={[styles.value, { fontSize: valueFontSize }]}>学習日数</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888' ,fontWeight: 'bold'}]}>{dayCount}</Text>
-                <Text style={[styles.value, { fontSize: valueFontSize * 1.2,color: '#888' ,fontWeight: 'bold' }]}>日目</Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.value, { fontSize: valueFontSize }]}>今日の学習単語</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888' ,fontWeight: 'bold'}]}>{counts}</Text>
-                <Text style={[styles.value, { fontSize: valueFontSize * 1.2,color: '#888' ,fontWeight: 'bold' }]}>単語</Text>
-              </View>
-            </>
-          )}
+    <View style={[styles.container, { height: cobtainerhight, width: cobtainerWidth }]}>
+      {desigin === 'simple' ? (
+        <View
+          style={{
+            width,
+            height,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor:'#FFF',
+            borderRadius:10,
+          }}
+        >
+          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            {display === 'Howday' ? (
+              <>
+                <Text style={[styles.value, { fontSize: valueFontSize }]}>学習日数</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{dayCount}</Text>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>日目</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.value, { fontSize: valueFontSize }]}>今日の学習単語</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{counts}</Text>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>単語</Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
-      </NeomorphBox>
+      ) : (
+        <NeomorphBox
+          width={width}
+          height={height}
+          variant={desigin === 'rainbow' ? 'AI' : undefined}
+        >
+          <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            {display === 'Howday' ? (
+              <>
+                <Text style={[styles.value, { fontSize: valueFontSize }]}>学習日数</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{dayCount}</Text>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>日目</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.value, { fontSize: valueFontSize }]}>今日の学習単語</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{counts}</Text>
+                  <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>単語</Text>
+                </View>
+              </>
+            )}
+          </View>
+        </NeomorphBox>
+      )}
     </View>
   );
 };

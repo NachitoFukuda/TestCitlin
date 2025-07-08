@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NeomorphBox from '../ui/NeomorphBox';
+import useQuestionData from '../questioncomp/useQuestionData';
 
-const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; backgroundColor?: string; border ?: string;}> =
-  ({ fromShop = false, label, shape, backgroundColor ,border}) => {
+const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; backgroundColor?: string; border?: string; }> =
+  ({ fromShop = false, label, shape, backgroundColor, border }) => {
   const containerBgColor =
     backgroundColor === 'brack'
       ? '#000000'
@@ -17,44 +18,45 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
     Array.from({ length: 7 }, () => 0)
   );
   const [data, setData] = useState<number[][]>(defaultData);
+  const { level } = useQuestionData();
+  const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
+  const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
+  // Determine the maximum score for dynamic color scaling (at least 1 to avoid division by zero)
+  const flatData = data.flat();
+  const maxValue = flatData.reduce((max, val) => Math.max(max, val), 1);
 
   useEffect(() => {
-    if (fromShop) {
-      // Generate random data when fromShop is true
-      const randomData = Array.from({ length: 4 }, () =>
-        Array.from({ length: 7 }, () => Math.floor(Math.random() * 101))
-      );
-      setData(randomData);
-    } else {
-      // Original AsyncStorage logic for when fromShop is false
-      AsyncStorage.getItem('@heatmap_data')
-        .then(json => {
-          let parsed: any;
-          try {
-            parsed = JSON.parse(json || '');
-          } catch {
-            parsed = null;
+    (async () => {
+      const scoreJson = await AsyncStorage.getItem(CORRECT_New_KEY);
+      const scoreData: Record<string, any> = scoreJson ? JSON.parse(scoreJson) : {};
+      // Clone defaultData
+      const newData = defaultData.map(row => row.slice());
+      const today = new Date();
+      // Populate heatmap cells with stored counts
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const delta = (rows - 1 - r) * 7 + (todayIndex - c);
+          if (delta >= 0) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - delta);
+            const key = d.toISOString().split('T')[0];
+            const rawVal = scoreData[key];
+            let num = 0;
+            if (typeof rawVal === 'string' && rawVal.includes('/')) {
+              // parse ratio string "count/goal"
+              num = Number(rawVal.split('/')[0]) || 0;
+            } else if (typeof rawVal === 'number') {
+              num = rawVal;
+            }
+            newData[r][c] = num;
           }
-          interface ParsedData {
-            matrix: number[][];
-          }
+        }
+      }
+      setData(newData);
+    })();
+  }, [sanitizedLevel]);
 
-          if (
-            parsed &&
-            (parsed as ParsedData).matrix &&
-            Array.isArray((parsed as ParsedData).matrix) &&
-            (parsed as ParsedData).matrix.every(row => Array.isArray(row) && row.every(v => typeof v === 'number'))
-          ) {
-            setData((parsed as ParsedData).matrix);
-          } else {
-            setData(defaultData);
-          }
-        })
-        .catch(err => {
-          setData(defaultData);
-        });
-    }
-  }, [fromShop]);
+
 
     const cellMargin = 3;
     const todayIndex = new Date().getDay(); // 0=Sunday ... 6=Saturday
@@ -72,7 +74,7 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
 
   // 値 (0~100) を色 (白→青/黒) に変換（0～1に正規化）
   const getColor = (value: number) => {
-    const v = Math.max(0, Math.min(1, value / 100));
+    const v = Math.max(0, Math.min(1, value / maxValue));
     let lightness;
     let hue;
     switch (label) {

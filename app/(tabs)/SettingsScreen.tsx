@@ -18,19 +18,19 @@ export default function SettingsScreen() {
 
   const keysToClear = [
         '@deadline_days',
-        // 'correctData_1',
-        // 'correctData_1_5',
-        // 'correctData_2',
-        // 'correctData_2_5',
-        // 'correctData_3',
+         'correctData_1',
+         'correctData_1_5',
+         'correctData_2',
+         'correctData_2_5',
+         'correctData_3',
         '@RotatingNeomorphicButton_counter',
-        // 'last_usage_date',
-        // 'last_usage_month',
-        // 'daily_token_balance',
+         'last_usage_date',
+         'last_usage_month',
+         'daily_token_balance',
         '@quiz:tutorialDone',
-        // '@quiz:purchases',
-        // '@quiz_points',
-        // '@quiz:positions',
+        '@quiz:purchases',
+         '@quiz_points',
+        '@quiz:positions',
         '@quiz:tutorialStep'
       ];
 

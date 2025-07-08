@@ -217,8 +217,10 @@ export default function HomeScreen() {
 
   const handleSetupComplete = useCallback(() => {
     setShowInitialSetup(false);
+    // チュートリアル完了後に UIConfigContext を再読み込み
+    uiCtx?.reloadData();
     loadData();
-  }, []);
+  }, [uiCtx]);
 
 
   return (

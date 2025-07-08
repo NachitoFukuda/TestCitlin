@@ -5,7 +5,6 @@ import Svg, { Circle } from 'react-native-svg';
 import { FontAwesome5 } from '@expo/vector-icons';
 import useQuestionData from '../questioncomp/useQuestionData';
 
-const POINTS_KEY = '@heatmap_data';
 const STEPS_KEY = '@steps_data';
 const GENERATED_KEY = '@generated_data';
 /**
@@ -25,7 +24,7 @@ interface StreakProgressCardProps {
     const bgColor = color === 'brack'
       ? '#000000'
       : color === 'wight'
-      ? ''
+      ? '#fff'
       : '#1E1E1E';
     const textColor = color === 'brack'
       ? '#FFFFFF'
@@ -80,15 +79,22 @@ interface StreakProgressCardProps {
 
   useEffect(() => {
     const loadData = async () => {
+      if (!sanitizedLevel || sanitizedLevel === 'unknown') return;
       try {
-        // Heatmap データの読み込み
-        const heatmapData = await safeGetData(POINTS_KEY, { matrix: [] });
-        if (heatmapData?.matrix?.length > 0) {
-          const lastWeek = heatmapData.matrix[heatmapData.matrix.length - 1];
-          if (Array.isArray(lastWeek)) {
-            setWeekData(lastWeek);
-          }
+        // Load past week's correct counts
+        const scoreData: Record<string, number> = await safeGetData(CORRECT_New_KEY, {});
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        const todayIndex = todayDate.getDay();
+        const newWeekData: number[] = Array(7).fill(0);
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(todayDate);
+          // Align index 0=Sunday ... 6=Saturday
+          d.setDate(todayDate.getDate() - (todayIndex - i));
+          const key = d.toISOString().split('T')[0];
+          newWeekData[i] = scoreData[key] || 0;
         }
+        setWeekData(newWeekData);
 
         // Steps データの読み込み
         const stepsData = await safeGetData(STEPS_KEY, 0);
@@ -130,7 +136,7 @@ interface StreakProgressCardProps {
       }
     };
     loadData();
-  }, []);
+  }, [sanitizedLevel]);
 
   useEffect(() => {
     const loadGeneratedData = async () => {
@@ -152,11 +158,20 @@ interface StreakProgressCardProps {
 
   useEffect(() => {
     (async () => {
+      if (!sanitizedLevel || sanitizedLevel === 'unknown') return;
       try {
         const data = await safeGetData(CORRECT_New_KEY, {});
         const todayKey = new Date().toISOString().split('T')[0];
         if (data.hasOwnProperty(todayKey)) {
-          setCounts(data[todayKey]);
+          // Parse stored ratio string "count/goal" or numeric value
+          const stored = data[todayKey];
+          // If it's a string like "2/1", take the count before the slash
+          const countValue = typeof stored === 'string' && stored.includes('/')
+            ? Number(stored.split('/')[0])
+            : Number(stored);
+          // Divide by 2 and floor the result to drop decimals
+          const halfValue = Math.floor(countValue / 2);
+          setCounts(halfValue);
         } else {
           setCounts(0);
         }
@@ -164,7 +179,7 @@ interface StreakProgressCardProps {
         console.error('[StreakProgressCard] Error loading today correct data:', e);
       }
     })();
-  }, []);
+  }, [sanitizedLevel]);
 
   // 継続日数 = 連続で>0 の日数
   const streak = (() => {

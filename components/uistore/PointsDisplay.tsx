@@ -77,7 +77,7 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
   // borderRadius を shape に応じて設定
   let borderRadiusValue = 60;
   if (shape === 'circle') {
-    borderRadiusValue = height / 2;
+    borderRadiusValue = height / 3;
   } else if (shape === 'square') {
     borderRadiusValue = 4;
   }
@@ -107,6 +107,7 @@ const PointsDisplay: React.FC<PointsDisplayProps> = ({
             height,
             alignSelf: 'center',
             borderRadius: borderRadiusValue,
+
           },
         ]}
       >
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
   },
   label: {
     fontSize: 16,

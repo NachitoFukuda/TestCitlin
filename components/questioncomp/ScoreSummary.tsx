@@ -141,7 +141,7 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
       try {
         const scoreJson = await AsyncStorage.getItem(`DAYLY_CORRECT_${sanitizedLevel}`);
         // now scoreMap は { '2025-06-27': 10, ..., '2025-07-05': 51 } のようになる
-        const scoreMap: Record<string, number> = scoreJson
+        const scoreMap: Record<string, any> = scoreJson
           ? JSON.parse(scoreJson)
           : {};
         const rawDateKeys = Object.keys(scoreMap).sort(
@@ -151,7 +151,14 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
           const [y, m, d] = date.split('-');
           return `${parseInt(m)}/${parseInt(d)}`;
         });
-        const values = rawDateKeys.map(date => scoreMap[date]);
+        const values = rawDateKeys.map(date => {
+          const rawVal = scoreMap[date];
+          // Parse ratio string "count/goal" or numeric value
+          if (typeof rawVal === 'string' && rawVal.includes('/')) {
+            return Number(rawVal.split('/')[0]) || 0;
+          }
+          return typeof rawVal === 'number' ? rawVal : Number(rawVal) || 0;
+        });
         setLabels(formattedLabels);
         setHistory(values);
         const total = values.reduce((sum, v) => sum + v, 0);
@@ -167,13 +174,21 @@ const ScoreSummary: React.FC<ScoreSummaryProps> = ({
     (async () => {
       try {
         const scoreJson = await AsyncStorage.getItem(`DAYLY_CORRECT_${sanitizedLevel}`);
-        const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
+        console.log(scoreJson)
+        const scoreMap: Record<string, any> = scoreJson ? JSON.parse(scoreJson) : {};
         const rawDateKeys = Object.keys(scoreMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
         const formattedLabels = rawDateKeys.map(date => {
           const [year, month, day] = date.split('-');
           return `${parseInt(month)}/${parseInt(day)}`;
         });
-        const values = rawDateKeys.map(date => scoreMap[date]);
+        const values = rawDateKeys.map(date => {
+          const rawVal = scoreMap[date];
+          // Parse ratio string "count/goal" or numeric value
+          if (typeof rawVal === 'string' && rawVal.includes('/')) {
+            return Number(rawVal.split('/')[0]) || 0;
+          }
+          return typeof rawVal === 'number' ? rawVal : Number(rawVal) || 0;
+        });
         setLabels(formattedLabels);
         setHistory(values);
         const total = values.reduce((sum, val) => sum + val, 0);

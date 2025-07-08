@@ -1,12 +1,9 @@
 import { WIDGET_CONFIG } from '../../components/uistore/widgetConfig';
 import React, { useCallback, useEffect, useState } from 'react';
-import TapIndicator from '../ui/TapIndicator';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
 
-const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 
@@ -35,23 +32,7 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
       });
   }, []);
   // チュートリアルステップ読み込み
-  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
-  console.log(tutorialDoneState)
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-      const handleFocus = async () => {
-        // 既存テーマ読込…
-        // → ここでチュートリアルステップも読み直す
-        const val = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
-        if (isActive && val !== null) {
-          setTutorialStep(val === 'true');
-        }
-      };
-      handleFocus();
-      return () => { isActive = false; };
-    }, [])
-  );
+
   return (
     <View style={styles.container}>
     <View style={styles.containerimg}>
@@ -103,15 +84,7 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
               console.log('[Detail] Purchase successful, newPoints:', newPoints);
               Alert.alert('購入完了', `${item.name} を購入しました！`);
               // チュートリアルステップを保存
-              try {
-                await AsyncStorage.setItem(TUTORIAL_STEP_KEY, 'true');
-                console.log('[Detail] Tutorial step set to true');
-                setTutorialStep(true);
-                onTutorialStepChange?.('true');
-                onButtonTap?.(true);
-              } catch (e) {
-                console.error('[Detail] Failed to set tutorial step:', e);
-              }
+
 
               // 3. 購入履歴をオブジェクト形式で更新
               const raw = await AsyncStorage.getItem('@quiz:purchases');
@@ -126,18 +99,10 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
             }
           }}
         >
-          {purchasesLength > 0 || tutorialDoneState ? (
-            <Text style={styles.purchaseButtonText}>購入する</Text>
-          ) : (
-            <View style={styles.buttonContent}>
-              <View style={styles.tapIndicatorContainer}>
-                <TapIndicator size={200} color={'#fff'} strokeWidth={5} duration={1500} />
-                <TapIndicator size={200} color={'#000'} strokeWidth={5} duration={1500} />
 
-              </View>
+            <View style={styles.buttonContent}>
               <Text style={styles.purchaseButtonText}>購入する</Text>
             </View>
-          )}
         </TouchableOpacity>
         </View>
       </View>

@@ -14,9 +14,9 @@ export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'s
 |'note01'
 |'chach01'| 'chach02' |'chach03'| 'chach04' | 'chach05'| 'chach06'| 'chach07'| 'chach08'
 |'TodayGool1'|'TodayGool2'
-|'Howday1'|'Howday2'
+|'TodayGool01'|'TodayGool0'|'Howday1'|'Howday2'
 |'Heatmap01'|'Heatmap02'|'Heatmap03'|'Heatmap04'
-|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress07'|'WeekProgress08';
+|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress065'|'WeekProgress07'|'WeekProgress08';
 
 // 各ウィジェットの共通 Props 型
 export interface WidgetSettings {
@@ -233,6 +233,24 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
         shape: 'numo',
         desigin:'rainbow'
     }),  },
+
+    TodayGool0: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+          desigin:'simple'
+        };
+      },
+    },    
+    TodayGool01: {
+      component: TodayGool,
+      getDefaultProps: () => {
+        return {
+          desigin:'simple',
+          display:'Howday'
+        };
+      },
+    },
     TodayGool1: {
       component: TodayGool,
       getDefaultProps: () => {
@@ -242,6 +260,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
         };
       },
     },
+    
     TodayGool2: {
       component: TodayGool,
       getDefaultProps: () => {
@@ -361,6 +380,14 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       fromShop: false,
       shape: 'bar',
       color: 'rgb(0, 157, 255)',
+    }),
+  },
+  WeekProgress065: {
+    component: WeekProgressChart,
+    getDefaultProps: () => ({
+      fromShop: false,
+      shape: 'simple',
+      color: 'rgb(0, 0, 0)',
     }),
   },
     WeekProgress07: {

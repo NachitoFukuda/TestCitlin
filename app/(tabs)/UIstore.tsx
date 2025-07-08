@@ -6,8 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  Image,
   Modal,
   Dimensions
 } from 'react-native';
@@ -18,8 +16,6 @@ import Footer from '@/components/ui/Footer';
 import { WIDGET_CONFIG } from '@/components/uistore/widgetConfig';
 import { WidgetId } from '@/components/uistore/widgetConfig';
 import { ScrollView } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { useRouter } from 'expo-router';
 import NeomorphBox from '@/components/ui/NeomorphBox';
 import * as Haptics from 'expo-haptics';
 // UIstore.tsx 上部
@@ -32,7 +28,6 @@ type ShopItem = {
   tag: 'button'| 'note' | 'sticker' | 'theme';  // タグを明示
 };
 
-
 export const SHOP_ITEMS: ShopItem[] = [
   { id: 'start01', name: 'Start Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'button' },
   { id: 'start02', name: 'Start Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'button' },
@@ -44,10 +39,6 @@ export const SHOP_ITEMS: ShopItem[] = [
 
   { id: 'note01', name: 'note', price: 0, widthCells: 1, heightCells: 1, tag: 'note' },
 
-  { id: 'chach01', name: 'Balance Check Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
-  { id: 'chach02', name: 'Balance Check Wide', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
-  { id: 'chach03', name: 'Account Snapshot', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
-  { id: 'chach04', name: 'Wallet View', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
   { id: 'chach05', name: 'Quick Balance', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
   { id: 'chach06', name: 'Full Balance', price: 0, widthCells: 4, heightCells: 1, tag: 'sticker' },
   { id: 'chach07', name: 'My Coins Mini', price: 0, widthCells: 2, heightCells: 1, tag: 'sticker' },
@@ -70,13 +61,10 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'WeekProgress05', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress06', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress07', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress08', name: 'Weekly Tracker Mini B', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
 ];
 
 const POINTS_KEY    = '@quiz_points';
 const PURCHASES_KEY = '@quiz:purchases';
-const POSITIONS_KEY = '@quiz:positions';
-const TUTORIAL_STEP_KEY = '@quiz:tutorialStep';
 const TAGS = ['button', 'note','sticker', 'theme'] as const;
 const TAG_LABELS: Record<typeof TAGS[number], string> = {
   button: 'Start Button',
@@ -87,33 +75,15 @@ const TAG_LABELS: Record<typeof TAGS[number], string> = {
 
 export default function UIstore() {
   const [overlayItem, setOverlayItem] = useState<ShopItem | null>(null);
-  const router = useRouter();
   const [points,    setPoints]    = useState<number>(0);
   const [purchases, setPurchases] = useState<Record<string, ShopItem>>({});
-  const [positions, setPositions] = useState<Record<string, { gridX: number; gridY: number }>>({});
   const [selectedTag, setSelectedTag] = useState<typeof TAGS[number]>('button');
-  const [tutorialDoneState, setTutorialStep] = React.useState<boolean>(false);
   const [pushButton, seTpushButton] = React.useState<boolean>(false);
   // ボタンタップ時に呼び出されるコールバック
   const handleButtonTap = (buttontap: boolean) => {
     seTpushButton(buttontap);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-      const handleFocus = async () => {
-        // 既存テーマ読込…
-        // → ここでチュートリアルステップも読み直す
-        const val = await AsyncStorage.getItem(TUTORIAL_STEP_KEY);
-        if (isActive && val !== null) {
-          setTutorialStep(val === 'true');
-        }
-      };
-      handleFocus();
-      return () => { isActive = false; };
-    }, [])
-  );
 
   useEffect(() => {
     (async () => {
@@ -127,10 +97,6 @@ export default function UIstore() {
       const loadedPurchases = pur ? JSON.parse(pur) : {};
       setPurchases(loadedPurchases);
 
-      // 配置データ読み込み
-      const pos = await AsyncStorage.getItem(POSITIONS_KEY);
-      const loadedPositions = pos ? JSON.parse(pos) : {};
-      setPositions(loadedPositions);
     })();
   }, []);
 
@@ -141,7 +107,7 @@ export default function UIstore() {
   const filteredItems = SHOP_ITEMS.filter(item => item.tag === selectedTag);
   // アイコンの大きさ（TapIndicatorで使う）
   const iconWrapperSize = 48;
-  const displayItems = tutorialDoneState ? filteredItems : filteredItems.slice(0, 1);
+  const displayItems = filteredItems;
   return (
     <>
     <View style={styles.simpleHeader}>
@@ -196,14 +162,6 @@ export default function UIstore() {
               height={item.widthCells === 2 && item.heightCells === 2 ? nyumoWidth * 1.5 : nyumoWidth}
               forceTheme={'light'}
             >
-            {tutorialDoneState === false && index === 0 && !pushButton  &&(
-              <TapIndicator
-                size={iconWrapperSize * 2.4}
-                color={'#000'}
-                strokeWidth={2}
-                duration={1000}
-              />
-            )}
             {WIDGET_CONFIG[item.id]?.component ? (() => {
               const Widget = WIDGET_CONFIG[item.id]!.component!;
               const props = WIDGET_CONFIG[item.id]!.getDefaultProps
@@ -269,7 +227,7 @@ export default function UIstore() {
         </Modal>
       )}
     </View>
-    <Footer activeIcon="shop" purchasesLength={Object.keys(purchases).length} tutorialDone={tutorialDoneState} pushButton={pushButton}/>
+    <Footer activeIcon="shop" purchasesLength={Object.keys(purchases).length}/>
     </>
   );
 }
@@ -316,9 +274,10 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     backgroundColor: '#E3E5F2',
-    width: '100%',
-    marginLeft: 8,
+    paddingHorizontal: 8,
     marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabButton: {
     marginRight: 3,
