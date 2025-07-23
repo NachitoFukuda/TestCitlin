@@ -16,7 +16,7 @@ export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'s
 |'TodayGool1'|'TodayGool2'
 |'TodayGool01'|'TodayGool0'|'Howday1'|'Howday2'
 |'Heatmap01'|'Heatmap02'|'Heatmap03'|'Heatmap04'
-|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress065'|'WeekProgress07'|'WeekProgress08';
+|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress065'|'WeekProgress07'|'WeekProgress08'|'WeekProgress09';
 
 // 各ウィジェットの共通 Props 型
 export interface WidgetSettings {
@@ -404,4 +404,12 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
         color: 'wight',
       }),
   },
+  WeekProgress09: {
+    component: StreakProgressCard,
+    getDefaultProps: () => ({
+      fromShop: false,
+      color: 'wight',
+      shape:'RadarChart'
+    }),
+},
 };

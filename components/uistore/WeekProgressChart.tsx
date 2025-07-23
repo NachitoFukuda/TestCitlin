@@ -1,4 +1,4 @@
-import Svg, { Polyline, Path, Line } from 'react-native-svg';
+import Svg, { Polyline, Path, Line, Polygon, Defs, LinearGradient, Stop } from 'react-native-svg';
 import React, { useState, useEffect } from 'react';
 import { View, Text, Dimensions, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,12 +30,22 @@ const WeekProgressChart: React.FC<WeekProgressChartProps> = ({
 }) => {
   // weekDataはストレージから取得する
   const [weekData, setWeekData] = useState<number[]>(Array(7).fill(0));
+  const [lastWeekData, setLastWeekData] = useState<number[]>(Array(7).fill(0));
   const { level } = useQuestionData();
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
   const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
   
 useEffect(() => {
     (async () => {
+      if (!fromShop) {
+        // Generate placeholder random weekly data when shown in shop
+        const randomData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
+        setWeekData(randomData);
+        // 先週分もランダム生成
+        const randomPrevData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
+        setLastWeekData(randomPrevData);
+        return;
+      }
       const scoreJson = await AsyncStorage.getItem(CORRECT_New_KEY);
       console.log(scoreJson)
       const scoreData: Record<string, any> = scoreJson ? JSON.parse(scoreJson) : {};
@@ -43,6 +53,7 @@ useEffect(() => {
       today.setHours(0, 0, 0, 0);
       const todayIndex = today.getDay(); // 0=Sunday ... 6=Saturday
       const lastWeek: number[] = Array(7).fill(0);
+      const prevWeek: number[] = Array(7).fill(0);
       for (let i = 0; i < 7; i++) {
         const d = new Date(today);
         d.setDate(today.getDate() - (todayIndex - i));
@@ -56,10 +67,30 @@ useEffect(() => {
           num = rawVal;
         }
         lastWeek[i] = num;
+
+        // 先週分
+        const dPrev = new Date(today);
+        dPrev.setDate(today.getDate() - 7 - (todayIndex - i));
+        const keyPrev = dPrev.toISOString().split('T')[0];
+        const rawPrev = scoreData[keyPrev];
+        let numPrev = 0;
+        if (typeof rawPrev === 'string' && rawPrev.includes('/')) {
+          numPrev = Number(rawPrev.split('/')[0]) || 0;
+        } else if (typeof rawPrev === 'number') {
+          numPrev = rawPrev;
+        }
+        prevWeek[i] = numPrev;
       }
       setWeekData(lastWeek);
+      // 先週分が全て0ならランダムデータをセット
+      if (prevWeek.every(v => v === 0)) {
+        const randomPrevData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
+        setLastWeekData(randomPrevData);
+      } else {
+        setLastWeekData(prevWeek);
+      }
     })();
-  }, [sanitizedLevel]);
+  }, [sanitizedLevel, fromShop]);
 
 
 
@@ -113,13 +144,15 @@ useEffect(() => {
 
   // データ優先度: dataが7件ならそちらを使い、なければweekData
   const levelData = data && data.length === 7 ? data : weekData;
+  const prevLevelData = lastWeekData;
 
   // Normalize heights based on actual data maximum (at least 1 to avoid zero division)
   const maxVal = levelData.reduce((m, v) => Math.max(m, v), 1);
+  const prevMaxVal = prevLevelData.reduce((m, v) => Math.max(m, v), 1);
 
   // 棒グラフ描画
   const renderBarChart = () => (
-    <View style={[styles.bars, { height: innerHeight * 0.8 }]}>
+    <View style={[styles.bars, { height: innerHeight * 0.8, width: '100%' }]}>
       {levelData.map((value, i) => {
         const barHeight = (value / maxVal) * (innerHeight * 0.8);
         return (
@@ -149,10 +182,17 @@ useEffect(() => {
         return `${x},${y}`;
       })
       .join(' ');
+    const areaPoints = points + ` ${innerWidth},${heightFactor} 0,${heightFactor}`;
     return (
-      <Svg width={innerWidth} height={heightFactor}>
-        <Line x1="0" y1={heightFactor} x2={innerWidth} y2={heightFactor} stroke="#ccc" strokeWidth={1} />
-        <Polyline points={points} fill="none" stroke={color} strokeWidth={2} />
+      <Svg width={'100%'} height={heightFactor}>
+        <Defs>
+          <LinearGradient id="gradientLine" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="rgba(128,0,128,0.2)" stopOpacity="0.6" />
+            <Stop offset="1" stopColor="rgba(124, 0, 124, 0.2)" stopOpacity="0" />
+          </LinearGradient>
+        </Defs>
+        <Polygon points={areaPoints} fill="url(#gradientLine)" />
+        <Polyline points={points} fill="none" stroke="none" strokeWidth={2} />
       </Svg>
     );
   };
@@ -169,20 +209,61 @@ useEffect(() => {
     }));
     // Pathデータ生成（Catmull-Rom → Cubic Bézier）
     const d = smoothPath(coords);
+    const closedD = d + ` L${coords[coords.length - 1].x},${heightFactor} L${coords[0].x},${heightFactor} Z`;
+
+    // 先週分
+    let prevCurve = null;
+    if (prevLevelData.length === 7 && prevLevelData.some(v => v > 0)) {
+      const prevCoords = prevLevelData.map((v, i) => ({
+        x: i * xSpacing,
+        y: heightFactor - (v / maxVal) * heightFactor, // 今週と同じスケールで比較
+      }));
+      const prevD = smoothPath(prevCoords);
+      const prevClosedD = prevD + ` L${prevCoords[prevCoords.length - 1].x},${heightFactor} L${prevCoords[0].x},${heightFactor} Z`;
+      prevCurve = (
+        <>
+          <Path d={prevClosedD} fill={'rgba(0, 90, 255, 0.18)'} strokeWidth={0} />
+          <Path d={prevD} fill="none" stroke={'rgba(0, 90, 255, 0.82)'} strokeWidth={2} />
+        </>
+      );
+    }
     return (
-      <Svg width={innerWidth} height={heightFactor}>
-        <Line x1="0" y1={heightFactor} x2={innerWidth} y2={heightFactor} stroke="#ccc" strokeWidth={1} />
-        <Path d={d} fill="none" stroke={color} strokeWidth={2} />
+      <Svg width={'100%'} height={heightFactor}>
+        <Defs>
+          <LinearGradient id="gradientCurve" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="rgba(0, 191, 255, 0.2)" stopOpacity="0.6" />
+            <Stop offset="1" stopColor="rgba(0, 191, 255, 0.0)" stopOpacity="0" />
+          </LinearGradient>
+        </Defs>
+        {/* 曜日位置に薄い縦線 */}
+        {Array.from({ length: levelData.length }).map((_, i) => {
+          const x = i * xSpacing;
+          return (
+            <Line
+              key={`vline-${i}`}
+              x1={x}
+              y1={0}
+              x2={x}
+              y2={heightFactor}
+              stroke={'rgba(0,0,0,0.08)'}
+              strokeWidth={1}
+            />
+          );
+        })}
+        {prevCurve}
+        <Path d={closedD} fill="url(#gradientCurve)" strokeWidth={0} />
+        {/* 曲線のストロークを追加 */}
+        <Path d={d} fill="none" stroke='rgba(0, 191, 255, 0.82)' strokeWidth={2} />
       </Svg>
     );
   };
 
   return (
-    <View style={[styles.container, { width: chartWidth, height: chartHeight }]}>
+    <View style={[styles.container, { width: '100%', height: chartHeight }]}>
       {shape === 'simple' ? (
         // Simple mode: no NeomorphBox
         <View style={{
-          width: chartWidth * 0.9,
+          width: '100%',
           height: simpleContainerHeight,
           padding: innerMargin,
           borderRadius: 10,
@@ -193,6 +274,7 @@ useEffect(() => {
             flexDirection: 'row',
             alignItems: 'flex-end',
             height: simpleInnerHeight,
+            width: '100%',
           }}>
             {levelData.map((value, i) => {
               const barHeight = (value / maxVal) * (simpleInnerHeight);
@@ -279,9 +361,9 @@ useEffect(() => {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 5,
     justifyContent: 'center',   // 垂直中央揃え
     alignItems: 'center',       // 水平中央揃え
+    width: '100%',
   },
   bars: {
     flexDirection: 'row',

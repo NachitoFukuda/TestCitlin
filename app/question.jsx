@@ -280,6 +280,7 @@ useEffect(() => {
     if (!isTransitioning && filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
       const question = filteredQuestions[currentQuestionIndex];
       setDisplayedQuestion(question);
+      console.log('Displayed question ID:', question.id);
       setRisaltQuestion(question.question);
       loadAudio(question);
       loadImage(question);
@@ -671,6 +672,7 @@ useEffect(() => {
     
   // 🔊 音声読み込み処理
   const loadAudio = async (question) => {
+    console.log('Loading audio for question ID:', question.id);
     setReloading(true);
     try {
       if (loadedSound) {

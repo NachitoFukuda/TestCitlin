@@ -61,6 +61,8 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'WeekProgress05', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress06', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress07', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
+  { id: 'WeekProgress09', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
+
 ];
 
 const POINTS_KEY    = '@quiz_points';

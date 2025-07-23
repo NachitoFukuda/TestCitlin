@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
 import { FontAwesome5 } from '@expo/vector-icons';
 import useQuestionData from '../questioncomp/useQuestionData';
+import RadarChart from '../ui/RadarChart';
 
 const STEPS_KEY = '@steps_data';
 const GENERATED_KEY = '@generated_data';
@@ -15,10 +16,12 @@ const GENERATED_KEY = '@generated_data';
 interface StreakProgressCardProps {
     fromShop?: boolean;
     color?: 'brack' | 'wight' | string;
+    shape?: 'RadarChart' | string;
   }
   const StreakProgressCard: React.FC<StreakProgressCardProps> = ({
     fromShop = false,
-    color = 'default'  // 'brack' なら黒背景、 'wight' なら白背景、それ以外はダークグレー
+    color = 'default',  // 'brack' なら黒背景、 'wight' なら白背景、それ以外はダークグレー
+    shape,
   }) => {
     // 背景⇄文字色マップ
     const bgColor = color === 'brack'
@@ -200,6 +203,12 @@ interface StreakProgressCardProps {
   const cardSize = screenWidth * 0.5;
   // fromShop が true のときは 0.7 倍、それ以外は 0.9 倍
   const contentScale = fromShop ? 0.7 : 0.9;
+
+  if (shape === 'RadarChart') {
+    return (
+          <RadarChart data={weekData} size={cardSize} color={textColor} />
+    );
+  }
 
   return (
     <View style={[{ width: cardSize, height: cardSize }]}>
