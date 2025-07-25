@@ -9,6 +9,7 @@ import DraggableItem from '../../components/uistore/Indexwiget';
 import { Dimensions } from 'react-native';
 import Footer from '@/components/ui/Footer';
 import useQuestionData from '@/components/questioncomp/useQuestionData';
+import FirstTimeComponent from '@/components/indexcomp/FirstTimeComponent';
 
 const windowWidth = Dimensions.get('window').width;
 const smallCell = windowWidth / 4;
@@ -101,11 +102,31 @@ export default function HomeScreen() {
 
   
   // テーマに合わせて背景色やテキスト色を動的に変更
-  const [todayLearnedCount, setTodayLearnedCount] = useState<number>(0);
   const [showInitialSetup, setShowInitialSetup] = useState(false);
-  const [daysLeft, setDaysLeft] = useState<number | null>(null);
-  const [daysSinceStart, setDaysSinceStart] = useState<number | null>(null);
+  const [showFirstTimeComponent, setShowFirstTimeComponent] = useState<boolean>(false);
   const { level } = useQuestionData();
+
+  // Check if stored "today" field matches current date, and show FirstTimeComponent if not
+  useEffect(() => {
+    const verifyTodayField = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('@deadline_days');
+        if (raw) {
+          const data = JSON.parse(raw);
+          const storedToday = data.today;
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
+          const todayISO = now.toISOString();
+          if (storedToday !== todayISO) {
+            setShowFirstTimeComponent(true);
+          }
+        }
+      } catch (e) {
+        console.error('Error checking today field:', e);
+      }
+    };
+    verifyTodayField();
+  }, []);
   // ---- Level‑aware storage keys ----
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
   const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
@@ -139,7 +160,6 @@ export default function HomeScreen() {
       setShowInitialSetup(false);
       const { days, savedAt } = deadlineData;
       const daysSinceStartCalculated = calculateDaysSinceStart(savedAt);
-      setDaysSinceStart(daysSinceStartCalculated);
 
       const savedAtDate = new Date(savedAt);
       if (isNaN(savedAtDate.getTime())) {
@@ -149,7 +169,6 @@ export default function HomeScreen() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const diffDays = Math.ceil((deadlineDateCalculated.getTime() - today.getTime()) / 86400000);
-      setDaysLeft(diffDays);
       return { daysSinceStart: daysSinceStartCalculated, daysLeft: diffDays };
     } catch (error) {
       Alert.alert('エラー', 'データの取得に失敗しました。');
@@ -199,11 +218,6 @@ export default function HomeScreen() {
         await AsyncStorage.setItem(STORAGE_KEY_LEVEL, JSON.stringify(parsedData));
       }
 
-      // 今日学習した単語数を計算
-      const now = new Date();
-      const Todaynamber = await getPreviousQuarterHour(now);
-      const todayLearned = questions.filter(q => Number(q.L) === Todaynamber).length;
-      setTodayLearnedCount(todayLearned);
     } catch (error) {
       Alert.alert("エラー", "データの取得中にエラーが発生しました。");
     }
@@ -220,58 +234,59 @@ export default function HomeScreen() {
     // チュートリアル完了後に UIConfigContext を再読み込み
     uiCtx?.reloadData();
     loadData();
+    // 初回完了後にのみ表示するコンポーネントを表示
+    setShowFirstTimeComponent(true);
   }, [uiCtx]);
+  
 
 
   return (
     <>
       {showInitialSetup ? (
         <InitialSetup onSetupComplete={handleSetupComplete} />
+      ) : showFirstTimeComponent ? (
+        <FirstTimeComponent onClose={() => setShowFirstTimeComponent(false)} />
       ) : (
         <>
+          <View
+            style={[
+              styles.scrollContainer,
+              { backgroundColor: isDarkMode ? '#303030' : '#E3E5F2' },
+            ]}
+          >
+            {/* テーマ情報を各兄弟要素に渡す */}
+            <BannerAdComponent />
+            <View style={[styles.widgetArea, { marginTop: -smallCell }]}>
+              <UIConfigContext.Consumer>
+                {ctx => {
+                  if (!ctx) return null;
+                  // ポジションがなければ何も表示しない
+                  if (Object.keys(ctx.positions).length === 0) return null;
 
+                  return Object.values(ctx.purchases).map(item => {
+                    const pos = ctx.positions[item.id] || { gridX: 0, gridY: 0 };
+                    const x = pos.gridX * smallCell;
+                    const y = pos.gridY * smallCell;
 
-      <View
-        style={[
-          styles.scrollContainer,
-          { backgroundColor: isDarkMode ? '#303030' : '#E3E5F2' },
-        ]}
-      >
-        {/* テーマ情報を各兄弟要素に渡す */}
-        <BannerAdComponent />
-      
-
-        <View style={[styles.widgetArea, { marginTop: -smallCell }]}>
-                    <UIConfigContext.Consumer>
-      {ctx => {
-        if (!ctx) return null;
-        // ポジションがなければ何も表示しない
-        if (Object.keys(ctx.positions).length === 0) return null;
-
-        return Object.values(ctx.purchases).map(item => {
-          const pos = ctx.positions[item.id] || { gridX: 0, gridY: 0 };
-          const x = pos.gridX * smallCell;
-          const y = pos.gridY * smallCell;
-
-          return (
-            <DraggableItem
-              key={item.id}
-              item={item}
-              initialPos={{ x, y }}
-              draggable={true}
-              // 移動完了時にコンテキストを通じて更新
-              onDragEnd={(newGridX, newGridY) =>
-                ctx.updatePosition(item.id, newGridX, newGridY)
-              }
-            />
-          );
-        });
-      }}
-    </UIConfigContext.Consumer>
-      </View>
-    </View>
-    <Footer activeIcon="home" tutorialDone={tutorialDone} />
-    </>
+                    return (
+                      <DraggableItem
+                        key={item.id}
+                        item={item}
+                        initialPos={{ x, y }}
+                        draggable={true}
+                        // 移動完了時にコンテキストを通じて更新
+                        onDragEnd={(newGridX, newGridY) =>
+                          ctx.updatePosition(item.id, newGridX, newGridY)
+                        }
+                      />
+                    );
+                  });
+                }}
+              </UIConfigContext.Consumer>
+            </View>
+          </View>
+          <Footer activeIcon="home" tutorialDone={tutorialDone} />
+        </>
       )}
     </>
   );

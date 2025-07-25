@@ -40,7 +40,6 @@ interface StreakProgressCardProps {
   const [todayGoal, setTodayGoal] = useState<number>(0);
   const [todayGeneratedData, setTodayGeneratedData] = useState<any>(null);
   const [dayCount, setDayCount] = useState<number>(1);
-  const [TodayaverageRate, setTodayaverageRate] = useState<number>(0);
   const [counts, setCounts] = useState<number>(0);
   const { level } = useQuestionData();
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');

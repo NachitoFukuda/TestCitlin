@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Audio } from 'expo-av';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert, TextInput } from 'react-native';
 import { Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LearningSchedule from './LearningSchedule';
 import LottieView from 'lottie-react-native';
 import NotificationSetup from './NotificationSetup';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { firebaseConfig } from '../../firebaseConfig';
+import { initializeFirestore } from 'firebase/firestore';
+import { getDatabase, ref as dbRef, set as dbSet } from 'firebase/database';
+
+const app = initializeApp(firebaseConfig);
+initializeFirestore(app, { experimentalForceLongPolling: true });
+const rdb = getDatabase(app);
 import { JsonData } from '../etc/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../ui/GlassCard';
@@ -93,6 +103,8 @@ const useCalendarDataGeneration = (
 
 const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [hasPlayedIntroSound, setHasPlayedIntroSound] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const exitAnim = useRef(new Animated.Value(0)).current;
@@ -268,6 +280,29 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
     selectedLevel
   );
 
+  // Play intro sound when step 0 starts
+  useEffect(() => {
+    if (currentStep === 0 && !hasPlayedIntroSound) {
+      setHasPlayedIntroSound(true);
+      (async () => {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/sound/startsound.mp3')
+        );
+        setSound(sound);
+        await sound.playAsync();
+      })();
+    }
+  }, [currentStep, hasPlayedIntroSound]);
+
+  // Cleanup sound on unmount
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+
   // 現在の日付を基準に計算
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -289,12 +324,23 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   // 次へ or 決定ボタン
   const handleNext = async () => {
     if (isSliding) return;
-    // ニックネーム入力ステップでの保存
+    // ニックネーム入力ステップでの保存 (Firebase RTDB + local)
     if (currentStep === 2) {
       const cleanName = nickname.trim();
       if (!cleanName) {
         Alert.alert('入力エラー', 'ニックネームを入力してください。');
         return;
+      }
+      // Anonymous auth for RTDB write
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        await signInAnonymously(auth).catch(console.error);
+      }
+      const user = auth.currentUser;
+      if (user) {
+        dbSet(dbRef(rdb, `users/${user.uid}/nickname`), cleanName)
+          .then(() => console.log('RTDB write succeeded'))
+          .catch(error => console.error('RTDB write error:', error));
       }
       await AsyncStorage.setItem('@nickname', cleanName);
     }
@@ -774,12 +820,12 @@ const handleTiltPress2 = () => {
 
   return (
     <LinearGradient
-      colors={['#000', '#22b']}
+      colors={['#000', '#00a']}
       style={styles.container}>
       {/* Gradient Circle Behind GlassCard */}
       <View style={styles.gradientCircleContainer}>
         <LinearGradient
-            colors={['rgb(255, 129, 207)',  'rgb(150, 0, 127)']}
+            colors={['rgb(245, 109, 247)',  'rgb(150, 0, 127)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }} 
            style={styles.gradientCircle1}

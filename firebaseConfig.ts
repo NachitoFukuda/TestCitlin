@@ -16,7 +16,7 @@ interface AppConfigExtra {
 
 const extra = Constants.expoConfig?.extra as AppConfigExtra;
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: extra.FIREBASE_API_KEY,
   authDomain: extra.FIREBASE_AUTH_DOMAIN,
   projectId: extra.FIREBASE_PROJECT_ID,

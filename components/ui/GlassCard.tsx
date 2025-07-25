@@ -7,6 +7,7 @@ type GlassCardProps = {
   height?: number | string;
   children: React.ReactNode;
   style?: ViewStyle;
+  design?: 'light' | 'dark';
 };
 
 const GlassCard: React.FC<GlassCardProps> = ({
@@ -14,14 +15,16 @@ const GlassCard: React.FC<GlassCardProps> = ({
   height = 200,
   children,
   style,
+  design = 'light',
 }) => {
   return (
     <BlurView
       intensity={30}
-      tint="light"
+      tint={design}
       style={StyleSheet.flatten([
         { width, height, overflow: 'hidden' } as ViewStyle, 
         styles.container,
+        design === 'dark' ? styles.darkContainer : {},
         style,
       ])}
     >
@@ -44,5 +47,9 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  darkContainer: {
+    backgroundColor: 'rgba(96, 96, 96, 0.22)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
 });

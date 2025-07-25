@@ -238,7 +238,6 @@ export default function UILayout() {
                   // null または undefined のみ除外し、配置されているウィジェットのみ描画
                   const pos = positions[item.id];
                   const ok = pos != null;
-                  if (ok) console.log('[UILayout] will render widget:', item.id);
                   return ok;
                 })
                 .map(item => {
