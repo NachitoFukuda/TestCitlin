@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
 import { Audio } from 'expo-av';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert, TextInput } from 'react-native';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { firebaseConfig } from '../../firebaseConfig';
+import { initializeFirestore, doc, setDoc } from 'firebase/firestore';
+import { getDatabase, ref as dbRef, set as dbSet } from 'firebase/database';
+const app = initializeApp(firebaseConfig);
+const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+const rdb = getDatabase(app);
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LearningSchedule from './LearningSchedule';
 import LottieView from 'lottie-react-native';
-import NotificationSetup from './NotificationSetup';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
-import { firebaseConfig } from '../../firebaseConfig';
-import { initializeFirestore } from 'firebase/firestore';
-import { getDatabase, ref as dbRef, set as dbSet } from 'firebase/database';
-
-const app = initializeApp(firebaseConfig);
-initializeFirestore(app, { experimentalForceLongPolling: true });
-const rdb = getDatabase(app);
 import { JsonData } from '../etc/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../ui/GlassCard';
@@ -27,8 +25,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BUTTON_ROW_HORIZONTAL_PADDING = 16 * 2; // left and right padding
 const BUTTON_ROW_CONTENT_WIDTH = SCREEN_WIDTH - BUTTON_ROW_HORIZONTAL_PADDING;
 const BUTTON_ROW_HEIGHT = 70;
-const BACK_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
-const NEXT_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.5;
+const BACK_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.2;
+const NEXT_BUTTON_WIDTH = BUTTON_ROW_CONTENT_WIDTH * 0.8;
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
 const CARD_HIGHT = SCREEN_HEIGHT * 0.8;
 const CARD_LEFT_OFFSET = (SCREEN_WIDTH - CARD_WIDTH) / 2;
@@ -44,7 +42,6 @@ const useCalendarDataGeneration = (
 ) => {
   useEffect(() => {
     if (currentStep === 5) {
-
 
       // 現在の日付を基準に計算
       const today = new Date();
@@ -73,6 +70,14 @@ const useCalendarDataGeneration = (
       const maxValue = getTotalWordsByLevel(selectedLevel);
       const divisor = diffDays - 41;
 
+      console.log('[InitialSetup] Generation parameters:', {
+        selectedLevel,
+        maxValue,
+        divisor,
+        diffDays,
+        dailyWordCount,
+        learningDays
+      });
 
       const generatedData: JsonData[] = [];
       for (let i = 1; i < diffDays; i++) {
@@ -87,7 +92,13 @@ const useCalendarDataGeneration = (
           result: [firstValue, secondValue, thirdValue, fourthValue, fifthValue],
         });
       }
-;
+
+      console.log('[InitialSetup] Generated data summary:', {
+        firstDay: generatedData[0],
+        lastDay: generatedData[generatedData.length - 1],
+        totalDays: generatedData.length,
+        sampleValues: generatedData.slice(0, 3)
+      });
 
       // データを保存
       AsyncStorage.setItem('@generated_data', JSON.stringify(generatedData))
@@ -113,12 +124,17 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [isSliding, setIsSliding] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [showIndicator2, setShowIndicator2] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // 予定設定用ステート
   const tiltProgress2 = useRef(new Animated.Value(0)).current;
+
   // メッセージ
   const messages = [
     'こんにちは', 
     'AIがあなたに合わせた\n最適なタイミングで\n自動出題！',
     'ニックネームを\n入力してね',
+    'どこでこのアプリを知りましたか？',
     'どの級を学習する？',  
     '',  
     '時間を約２０％削減',  
@@ -129,6 +145,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const fontTop   = [150, 300, 350, 0, 30, -60];
 
 
+
   // 予定設定用ステート
   const [scheduleOption, setScheduleOption] = useState<'deadline' | 'daily'>('deadline');
   const [deadlineDays, setDeadlineDays] = useState(40);
@@ -137,11 +154,67 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [savedDeadlineDays, setSavedDeadlineDays] = useState<number | null>(null);
   const [isDataSaved, setIsDataSaved] = useState(false);
   const [nickname, setNickname] = useState<string>('');
+  const [referrer, setReferrer] = useState<string>('');
+  const referrerOptions = ['Instagram', 'TikTok', 'Twitter', '友人・知人', '検索', 'その他'];
   const [showIndicator1, setShowIndicator1] = useState(true);
   const tiltProgress1 = useRef(new Animated.Value(0)).current;
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   // 学習する級の選択用ステート
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+  // "次へ"可否判定
+  const canProceed = useMemo(() => {
+    switch (currentStep) {
+      case 2:
+        return nickname.trim().length > 0;
+      case 3:
+        return referrer !== '';
+      case 4:
+        return selectedLevel !== null;
+      default:
+        return true;
+    }
+  }, [currentStep, nickname, referrer, selectedLevel]);
+
+  // Next button visibility state
+  const [showNext, setShowNext] = useState<boolean>(false);
+  // Back button visibility state for delayed show
+  const [showPrev, setShowPrev] = useState<boolean>(false);
+  // Declare introAnimationDone state above its first usage
+  const [introAnimationDone, setIntroAnimationDone] = useState(false);
+  // Effect to control Next button visibility per step
+  useEffect(() => {
+    setShowNext(false);
+    if (currentStep === 0) {
+      // Step0: show when intro animation finishes
+      if (introAnimationDone) setShowNext(true);
+    } else if (currentStep === 1) {
+      // AI message: 1s delay
+      const timer = setTimeout(() => setShowNext(true), 1000);
+      return () => clearTimeout(timer);
+    } else if (currentStep === 2) {
+      // Nickname: when input present
+      setShowNext(nickname.trim().length > 0);
+    } else if (currentStep === 3) {
+      // Referrer: when selected
+      setShowNext(referrer !== '');
+    } else if (currentStep === 4) {
+      // Level: when selected
+      setShowNext(selectedLevel !== null);
+    } else {
+      // Other steps: 1s delay
+      const timer = setTimeout(() => setShowNext(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, introAnimationDone, nickname, referrer, selectedLevel]);
+  // Effect to control Back button visibility per step (hide for 1s on step change)
+  useEffect(() => {
+    setShowPrev(false);
+    if (currentStep > 0) {
+      const timer = setTimeout(() => setShowPrev(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep]);
   // 保存された級の一覧を管理する state
   const [savedLevels, setSavedLevels] = useState<string[]>([]);
 
@@ -159,79 +232,81 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       });
   }, []);
 
-  // 初期ポジション・購入データを保存
-  useEffect(() => {
-    const initializeQuizData = async () => {
-      try {
-        const positions = {
-          "start01":  { "gridX": 1, "gridY": 6 },
-          "chach04": { "gridX": 0, "gridY": 1 },
-          "TodayGool0": { "gridX": 2, "gridY": 3 },
-          "TodayGool01": { "gridX": 2, "gridY": 2 },
-          "WeekProgress08": { "gridX": 0, "gridY": 2 },
-          "WeekProgress065": { "gridX": 0, "gridY": 4 }
-        };
-        await AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
 
-        const purchases = {
-          "start01": {
-            "id": "start01",
-            "name": "Start Mini",
-            "price": 0,
-            "widthCells": 2,
-            "heightCells": 1,
-            "tag": "button"
-          },
-          "chach04": {
-            "id": "chach04",
-            "name": "Wallet View",
-            "price": 0,
-            "widthCells": 4,
-            "heightCells": 1,
-            "tag": "sticker"
-          },
-          "TodayGool0": {
-            "id": "TodayGool0",
-            "name": "Daily Target",
-            "price": 0,
-            "widthCells": 2,
-            "heightCells": 1,
-            "tag": "theme"
-          },
-          "TodayGool01": {
-            "id": "TodayGool01",
-            "name": "Daily Target Pro",
-            "price": 0,
-            "widthCells": 2,
-            "heightCells": 1,
-            "tag": "theme"
-          },
-          "WeekProgress08": {
-            "id": "WeekProgress08",
-            "name": "Weekly Tracker Mini B",
-            "price": 0,
-            "widthCells": 2,
-            "heightCells": 2,
-            "tag": "theme"
-          },
-          "WeekProgress065": {
-            "id": "WeekProgress065",
-            "name": "Weekly Tracker",
-            "price": 0,
-            "widthCells": 4,
-            "heightCells": 2,
-            "tag": "theme"
-          }
-        };
-        await AsyncStorage.setItem('@quiz:purchases', JSON.stringify(purchases));
-
-        console.log('[InitialSetup] 初期ポジションと購入データを保存しました');
-      } catch (e) {
-        console.error('[InitialSetup] 初期データの保存に失敗しました', e);
-      }
-    };
-    initializeQuizData();
-  }, []);
+    // 初期ポジション・購入データを保存
+    useEffect(() => {
+      const initializeQuizData = async () => {
+        try {
+          const positions = {
+            "start01":  { "gridX": 1, "gridY": 6 },
+            "chach04": { "gridX": 0, "gridY": 1 },
+            "TodayGool0": { "gridX": 2, "gridY": 3 },
+            "TodayGool01": { "gridX": 2, "gridY": 2 },
+            "WeekProgress08": { "gridX": 0, "gridY": 2 },
+            "WeekProgress065": { "gridX": 0, "gridY": 4 }
+          };
+          await AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
+  
+          const purchases = {
+            "start01": {
+              "id": "start01",
+              "name": "Start Mini",
+              "price": 0,
+              "widthCells": 2,
+              "heightCells": 1,
+              "tag": "button"
+            },
+            "chach04": {
+              "id": "chach04",
+              "name": "Wallet View",
+              "price": 0,
+              "widthCells": 4,
+              "heightCells": 1,
+              "tag": "sticker"
+            },
+            "TodayGool0": {
+              "id": "TodayGool0",
+              "name": "Daily Target",
+              "price": 0,
+              "widthCells": 2,
+              "heightCells": 1,
+              "tag": "theme"
+            },
+            "TodayGool01": {
+              "id": "TodayGool01",
+              "name": "Daily Target Pro",
+              "price": 0,
+              "widthCells": 2,
+              "heightCells": 1,
+              "tag": "theme"
+            },
+            "WeekProgress08": {
+              "id": "WeekProgress08",
+              "name": "Weekly Tracker Mini B",
+              "price": 0,
+              "widthCells": 2,
+              "heightCells": 2,
+              "tag": "theme"
+            },
+            "WeekProgress065": {
+              "id": "WeekProgress065",
+              "name": "Weekly Tracker",
+              "price": 0,
+              "widthCells": 4,
+              "heightCells": 2,
+              "tag": "theme"
+            }
+          };
+          await AsyncStorage.setItem('@quiz:purchases', JSON.stringify(purchases));
+  
+          console.log('[InitialSetup] 初期ポジションと購入データを保存しました');
+        } catch (e) {
+          console.error('[InitialSetup] 初期データの保存に失敗しました', e);
+        }
+      };
+      initializeQuizData();
+    }, []);
+  
 
   // フェードインアニメーション
   useEffect(() => {
@@ -280,7 +355,6 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
     selectedLevel
   );
 
-  // Play intro sound when step 0 starts
   useEffect(() => {
     if (currentStep === 0 && !hasPlayedIntroSound) {
       setHasPlayedIntroSound(true);
@@ -323,28 +397,59 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // 次へ or 決定ボタン
   const handleNext = async () => {
-    if (isSliding) return;
-    // ニックネーム入力ステップでの保存 (Firebase RTDB + local)
+    if (isNavigating) return;
+    // Commenting out sliding guard to trace invocation
+    // if (isSliding) return;
+
     if (currentStep === 2) {
       const cleanName = nickname.trim();
       if (!cleanName) {
         Alert.alert('入力エラー', 'ニックネームを入力してください。');
         return;
       }
-      // Anonymous auth for RTDB write
       const auth = getAuth();
       if (!auth.currentUser) {
-        await signInAnonymously(auth).catch(console.error);
+        try {
+          await signInAnonymously(auth);
+        } catch (e: any) {
+          console.error(e);
+          Alert.alert('認証エラー', e.message);
+        }
       }
-      const user = auth.currentUser;
-      if (user) {
-        dbSet(dbRef(rdb, `users/${user.uid}/nickname`), cleanName)
-          .then(() => console.log('RTDB write succeeded'))
-          .catch(error => console.error('RTDB write error:', error));
+      try {
+        const user = getAuth().currentUser;
+        if (user) {
+          // Firestore write in background, no await to avoid blocking
+          setDoc(doc(db, 'users', user.uid), { nickname: cleanName }, { merge: true })
+            .then(() => console.log('Firestore write succeeded'))
+            .catch(error => console.error('Firestore write error:', error));
+        }
+        await AsyncStorage.setItem('@nickname', cleanName);
+      } catch (e: any) {
+        console.error(e);
+        Alert.alert('Error', e.message || 'Unknown error in handleNext step 2');
       }
-      await AsyncStorage.setItem('@nickname', cleanName);
     }
-    if (currentStep === 3 && !selectedLevel) {
+    if (currentStep === 3) {
+      if (!referrer) {
+        Alert.alert('入力エラー', 'どこでこのアプリを知ったかを選択してください。');
+        return;
+      }
+      try {
+        const user = getAuth().currentUser;
+        if (user) {
+          // Realtime Database write in background
+          dbSet(dbRef(rdb, `users/${user.uid}/referrer`), referrer)
+            .then(() => console.log('RTDB write succeeded'))
+            .catch(error => console.error('RTDB write error:', error));
+        }
+        await AsyncStorage.setItem('@referrer', referrer);
+      } catch (e: any) {
+        console.error(e);
+      }
+    }
+    // 学習級選択チェック（新しい index に合わせて調整）
+    if (currentStep === 4 && !selectedLevel) {
       Alert.alert('学習級が未選択', '学習する級を選択してください。');
       return;
     }
@@ -378,12 +483,22 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
         setIsSliding(false);
       });
     } else {
+      setIsNavigating(true);
       onSetupComplete();
     }
   };
 
+  // "次へ"ボタン用のラッパー関数
+  const handleNextWrapper = async () => {
+    if (isNavigating || !canProceed) return;
+    setIsNavigating(true);
+    await handleNext();
+    // setIsNavigating(false); // handleNext may move screen, so do not reset here
+  };
+
   const handlePrev = () => {
     setCurrentStep(prev => (prev > 0 ? prev - 1 : 0));
+    setIsNavigating(false);
   };
 // 学習級の選択：既存の保存済みデータを削除し、新たな選択を保存
 const handleSelectLevel = (level: string) => {
@@ -401,6 +516,7 @@ const handleSelectLevel = (level: string) => {
     .catch((error) => {
     });
 };
+
 const levelMap: { [key: string]: string } = {
   '1': '1級',
   '1_5': '準1級',
@@ -429,7 +545,7 @@ const levelCircleColors: {
 
 // 各級ごとの買い切り価格
 const levelPriceMap: { [key: string]: string } = {
-  '1': '¥1,100',
+  '1': '¥1,200',
   '1_5': '¥900',
   '2': '¥700',
   '2_5': '¥500',
@@ -449,6 +565,15 @@ const levelTextColorMap: {
   '2_5': { badge: '#135A7E', price: '#2787C8', message: '#135A7E' },
   '3':   { badge: '#ddd', price: '#eee', message: '#1F5E1F' },
 };
+
+const entitlementMap: { [key: string]: string } = {
+  '1':'eiken_grade1_lifetime',
+  '1_5':'eiken_pre1_lifetime',
+  '2':'eiken_grade2_lifetime',
+  '2_5':'eiken_pre2_lifetime',
+  '3':'eiken_grade3_lifetime',
+};
+
 
 const rotateX2 = tiltProgress2.interpolate({
   inputRange: [0, 1],
@@ -511,8 +636,46 @@ const handleTiltPress2 = () => {
   } else if (currentStep < messages.length - 1) {
     buttonLabel = '次へ';
   } else {
-    buttonLabel = 'まずは無料で始める';
+    buttonLabel = 'とりま、無料で始める';
   }
+
+  const handlePressBoth1 = () => {
+    handleTiltPress2();
+  };
+
+  const handlePressBoth2 = () => {
+    handlePurchase();
+    handleTiltPress1();
+  };
+
+
+
+  const handlePurchase = async () => {
+    const productId = selectedLevel ? entitlementMap[selectedLevel] : undefined;
+    if (!productId) {
+      Alert.alert('エラー', 'このレベル用の購入アイテムが設定されていません。');
+      return;
+    }
+    // Check if already purchased: skip if active
+    const entitlementName = selectedLevel ? entitlementMap[selectedLevel] : undefined;
+
+    try {
+      setIsPurchasing(true);
+      // 追加: 購入状態を更新し、成功時にアラートを表示
+      // const entitlementName = selectedLevel ? entitlementMap[selectedLevel] : undefined;
+      Alert.alert('Debug', `selectedLevel=${selectedLevel}, entitlementName=${entitlementName}`);
+
+    } catch (e: any) {
+      console.error('Purchase error:', e);
+      Alert.alert(
+        'エラー',
+        e.userCancelled ? 'ユーザーがキャンセルしました。' : '購入に失敗しました。'
+      );
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
 
   // Build step-specific content nodes dynamically from messages array
   const stepContents = messages.map((msg, i) => (
@@ -520,8 +683,9 @@ const handleTiltPress2 = () => {
       {i === 0 ? (
         <LottieView
           source={require('../../assets/lottie/hello.json')}
-          autoPlay
           loop={false}
+          autoPlay
+          onAnimationFinish={() => setIntroAnimationDone(true)}
           style={{ width: SCREEN_WIDTH , height: SCREEN_WIDTH , alignSelf: 'center'}}
         />
       ) : (
@@ -570,100 +734,129 @@ const handleTiltPress2 = () => {
         </View>
       )}
       {i === 3 && (
-        <View style={styles.levelcontainer}>
-          {/* 3級 */}
-          <View style={{ marginVertical: 5 }}>
-            <TouchableOpacity onPress={() => handleSelectLevel('3')}>
+            <View style={styles.levelcontainer}>
+          {referrerOptions.map(option => (
+            <TouchableOpacity
+              key={option}
+              onPress={() => setReferrer(option)}
+              style={{ marginVertical: 6, }}
+            >
               <GlassCard
-                width={SCREEN_WIDTH * 0.6}
-                height={40}
+                width={SCREEN_WIDTH * 0.7}
+                height={50}
+                style={referrer === option ? { borderWidth: 2, borderColor: '#0f0' } : {}}
               >
                 <Text
-                  style={[
-                    styles.levelButtonText,
-                    selectedLevel === '3' && styles.selectedLevelText,
-                  ]}
+                  style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    lineHeight: 50,
+                    color: referrer === option ? '#0f0' : '#fff',
+                    fontWeight: referrer === option ? 'bold' : 'normal',
+                  }}
                 >
-                  英検3級  1000単語
+                  {option}
                 </Text>
               </GlassCard>
             </TouchableOpacity>
-          </View>
-          {/* 準2級 */}
-          <View style={{ marginVertical: 5 }}>
-            <TouchableOpacity onPress={() => handleSelectLevel('2_5')}>
-              <GlassCard
-                width={SCREEN_WIDTH * 0.6}
-                height={40}
-              >
-                <Text
-                  style={[
-                    styles.levelButtonText,
-                    selectedLevel === '2_5' && styles.selectedLevelText,
-                  ]}
-                >
-                  英検準2級  1220単語
-                </Text>
-              </GlassCard>
-            </TouchableOpacity>
-          </View>
-          {/* 2級 */}
-          <View style={{ marginVertical: 5 }}>
-            <TouchableOpacity onPress={() => handleSelectLevel('2')}>
-              <GlassCard
-                width={SCREEN_WIDTH * 0.6}
-                height={40}
-              >
-                <Text
-                  style={[
-                    styles.levelButtonText,
-                    selectedLevel === '2' && styles.selectedLevelText,
-                  ]}
-                >
-                  英検2級  2300単語
-                </Text>
-              </GlassCard>
-            </TouchableOpacity>
-          </View>
-          {/* 準1級 */}
-          <View style={{ marginVertical: 5 }}>
-            <TouchableOpacity onPress={() => handleSelectLevel('1_5')}>
-              <GlassCard
-                width={SCREEN_WIDTH * 0.6}
-                height={40}
-              >
-                <Text
-                  style={[
-                    styles.levelButtonText,
-                    selectedLevel === '1_5' && styles.selectedLevelText,
-                  ]}
-                >
-                  英検準1級  3400単語
-                </Text>
-              </GlassCard>
-            </TouchableOpacity>
-          </View>
-          {/* 1級 */}
-          <View style={{ marginVertical: 5 }}>
-            <TouchableOpacity onPress={() => handleSelectLevel('1')}>
-              <GlassCard
-                width={SCREEN_WIDTH * 0.6}
-                height={40}
-              >
-                <Text
-                  style={[
-                    styles.levelButtonText,
-                    selectedLevel === '1' && styles.selectedLevelText,
-                  ]}
-                >
-                  英検1級  4280単語
-                </Text>
-              </GlassCard>
-            </TouchableOpacity>
-          </View>
+          ))}
         </View>
       )}
       {i === 4 && (
+            <View style={styles.levelcontainer}>
+              {/* 3級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('3')}>
+                  <GlassCard
+                    width={SCREEN_WIDTH * 0.6}
+                    height={40}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                        selectedLevel === '3' && styles.selectedLevelText,
+                      ]}
+                    >
+                      英検3級  1000単語
+                    </Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+              {/* 準2級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('2_5')}>
+                  <GlassCard
+                    width={SCREEN_WIDTH * 0.6}
+                    height={40}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                        selectedLevel === '2_5' && styles.selectedLevelText,
+                      ]}
+                    >
+                      英検準2級  1220単語
+                    </Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+              {/* 2級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('2')}>
+                  <GlassCard
+                    width={SCREEN_WIDTH * 0.6}
+                    height={40}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                        selectedLevel === '2' && styles.selectedLevelText,
+                      ]}
+                    >
+                      英検2級  2300単語
+                    </Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+              {/* 準1級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('1_5')}>
+                  <GlassCard
+                    width={SCREEN_WIDTH * 0.6}
+                    height={40}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                        selectedLevel === '1_5' && styles.selectedLevelText,
+                      ]}
+                    >
+                      英検準1級  3400単語
+                    </Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+              {/* 1級 */}
+              <View style={{ marginVertical: 5 }}>
+                <TouchableOpacity onPress={() => handleSelectLevel('1')}>
+                  <GlassCard
+                    width={SCREEN_WIDTH * 0.6}
+                    height={40}
+                  >
+                    <Text
+                      style={[
+                        styles.levelButtonText,
+                        selectedLevel === '1' && styles.selectedLevelText,
+                      ]}
+                    >
+                      英検1級  4280単語
+                    </Text>
+                  </GlassCard>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+      {i === 5 && (
         <LearningSchedule
           dailyWordCount={dailyWordCount}
           setDailyWordCount={setDailyWordCount}
@@ -673,146 +866,141 @@ const handleTiltPress2 = () => {
           selectedLevel={selectedLevel}
         />
       )}
-            {i === 5 && (
-          <>
-   <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress1}>
-        {showIndicator1 && (
-          <TapIndicator
-            size={250}
-            color={'#fff'}
-            strokeWidth={20}
-            duration={2000}
-            style={styles.indicatorOverlayFlat}
-          />
-        )}
-        {/* shadow wrapper */}
-        <Animated.View
-          style={[
-            styles.cardWrapper,
-            {
-              transform: [
-                { perspective: 800 },
-                { rotateX: rotateX1 },
-                { rotate: rotateZ1 },
-                { translateY: translateY1 },
-              ],
-            },
-          ]}
+      {i === 6 && (
+        <>
+        <TouchableOpacity 
+          style={styles.purchaseCardButton} 
+          disabled={isPurchasing}
+          onPress={handlePressBoth2}
         >
-          <View style={[styles.card, { backgroundColor: levelColors[selectedLevel ?? '3'] ?? '#fff' }]}>
-            {/* decorative circles */}
-            <View
-              style={[
-                styles.circle1,
-                { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
-              ]}
-            />
-            <View
-              style={[
-                styles.circle2,
-                { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
-              ]}
-            />
-            <View
-              style={[
-                styles.circleSmall1,
-                { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
-              ]}
-            />
-            <View
-              style={[
-                styles.circleSmall2,
-                { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
-              ]}
-            />
-            {/* Level badge */}
-            <Text
-              style={[
-                styles.badgeText,
-                { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
-              ]}
-            >
-              {levelMap[selectedLevel ?? '3'] ?? (selectedLevel ?? '3')}
-            </Text>
-            <Text
-              style={[
-                styles.badgeText1,
-                { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
-              ]}
-            >
-            広告削除
-            </Text>
-            <Text style={styles.mikounyu1}>タップで購入</Text>
-
-            {subscribed && (
-              <Text style={styles.unlockedText}>学習が解放されました！</Text>
-            )}
-
-            {!subscribed && (
+          {isPurchasing && (
+            <ActivityIndicator size="large" style={StyleSheet.absoluteFill} />
+          )}
+          <Animated.View
+            style={[
+              styles.cardWrapper,
+              {
+                transform: [
+                  { perspective: 800 },
+                  { rotateX: rotateX1 },
+                  { rotate: rotateZ1 },
+                  { translateY: translateY1 },
+                ],
+              },
+            ]}
+          >
+            <View style={[styles.card, { backgroundColor: levelColors[selectedLevel ?? '3'] ?? '#fff' }]}>
+              {/* decorative circles */}
+              <View
+                style={[
+                  styles.circle1,
+                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
+                ]}
+              />
+              <View
+                style={[
+                  styles.circle2,
+                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
+                ]}
+              />
+              <View
+                style={[
+                  styles.circleSmall1,
+                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
+                ]}
+              />
+              <View
+                style={[
+                  styles.circleSmall2,
+                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
+                ]}
+              />
+              {/* Level badge */}
               <Text
                 style={[
-                  styles.purchaseCardButtonText,
-                  { color: levelTextColorMap[selectedLevel ?? '3']?.price ?? '#cbcdd0' },
+                  styles.badgeText,
+                  { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
                 ]}
               >
-                {`${levelPriceMap[selectedLevel ?? '3'] ?? '—'}`}
+                {levelMap[selectedLevel ?? '3'] ?? (selectedLevel ?? '3')}
               </Text>
-            )}
-          </View>
-        </Animated.View>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.purchaseCardButton} onPress={handleTiltPress2}>
-        {showIndicator2 && (
-          <TapIndicator
-            size={250}
-            color={'#fff'}
-            strokeWidth={20}
-            duration={2000}
-            style={styles.indicatorOverlayFlat}
-            />
-        )}
-        <Animated.View
-          style={[
-            styles.cardWrapper,
-            {
-              transform: [
-                { perspective: 800 },
-                { rotateX: rotateX2 },
-                { rotate: rotateZ2 },
-                { translateY: translateY2 },
-              ],
-            },
-          ]}
-        >
-          <LinearGradient
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}           // ← diagonal TL ➜ BR
-            colors={[
-              '#FFF9C4', // pale gold
-              '#FFE082', // light gold
-              '#FFD54F', // mid gold
-              '#FFCA28', // rich gold
-              '#FFC107', // deep gold
-            ]}
-            style={styles.card}
-          >
-              {/* Level list bottom‑left */}
-                <Text style={styles.levelListHeader}>1〜3級</Text>
-                <Text style={styles.levelListHeader2}>広告削除</Text>
-                <Text style={styles.mikounyu}>タップで購入</Text>
-                <View style={styles.levelListBlock}>
-                <Text style={styles.levelListText}>1級 / 準1級 / 2級 / 準2級 / 3級</Text>
-              </View>
+              <Text
+                style={[
+                  styles.badgeText1,
+                  { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
+                ]}
+              >
+              広告削除
+              </Text>
+              <Text style={styles.mikounyu1}>タップで購入</Text>
 
-              <Text style={styles.allAccessDesc1}>
-                ¥2,000
-              </Text>
-              <Text style={[styles.allAccessDesc, { textDecorationLine: 'line-through' }]}>
-                ¥3,500
-              </Text>
-          </LinearGradient>
-        </Animated.View>
-      </TouchableOpacity>
-          </>
+              {subscribed && (
+                <Text style={styles.unlockedText}>学習が解放されました！</Text>
+              )}
+
+              {!subscribed && (
+                <Text
+                  style={[
+                    styles.purchaseCardButtonText,
+                    { color: levelTextColorMap[selectedLevel ?? '3']?.price ?? '#cbcdd0' },
+                  ]}
+                >
+                  {`${levelPriceMap[selectedLevel ?? '3'] ?? '—'}`}
+                </Text>
+              )}
+            </View>
+          </Animated.View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.purchaseCardButton} 
+          onPress={handlePressBoth1} 
+          disabled={isPurchasing}
+        >
+          {isPurchasing && (
+            <ActivityIndicator size="large" style={StyleSheet.absoluteFill} />
+          )}
+          <Animated.View
+            style={[
+              styles.cardWrapper,
+              {
+                transform: [
+                  { perspective: 800 },
+                  { rotateX: rotateX2 },
+                  { rotate: rotateZ2 },
+                  { translateY: translateY2 },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}           // ← diagonal TL ➜ BR
+              colors={[
+                '#FFF9C4', // pale gold
+                '#FFE082', // light gold
+                '#FFD54F', // mid gold
+                '#FFCA28', // rich gold
+                '#FFC107', // deep gold
+              ]}
+              style={styles.card}
+            >
+                {/* Level list bottom‑left */}
+                  <Text style={styles.levelListHeader}>1〜3級</Text>
+                  <Text style={styles.levelListHeader2}>広告削除</Text>
+                  <Text style={styles.mikounyu}>タップで購入</Text>
+                  <View style={styles.levelListBlock}>
+                  <Text style={styles.levelListText}>1級 / 準1級 / 2級 / 準2級 / 3級</Text>
+                </View>
+
+                <Text style={styles.allAccessDesc1}>
+                  ¥2,000
+                </Text>
+                <Text style={[styles.allAccessDesc, { textDecorationLine: 'line-through' }]}>
+                  ¥3,600
+                </Text>
+            </LinearGradient>
+          </Animated.View>
+        </TouchableOpacity>
+        </>
       )}
     </View>
     
@@ -820,12 +1008,12 @@ const handleTiltPress2 = () => {
 
   return (
     <LinearGradient
-      colors={['#000', '#00a']}
+      colors={['#000', '#22b']}
       style={styles.container}>
       {/* Gradient Circle Behind GlassCard */}
       <View style={styles.gradientCircleContainer}>
         <LinearGradient
-            colors={['rgb(245, 109, 247)',  'rgb(150, 0, 127)']}
+            colors={['rgb(255, 129, 207)',  'rgb(150, 0, 127)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }} 
            style={styles.gradientCircle1}
@@ -861,7 +1049,7 @@ const handleTiltPress2 = () => {
             zIndex: 1,
           }}>
             <GlassCard width={CARD_WIDTH} height={CARD_HIGHT} style={{ marginTop: 70, zIndex: 1 }}>
-              <View style={styles.contentContainer}>
+            <View style={styles.contentContainer}>
                 {!isSliding && stepContents[prevStep]}
               </View>
             </GlassCard>
@@ -879,7 +1067,7 @@ const handleTiltPress2 = () => {
           zIndex: 2,
         }}>
           <GlassCard width={CARD_WIDTH} height={CARD_HIGHT} style={{ marginTop: 70, zIndex: 1 }}>
-            <View style={styles.contentContainer}>
+          <View style={styles.contentContainer}>
               {!isSliding && stepContents[currentStep]}
             </View>
           </GlassCard>
@@ -897,9 +1085,9 @@ const handleTiltPress2 = () => {
           />
         ))}
       </View>
-      {/* Back ボタン & 次へ/決定ボタン (横並び) */}
+      {/* Back & Next buttons (bottom) */}
       <View style={styles.buttonRow}>
-        {currentStep !== 0 && (
+        {currentStep !== 0 && showPrev && (
           <TouchableOpacity
             style={styles.backButtonRow}
             onPress={handlePrev}
@@ -910,15 +1098,20 @@ const handleTiltPress2 = () => {
             </GlassCard>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={styles.nextButtonRow}
-          onPress={currentStep === 5 ? handleSave : handleNext}
-          disabled={isSliding}
-        >
-          <GlassCard width={NEXT_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
-            <Text style={styles.buttonText}>{buttonLabel}</Text>
-          </GlassCard>
-        </TouchableOpacity>
+        {(currentStep === 0 ? introAnimationDone : showNext) && (
+          <TouchableOpacity
+            style={[
+              styles.nextButtonRow,
+              (isNavigating || (!canProceed && currentStep >= 2 && currentStep <= 4)) && { opacity: 0.5 },
+            ]}
+            onPress={currentStep === 5 ? handleSave : handleNextWrapper}
+            disabled={isNavigating || (currentStep >= 2 && currentStep <= 4 && !canProceed)}
+          >
+            <GlassCard width={NEXT_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
+              <Text style={styles.buttonText}>{buttonLabel}</Text>
+            </GlassCard>
+          </TouchableOpacity>
+        )}
       </View>
     </LinearGradient>
   );
@@ -989,8 +1182,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     color: '#fff',
   },
-  button: {
+  // Button row styles for Back & Next
+  buttonRow: {
+    flexDirection: 'row',
+    width: '100%',
+    height: BUTTON_ROW_HEIGHT,
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
     marginBottom: 60,
+  },
+  backButtonRow: {
+    flex: 2,
+    marginRight: 8,
+  },
+  nextButtonRow: {
+    flex: 8,
+  },
+  buttonCard: {
+    width: '100%',
+    height: '100%',
   },
   indicatorOverlayFlat: {
     position: 'absolute',
@@ -1010,14 +1220,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 25, // ← 少し下げる
     fontWeight: 'bold',
-  },
-  backButton: {
-    marginBottom: 16,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    textAlign: 'center',
   },
   levelBox: {
     justifyContent: 'center',
@@ -1240,25 +1442,12 @@ const styles = StyleSheet.create({
     color: '#444',
     fontWeight: '500',
   },
-  buttonRow: {
-    flexDirection: 'row',
-    width: '100%',
-    height: 70,
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-    marginBottom: 60,
-  },
-  backButtonRow: {
-    flex: 2,
-    marginRight: 8,
-  },
-  nextButtonRow: {
-    flex: 8,
-  },
-  buttonCard: {
-    width: '100%',
-    height: '100%',
+  backButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    textAlign: 'center',
   },
 });
 
 export default InitialSetup;
+
