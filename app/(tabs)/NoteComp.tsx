@@ -1,373 +1,371 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated, PanResponder, ActivityIndicator } from 'react-native';
 import NeomorphBox from '@/components/ui/NeomorphBox';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useNavigation } from 'expo-router';
-import useQuestionData from '../../components/questioncomp/useQuestionData';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Image, ScrollView, Animated, Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
-import { getDownloadURL, ref } from 'firebase/storage';
-import { storage } from '../../firebaseConfig';
+import useQuestionData from '@/components/questioncomp/useQuestionData';
 
-const NoteComp = ({  }) => {
-  const navigation = useNavigation();
-  const { questionData,level } = useQuestionData();
-  const questions1 = questionData?.questions1 ?? [];
+type RankingComponentProps = {
+  score: number;
+};
 
-  const screenWidth = Dimensions.get('window').width;
-  const boxWidth = screenWidth * 0.9;
-
-  type CorrectDataType = {
-    [key: string]: {
-      C: number;
-      L: string;
-      M: number;
-    };
-  };
-  
-  const [correctData, setCorrectData] = useState<CorrectDataType>({});
-  const [isSwapped, setIsSwapped] = useState(false);
-  const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
-  const redSheetPosition = useRef(new Animated.Value(0)).current;
-  const initialRedY = useRef(0);
-  // ---- Level‑aware storage keys ----
+export default function RankingComponent({ score }: RankingComponentProps) {
+  const { level } = useQuestionData();
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
-  
+  const [todayCount, setTodayCount] = useState(0);
+  const [todayGoal, setTodayGoal] = useState<number>(0);
+  const [dayCount, setDayCount] = useState<number>(1);
+  const INITIAL_DURATION = 1800;
+  const windowHeight = Dimensions.get('window').height;
+  const windowWidth = Dimensions.get('window').width;
+  const GENERATED_KEY = '@generated_data';
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        // Capture current red sheet position as initial Y
-        initialRedY.current = redY;
-      },
-      onPanResponderMove: (e, gestureState) => {
-        // Update the red sheet position based on initial Y + vertical movement
-        redSheetPosition.setValue(initialRedY.current + gestureState.dy);
-      },
-      onPanResponderRelease: () => {
-        // Nothing to flatten since we're setting absolute value directly
-      },
-      onPanResponderTerminate: () => {
-        // No additional handling needed
-      },
-    })
-  ).current;
+  // Size of the circular physics container
+  const circleSize = windowHeight * 0.25;
+  const ballRadius = 5;
+  const [ballCountState, setBallCountState] = useState(todayCount);
+  const ballCount = ballCountState;
 
-  // Track each item’s layout (y-position and height)
-  const [itemLayouts, setItemLayouts] = useState<{ [key: number]: { y: number; height: number } }>({});
-  // Track the red sheet’s current Y position
-  const [redY, setRedY] = useState(0);
-  // Track ScrollView vertical scroll offset
-  const [scrollY, setScrollY] = useState(0);
-  // Compute red sheet height in pixels (70% of window height)
-  
-  useEffect(() => {
-    const loadCorrectData = async () => {
-      const data = await AsyncStorage.getItem(STORAGE_KEY_LEVEL);
-      if (data) {
-        setCorrectData(JSON.parse(data));
-      }
-    };
-    loadCorrectData();
-  }, []);
+  const innerCircleRadius = circleSize * 0.2;
+  const innerCircleTop = circleSize / 2 - innerCircleRadius;
+  const innerCircleLeft = circleSize / 2 - innerCircleRadius;
 
-  useEffect(() => {
-    const listenerId = redSheetPosition.addListener(({ value }) => {
-      setRedY(value);
-    });
-    return () => {
-      redSheetPosition.removeListener(listenerId);
-    };
-  }, []);
-
-  // 単語の音声をロードして再生する
-  const playWordAudio = async (question: any, index: number) => {
+  const safeGetData = async (key: string, defaultValue: any) => {
     try {
-      // Start loading for this index
-      setLoadingIndex(index);
-      // 新しい Audio.Sound インスタンスを作成
-      const sound = new Audio.Sound();
-      // Firebase Storage から URL を取得（ID を利用）
-      const folder = '3'; // 必要に応じてフォルダを変更
-      const filePath = `${folder}/${question.id}.mp3`;
-      const soundUrl = await getDownloadURL(ref(storage, filePath));
-      // ロードして再生
-      await sound.loadAsync({ uri: soundUrl }, { shouldPlay: false }, true);
-      await sound.setPositionAsync(0);
-      await sound.playAsync();
-      // Loading complete
-      setLoadingIndex(null);
-      // 再生完了後は不要ならアンロード
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
+      const json = await AsyncStorage.getItem(key);
+      if (!json) return defaultValue;
+      return JSON.parse(json);
     } catch (error) {
-      console.error('単語再生エラー:', error);
-      setLoadingIndex(null);
+      return defaultValue;
     }
   };
 
-  const filteredQuestions = questions1.filter(q => {
-    const record = correctData[q.id];
-    return record && record.C >= 1;
-  });
+  // Generate random polar coordinates for balls
+  const ballPolar = useMemo(() => {
+    const pts = [];
+    const minR = innerCircleRadius + ballRadius;
+    const maxR = circleSize / 2 - ballRadius;
+    for (let i = 0; i < ballCount; i++) {
+      const angle = Math.random() * 2 * Math.PI;
+      const r = minR + Math.sqrt(Math.random()) * (maxR - minR);
+      pts.push({ angle, r });
+    }
+    return pts;
+  }, [ballCount, circleSize, innerCircleRadius, ballRadius]);
+
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadTodayCount = async () => {
+        try {
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          const key = `${yyyy}-${mm}-${dd}`;
+          const scoreMapStr = await AsyncStorage.getItem(`DAYLY_CORRECT_${sanitizedLevel}`);
+          let todayValue = 0;
+          if (scoreMapStr) {
+            const scoreMap = JSON.parse(scoreMapStr);
+            todayValue = scoreMap[key] || 0;
+          }
+          setTodayCount(todayValue);
+          // Reset ball count state whenever todayCount changes
+          setBallCountState(todayValue);
+
+          // 今日の目標の読み込みとログ出力
+          const generatedData = await safeGetData(GENERATED_KEY, []);
+          let entry;
+          if (Array.isArray(generatedData)) {
+            const entrytoday = generatedData.find((item: any) => item.id === dayCount);
+            const totalToday = Array.isArray(entrytoday?.result)
+              ? entrytoday.result.reduce((sum: number, val: number) => sum + val, 0)
+              : 0;
+            const yesterdays = generatedData.find((item: any) => item.id === dayCount - 1) || { result: [0,0,0,0,0] };
+            const totalYesterday = Array.isArray(yesterdays?.result)
+              ? yesterdays.result.reduce((sum: number, val: number) => sum + val, 0)
+              : 0;
+            entry = totalToday - totalYesterday;
+          } else if (typeof generatedData === 'object') {
+            entry = generatedData[dayCount];
+          }
+          setTodayGoal(entry);
+
+        } catch (e) {
+          setTodayCount(0);
+        }
+      };
+      loadTodayCount();
+    }, [sanitizedLevel])
+  );
+
+
+  // Animation for rotation
+  const spin = useRef(new Animated.Value(0)).current;
+  const radiusAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (todayCount - score < todayGoal && todayCount > todayGoal) {
+      Animated.loop(
+        Animated.timing(spin, {
+          toValue: 1,
+          duration: INITIAL_DURATION * 0.15,
+          easing: Easing.linear,
+          useNativeDriver: false,
+        })
+      ).start();
+    }
+  }, [spin, todayCount, todayGoal]);
+
+useEffect(() => {
+  if (todayCount - score < todayGoal && todayCount > todayGoal) {
+    // Shrink to center
+    Animated.timing(radiusAnim, {
+      toValue: 0,
+      duration: INITIAL_DURATION,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start(() => {
+      // Stop rotation
+      spin.stopAnimation();
+      // At center, increase ball count fivefold
+      setBallCountState(prev => prev * 3);
+      // Expand balls outwards until off-screen
+      Animated.timing(radiusAnim, {
+        toValue: 2,
+        duration: INITIAL_DURATION*0.75,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: false,
+      }).start();
+    });
+  }
+}, [radiusAnim, todayCount, todayGoal]);
+
+  // 仮のランキングデータ
+  const rankingData = [
+    { name: 'Alice', points: 150, avatar: 'https://i.pravatar.cc/150?img=1' },
+    { name: 'Bob', points: 140, avatar: 'https://i.pravatar.cc/150?img=2' },
+    { name: 'Charlie', points: 130, avatar: 'https://i.pravatar.cc/150?img=3' },
+    { name: 'David', points: 120, avatar: 'https://i.pravatar.cc/150?img=4' },
+    { name: 'Eve', points: 110, avatar: 'https://i.pravatar.cc/150?img=5' },
+    { name: 'Frank', points: 100, avatar: 'https://i.pravatar.cc/150?img=6' },
+    { name: 'Grace', points: 90, avatar: 'https://i.pravatar.cc/150?img=7' },
+    { name: 'You', points: score, avatar: 'https://i.pravatar.cc/150?img=10' },
+  ];
+
+  // Reorder top three so center is 1st place
+  const topThreeData = [rankingData[1], rankingData[0], rankingData[2]];
+
+  const onClose = () => {
+  };
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          styles.redSheet,
-          { right: 0 },
-          { transform: [{ translateY: redSheetPosition }] }
-        ]}
-      />
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} disabled={loadingIndex !== null}>
-        <Ionicons name="chevron-back" size={28} color="#777" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => setIsSwapped(prev => !prev)}
-        style={[styles.swapButton]}
-        disabled={loadingIndex !== null}
-      >
-        <Text style={styles.swapButtonText}>A↔︎あ</Text>
-      </TouchableOpacity>
-      <ScrollView
-        contentContainerStyle={styles.list}
-        horizontal={false}
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={true}
-        style={{ width: '100%' }}
-        onScroll={(e) => {
-          setScrollY(e.nativeEvent.contentOffset.y);
-        }}
-        scrollEventThrottle={16}
-        >
-{filteredQuestions.map((q, index) => {
-  const record = correctData[q.id];
-  return (
-    <View
-      key={index}
-      onLayout={(e) => {
-        const { y, height } = e.nativeEvent.layout;
-        setItemLayouts(prev => ({
-          ...prev,
-          [index]: { y, height },
-        }));
-      }}
-      style={{ marginBottom: 16 }}
-    >
       <NeomorphBox
-        width={boxWidth}
-        height={80}
-        style={{ marginBottom: 0 }}
-      > 
-        <View style={styles.labelRow}>
-          {isSwapped ? (
-            <>
-              <Text style={styles.jpLabel}>JP </Text>
-              <Text style={styles.count}>正解数: {record?.C ?? 0}</Text>
-              <Text style={styles.enLabel}>EN </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.enLabel2}>EN </Text>
-              <Text style={styles.count}>正解数: {record?.C ?? 0}</Text>
-              <Text style={styles.jpLabel2}>JP </Text>
-            </>
-          )}
-        </View>
-
-        <View style={styles.row}>
-          <View style={styles.textContainer}>
-            {(() => {
-              // Determine if this item’s layout is still covered by the red sheet
-              const layout = itemLayouts[index];
-              let isCovered = false;
-              if (layout) {
-                const contentOffset = 100;
-                const itemScreenBottom = layout.y - scrollY + layout.height + contentOffset;
-                const sheetTop = redY;
-                if (sheetTop <= itemScreenBottom) {
-                  isCovered = true;
-                }
-              }
-              return isSwapped ? (
-                <>
-                  {/* First render the Japanese answer on the left */}
-                  <Text style={styles.japanese}>
-                    {q.correctAnswer}
-                  </Text>
-                  {/* Then render the English question on the right with conceal logic */}
-                  <Text
-                    style={[
-                      styles.item,
-                      isCovered && { color: 'transparent' },
-                    ]}
-                  >
-                    {q.question}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  {/* Default: question on the left */}
-                  <Text style={styles.item}>
-                    {q.question}
-                  </Text>
-                  {/* Then answer on the right with conceal logic */}
-                  <Text
-                    style={[
-                      styles.japanese,
-                      isCovered && { color: 'transparent' },
-                    ]}
-                  >
-                    {q.correctAnswer}
-                  </Text>
-                </>
-              );
-            })()}
-            {/* 再生ボタン */}
-            {loadingIndex === index ? (
-              <ActivityIndicator size="small" color="#3366CC" style={styles.playButton} />
-            ) : (
-              <TouchableOpacity
-                onPress={() => playWordAudio(q, index)}
-                style={styles.playButton}
-                disabled={loadingIndex !== null}
-              >
-                <Ionicons name="play-circle-outline" size={24} color="#3366CC" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        width={circleSize}
+        height={circleSize}
+        variant="circle1"
+        style={{
+          marginTop: 40,
+          alignSelf: 'center',
+          overflow: 'visible',
+        }}
+      >
+        {ballPolar.map((p, idx) => {
+          const rotateAnim = spin.interpolate({
+            inputRange: [0, 1],
+            outputRange: [`${p.angle}rad`, `${p.angle + 2 * Math.PI}rad`],
+          });
+          return (
+            <Animated.View
+              key={idx}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: [
+                  { translateX: circleSize / 2 - ballRadius },
+                  { translateY: circleSize / 2 - ballRadius },
+                  { rotate: rotateAnim },
+                  { translateX: Animated.multiply(radiusAnim, p.r) },
+                ],
+              }}
+            >
+              <View
+                style={{
+                  width: ballRadius * 2,
+                  height: ballRadius * 2,
+                  borderRadius: ballRadius,
+                  backgroundColor: '#fff',
+                }}
+              />
+            </Animated.View>
+          );
+        })}
       </NeomorphBox>
+      <View style={[styles.bottomWrapper, { height: windowHeight * 0.5 }]}>
+        <NeomorphBox width={windowWidth * 0.85} height={windowHeight * 0.5}>
+
+          <Text style={styles.title}>ランキング</Text>
+          <View style={styles.topThreeContainer}>
+            {topThreeData.map((item, index) => (
+              <NeomorphBox
+                key={index}
+                width={windowWidth * (index === 1 ? 0.24 : 0.22)}
+                height={windowHeight * 0.15}
+                style={[styles.topCard, index === 1 && styles.centerCard]}
+              >
+                {index === 1 && <Text style={styles.crown}>👑</Text>}
+                <Image source={{ uri: item.avatar }} style={styles.avatar} />
+                <Text style={styles.placeText}>
+                  {index === 1 ? '1位' : index === 0 ? '2位' : '3位'}
+                </Text>
+                <Text style={styles.topName}>{item.name}</Text>
+                <Text style={styles.topPoints}>{item.points}</Text>
+
+              </NeomorphBox>
+            ))}
+          </View>
+          <ScrollView>
+            <View style={styles.rankingContainer}>
+              {rankingData.slice(3, 7).map((item, index) => (
+                <View key={index} style={styles.listItemWrapper}>
+                  <Text style={styles.rank}>{index + 4}</Text>
+                  <View
+                    style={styles.listCard}
+                  >
+                    <View style={styles.listRow}>
+                      <View style={styles.listLeft}>
+                        <Image source={{ uri: item.avatar }} style={styles.listIcon} />
+                        <Text style={styles.name}>{item.name}</Text>
+                      </View>
+                      <Text style={styles.points}>{item.points} pt</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </NeomorphBox>
+        <View style={styles.buttonWrapper}>
+          <TouchableOpacity onPress={onClose}>
+            <NeomorphBox width={windowWidth * 0.85} height={70}>
+              <Text style={styles.startButtonText}>終了</Text>
+            </NeomorphBox>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
-})}
-      </ScrollView>
-    </View>
-  );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#E3E5F2',
   },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 30,
-    padding: 10,
-    zIndex:4
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    color: 'rgb(255, 213, 0)',
   },
-  text: {
+  rank: { 
+    fontWeight: 'bold',
+    fontSize: 15,
+    marginLeft:10,
+    marginRight:8,
+    color: '#666'
+   },
+  name: {   color: '#000' },
+  points: {
+     color: 'rgb(220, 162, 0)', 
+     marginRight: 16,
+   },
+  rankingContainer: {
+    width: '100%',
+  },
+  listCard: {
+    width: '100%',
+    alignSelf: 'stretch',
+    padding: 4,
+  },
+  startButtonText: {
+    color: '#666',
     fontSize: 18,
-    color: '#333',
+    textAlign: 'center',
+    lineHeight: 80,
   },
-  list: {
-    marginTop: 100,
-    paddingHorizontal: 20,
-    paddingBottom: 200,
+  bottomWrapper: {
+    position: 'absolute',
+    bottom: 160,
+    width: '100%',
+    alignItems: 'center',
+    padding: 20,
   },
-  item: {
-    fontSize: 20,
+  buttonWrapper: {
+    marginTop: 20,
+  },
+  topThreeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  topCard: {
+    alignItems: 'center',
+    marginTop:30,
+  },
+  centerCard: {
+    transform: [{ translateY: -20 }],
+  },
+  crown: {
+    position: 'absolute',
+    top: -20,
+    fontSize: 28,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 5,
+  },
+  topName: {
     color: '#666',
-    marginBottom: 10,
-    flex: 1,
-    textAlign:'center'
+    fontWeight: 'bold',
+  },
+  topPoints: {
+    color: 'rgb(220, 162, 0)',
+  },
+  placeText: {
+    color: '#666',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  listRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '90%',
+    borderWidth: 1,
+    borderColor: '#fff',
+    borderRadius: 20,
+  },
+  listLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  listItemWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '95%',
+  },
 
-  },
-  japanese: {
-    position: 'relative',
-    fontSize: 20,
-    color: '#666',
-    marginLeft: 10,
-    flex: 1,
-    textAlign:'center',
-    zIndex: -1,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    flex: 1,
-  },
-  textContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    zIndex: -1,
-  },
-  count: {
-    fontSize: 14,
-    marginTop: 10,
-    color: '#777',
-    marginLeft: 10,
-  },
-  enLabel: {
-    marginTop: 10,
-    marginLeft:50,
-    color: '#3366CC',
-  },
-  jpLabel: {
-    marginTop: 10,
-    marginRight:50,
-    color: '#CC3366',
-  },
-  enLabel2: {
-    marginTop: 10,
-    marginRight:50,
-    color: '#3366CC',
-  },
-  jpLabel2: {
-    marginTop: 10,
-    marginLeft:50,
-    color: '#CC3366',
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 4,
-  },
-  redSheet: {
-    position: 'absolute',
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    top: 0,
-    width: '50%',
-    height: '100%',
-    backgroundColor: 'rgba(255, 0, 0, 0.2)',
-    zIndex: 5,
-  },
-  swapButton: {
-    position: 'absolute',
-    top: 50,
-    right: 30,
-    padding: 10,
-    backgroundColor: '#666',
-    borderRadius: 5,
-    zIndex: 4,
-  },
-  swapButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  playButton: {
-    position:'absolute',
-    marginLeft: 8,
-    alignSelf: 'center',
-  },
 });
-
-export default NoteComp;
