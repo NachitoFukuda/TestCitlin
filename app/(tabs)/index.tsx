@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { UIConfigContext } from '@/components/contexts/UIConfigContext';
 import { View, Alert, StyleSheet } from 'react-native';
+import { Modal, Text, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialSetup from '@/components/Tutorial/InitialSetup';
@@ -28,36 +29,6 @@ interface CorrectData {
 const initialData: CorrectData = {
   "1": { C: 0, L: "0", startedAt: null },
 };
-
-const checkDeadlineData = async () => {
-  const data = await AsyncStorage.getItem('@deadline_days');
-  return data ? JSON.parse(data) : null; // JSONデータをパース
-};
-
-async function getPreviousQuarterHour(date: string | number | Date) {
-  const adjustedDate = new Date(date);
-  adjustedDate.setSeconds(0);
-  adjustedDate.setMilliseconds(0);
-  const year = adjustedDate.getFullYear();
-  const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
-  const day = String(adjustedDate.getDate()).padStart(2, '0');
-
-  // 非同期処理でデータを取得（awaitを使用）
-  const startday = await checkDeadlineData();
-  if (!startday || !startday.savedAt) {
-    return null; // 失敗時はnullを返す
-  }
-
-  // 日付の取得
-  const savedDate = new Date(startday.savedAt);
-  const currentDate = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
-
-  // 差分日数を計算
-  const diffTime = currentDate.getTime() - savedDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
-}
-
 
 export default function HomeScreen() {
   const [isDarkMode, setIsDarkMode] = useState<boolean | null>(null);
@@ -119,10 +90,12 @@ export default function HomeScreen() {
           const todayISO = now.toISOString();
           if (storedToday !== todayISO) {
             setShowFirstTimeComponent(true);
+            data.today = todayISO;
+  await AsyncStorage.setItem('@deadline_days', JSON.stringify(data));
           }
         }
       } catch (e) {
-        console.error('Error checking today field:', e);
+        console.error('[verifyTodayField] Error checking today field:', e);
       }
     };
     verifyTodayField();
@@ -193,6 +166,7 @@ export default function HomeScreen() {
   
     checkSubscriptionStatus();
   }, []);
+
 
 
   // データ読み込み処理
@@ -300,35 +274,11 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 20,
   },
-  UIstoreButtonContainer: {
-    position: 'absolute',
-    bottom: 70,
-    left: '50%',
-    // ボタン幅(60)の半分(30)だけ左にずらす
-    transform: [{ translateX: -30 }],
-  },
-
-  vipText: {
-    position: 'absolute',
-    top: 16,      // この値を調整して上下の位置を微調整
-    left: 0,      // 必要なら left, right も調整可能
-    right: 0,
-    textAlign: 'center',
-    fontSize: 8,
-    fontWeight: 'bold',
-  },
   widgetArea: {
     padding: 12,
     borderRadius: 8,
     flexGrow: 1,
     width: '100%',
     marginBottom: 130,
-  },
-  startButtonContainer: {
-    position: 'absolute',
-    bottom: 150,      // Adjust distance from bottom as desired
-    left: 0,
-    right: 0,
-    alignItems: 'center',
   },
 });
