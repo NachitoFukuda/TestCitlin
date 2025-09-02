@@ -1,5 +1,8 @@
+// Optional external countdown stopper if provided elsewhere
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+declare const stopCountdown: undefined | (() => void);
 import { initializeApp } from 'firebase/app';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { firebaseConfig } from '../../firebaseConfig';
 import { initializeFirestore, doc, setDoc } from 'firebase/firestore';
@@ -10,13 +13,14 @@ const rdb = getDatabase(app);
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet, Dimensions, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { Easing } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LearningSchedule from './LearningSchedule';
 import LottieView from 'lottie-react-native';
 import { JsonData } from '../etc/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../ui/GlassCard';
-import TapIndicator from '../ui/TapIndicator';
+import CardDesign from '../questioncomp/CardDesign';
 interface InitialSetupProps {
   onSetupComplete: () => void;
 }
@@ -50,7 +54,6 @@ const useCalendarDataGeneration = (
       // 締切日を計算
       const diffDays = deadlineDays;
       
-
       const getTotalWordsByLevel = (level: string | null): number => {
         switch(level) {
           case '3':
@@ -116,10 +119,19 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [hasPlayedIntroSound, setHasPlayedIntroSound] = useState(false);
+  // Ref to always hold the latest currentStep value for sound playback callback
+  const currentStepRef = useRef<number>(currentStep);
+  // Sync currentStepRef with currentStep
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+  }, [currentStep]);
+  // Swoosh sound preloading state
+  const [swooshSound, setSwooshSound] = useState<Audio.Sound | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const exitAnim = useRef(new Animated.Value(0)).current;
   const exitOpacity = useRef(new Animated.Value(1)).current;
+  const nextFadeAnim = useRef(new Animated.Value(0)).current;
   const [prevStep, setPrevStep] = useState<number>(0);  // Track when sliding
   const [isSliding, setIsSliding] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
@@ -129,19 +141,59 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   // 予定設定用ステート
   const tiltProgress2 = useRef(new Animated.Value(0)).current;
 
+  // Align cards: make one face front and the other tilt
+  const alignCards = (front: 'first' | 'second') => {
+    try { stopCountdown?.(); } catch {}
+    if (front === 'first') {
+      setShowIndicator1(false);
+      setShowIndicator2(true);
+      Animated.parallel([
+        Animated.timing(tiltProgress1, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tiltProgress2, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      setShowIndicator2(false);
+      setShowIndicator1(true);
+      Animated.parallel([
+        Animated.timing(tiltProgress2, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tiltProgress1, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
   // メッセージ
   const messages = [
     'こんにちは', 
     'AIがあなたに合わせた\n最適なタイミングで\n自動出題！',
     'ニックネームを\n入力してね',
-    'どこでこのアプリを知りましたか？',
+    'このアプリどこで見つけたの？',
     'どの級を学習する？',  
     '',  
     '時間を約２０％削減',  
   ];
 
   // 各ステップに応じたフォントサイズ・位置
-  const fontSizes = [60, 30, 40, 30, 30, 30];
+  const fontSizes = [60, 30, 40, 30, 30, 30, 30];
   const fontTop   = [150, 300, 350, 0, 30, -60];
 
 
@@ -182,31 +234,40 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   const [showPrev, setShowPrev] = useState<boolean>(false);
   // Declare introAnimationDone state above its first usage
   const [introAnimationDone, setIntroAnimationDone] = useState(false);
-  // Effect to control Next button visibility per step
+  // Effect to control Next button visibility per step (refactored for unified timing logic)
   useEffect(() => {
-    setShowNext(false);
+    let timer: ReturnType<typeof setTimeout> | null = null;
     if (currentStep === 0) {
-      // Step0: show when intro animation finishes
-      if (introAnimationDone) setShowNext(true);
+      // Intro animation must finish
+      setShowNext(introAnimationDone);
     } else if (currentStep === 1) {
-      // AI message: 1s delay
-      const timer = setTimeout(() => setShowNext(true), 1000);
-      return () => clearTimeout(timer);
-    } else if (currentStep === 2) {
-      // Nickname: when input present
-      setShowNext(nickname.trim().length > 0);
-    } else if (currentStep === 3) {
-      // Referrer: when selected
-      setShowNext(referrer !== '');
-    } else if (currentStep === 4) {
-      // Level: when selected
-      setShowNext(selectedLevel !== null);
+      // Brief delay after AI message
+      setShowNext(false);
+      timer = setTimeout(() => setShowNext(true), 500);
+    } else if (currentStep >= 2 && currentStep <= 4) {
+      // Input-driven steps
+      setShowNext(canProceed);
     } else {
-      // Other steps: 1s delay
-      const timer = setTimeout(() => setShowNext(true), 1000);
-      return () => clearTimeout(timer);
+      // Other steps: immediate
+      setShowNext(true);
     }
-  }, [currentStep, introAnimationDone, nickname, referrer, selectedLevel]);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentStep, introAnimationDone, canProceed]);
+  // Effect to fade in Next button after intro animation, and ensure visible on other steps
+  useEffect(() => {
+    if (currentStep === 0 && showNext) {
+      Animated.timing(nextFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else if (currentStep !== 0) {
+      // ensure Next button visible on other steps
+      nextFadeAnim.setValue(1);
+    }
+  }, [showNext, currentStep]);
   // Effect to control Back button visibility per step (hide for 1s on step change)
   useEffect(() => {
     setShowPrev(false);
@@ -238,62 +299,63 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       const initializeQuizData = async () => {
         try {
           const positions = {
-            "start01":  { "gridX": 1, "gridY": 6 },
-            "chach04": { "gridX": 0, "gridY": 1 },
-            "TodayGool0": { "gridX": 2, "gridY": 3 },
-            "TodayGool01": { "gridX": 2, "gridY": 2 },
-            "WeekProgress08": { "gridX": 0, "gridY": 2 },
-            "WeekProgress065": { "gridX": 0, "gridY": 4 }
+            "Heatmap05": { "gridX": 0, "gridY": 4 },
+            "Howday1": { "gridX": 2, "gridY": 5 },
+            "TodayGool1": { "gridX": 2, "gridY": 4 },
+            "WeekProgress10": { "gridX": 0, "gridY": 1 },
+            "calender01": { "gridX": 0, "gridY": 3 },
+            "start02": { "gridX": 0, "gridY": 6 }
           };
           await AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
+          console.log('[InitialSetup] Saved initial positions:', positions);
   
           const purchases = {
-            "start01": {
-              "id": "start01",
+            "Heatmap05": {
+              "id": "Heatmap05",
               "name": "Start Mini",
               "price": 0,
               "widthCells": 2,
-              "heightCells": 1,
-              "tag": "button"
+              "heightCells": 2,
+              "tag": "theme"
             },
-            "chach04": {
-              "id": "chach04",
-              "name": "Wallet View",
+            "Howday1": {
+              "id": "Howday1",
+              "name": "calender",
               "price": 0,
-              "widthCells": 4,
+              "widthCells": 2,
               "heightCells": 1,
-              "tag": "sticker"
+              "tag": "theme"
             },
-            "TodayGool0": {
-              "id": "TodayGool0",
+            "TodayGool1": {
+              "id": "TodayGool1",
               "name": "Daily Target",
               "price": 0,
               "widthCells": 2,
               "heightCells": 1,
               "tag": "theme"
             },
-            "TodayGool01": {
-              "id": "TodayGool01",
+            "WeekProgress10": {
+              "id": "WeekProgress10",
               "name": "Daily Target Pro",
-              "price": 0,
-              "widthCells": 2,
-              "heightCells": 1,
-              "tag": "theme"
-            },
-            "WeekProgress08": {
-              "id": "WeekProgress08",
-              "name": "Weekly Tracker Mini B",
-              "price": 0,
-              "widthCells": 2,
-              "heightCells": 2,
-              "tag": "theme"
-            },
-            "WeekProgress065": {
-              "id": "WeekProgress065",
-              "name": "Weekly Tracker",
               "price": 0,
               "widthCells": 4,
               "heightCells": 2,
+              "tag": "theme"
+            },
+            "calender01": {
+              "id": "calender01",
+              "name": "Weekly Tracker",
+              "price": 0,
+              "widthCells": 4,
+              "heightCells": 1,
+              "tag": "theme"
+            },
+            "start02": {
+              "id": "start02",
+              "name": "Weekly Tracker",
+              "price": 0,
+              "widthCells": 4,
+              "heightCells": 1,
               "tag": "theme"
             }
           };
@@ -319,13 +381,14 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   }, [currentStep, fadeAnim, slideAnim]);
 
   const handleTiltPress1 = () => {
+    console.log('[InitialSetup] handleTiltPress1 tapped');
     setShowIndicator1(false);
     Animated.timing(tiltProgress1, {
       toValue: 1,
       duration: 600,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => console.log('[InitialSetup] tiltProgress1 -> 1 finished:', finished));
   };
 
   // currentStep が 12 のときに保存済みの期限日数を取得
@@ -363,10 +426,66 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
           require('../../assets/sound/startsound.mp3')
         );
         setSound(sound);
+        // Start playing sound without awaiting so haptics can run concurrently
+        // Start haptic feedback with a speeding-up pattern
+        const intervals = [500, 400, 350, 300,  200, 90, 40, 30, 20, 10,5,3,2,1,1,1,1,1,1];
+        (async () => {
+          for (let i = 0; i < intervals.length; i++) {
+            const interval = intervals[i];
+            let style = Haptics.ImpactFeedbackStyle.Light;
+            if (i >= intervals.length - 3) {
+              style = Haptics.ImpactFeedbackStyle.Heavy;
+            } else if (i >= intervals.length - 10) {
+              style = Haptics.ImpactFeedbackStyle.Medium;
+            }
+            await Haptics.impactAsync(style);
+            await new Promise(res => setTimeout(res, interval));
+          }
+        })();
+        // Play sound and wait for its completion event
         await sound.playAsync();
+        sound.setOnPlaybackStatusUpdate(status => {
+          // Only proceed if playback loaded successfully
+          if (!status.isLoaded) return;
+          const successStatus = status as import('expo-av').AVPlaybackStatusSuccess;
+          if (successStatus.didJustFinish && currentStepRef.current === 0) {
+            console.log('[Tutorial] sound finished callback on step 0, starting slide');
+            handleNext();
+            // Remove listener to avoid duplicate calls
+            sound.setOnPlaybackStatusUpdate(null);
+          }
+        });
       })();
     }
   }, [currentStep, hasPlayedIntroSound]);
+
+  // Preload swoosh sound once
+  useEffect(() => {
+    let soundObj: Audio.Sound;
+    (async () => {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+        playsInSilentModeIOS: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/sound/swoosh.mp3')
+      );
+      soundObj = sound;
+      setSwooshSound(sound);
+      // Continuous light haptic feedback during preload
+      for (let i = 0; i < 4; i++) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    })();
+    return () => {
+      if (soundObj) {
+        soundObj.unloadAsync();
+      }
+    };
+  }, []);
 
   // Cleanup sound on unmount
   useEffect(() => {
@@ -397,14 +516,20 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // 次へ or 決定ボタン
   const handleNext = async () => {
-    if (isNavigating) return;
+    // Log invocation and key state
+    console.log('[Tutorial] handleNext called, currentStep:', currentStep, 'nickname:', nickname, 'canProceed:', canProceed);
+    if (isNavigating) {
+      console.log('[Tutorial] handleNext early return, isNavigating:', isNavigating);
+      return;
+    }
     // Commenting out sliding guard to trace invocation
     // if (isSliding) return;
 
     if (currentStep === 2) {
+      console.log('[Tutorial] Step 2 check, nickname.trim().length:', nickname.trim().length);
       const cleanName = nickname.trim();
       if (!cleanName) {
-        Alert.alert('入力エラー', 'ニックネームを入力してください。');
+        Alert.alert('�', '入力できてないよ！');
         return;
       }
       const auth = getAuth();
@@ -419,12 +544,18 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       try {
         const user = getAuth().currentUser;
         if (user) {
-          // Firestore write in background, no await to avoid blocking
-          setDoc(doc(db, 'users', user.uid), { nickname: cleanName }, { merge: true })
-            .then(() => console.log('Firestore write succeeded'))
-            .catch(error => console.error('Firestore write error:', error));
+          // RTDB write in background, no await to avoid blocking
+          dbSet(dbRef(rdb, `users/${user.uid}/nickname`), cleanName)
+            .then(() => console.log('RTDB nickname write succeeded'))
+            .catch(error => console.error('RTDB nickname write error:', error));
         }
         await AsyncStorage.setItem('@nickname', cleanName);
+        // Save user UID to AsyncStorage
+        if (user) {
+          AsyncStorage.setItem('@user_uid', user.uid)
+            .then(() => console.log('[InitialSetup] Saved user UID:', user.uid))
+            .catch(error => console.error('[InitialSetup] UID save error:', error));
+        }
       } catch (e: any) {
         console.error(e);
         Alert.alert('Error', e.message || 'Unknown error in handleNext step 2');
@@ -454,34 +585,65 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       return;
     }
     if (currentStep < messages.length - 1) {
+      setIsNavigating(true);
       exitOpacity.setValue(1);
       setPrevStep(currentStep);
       exitAnim.setValue(0);
       slideAnim.setValue(CARD_WIDTH + SPACING);
       setIsSliding(true);
-      Animated.parallel([
-        Animated.timing(exitAnim, {
-          toValue: -(CARD_WIDTH + SPACING),
-          duration: 600,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
+      // Play preloaded swoosh sound
+      if (swooshSound) {
+        console.log('[Tutorial] replaying preloaded swoosh');
+        await swooshSound.replayAsync();
+      } else {
+        console.warn('[Tutorial] swooshSound not ready');
+      }
+      // Delay slide animation by 0.2 seconds
+      setTimeout(async () => {
+        // First fade out old content completely
         Animated.timing(exitOpacity, {
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setCurrentStep(prev => prev + 1);
-        exitAnim.setValue(0);
-        setIsSliding(false);
-      });
+        }).start(() => {
+          // Continuous light haptic feedback after fade
+          (async () => {
+            for (let i = 0; i <8; i++) {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              await new Promise(res => setTimeout(res, 80));
+            }
+            console.log('[Tutorial] continuous light haptic after fade');
+          })();
+          // Then slide out and slide in new content together
+          Animated.parallel([
+            Animated.timing(exitAnim, {
+              toValue: -(CARD_WIDTH + SPACING),
+              duration: 600,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+              toValue: 0,
+              duration: 600,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setCurrentStep(prev => prev + 1);
+            exitAnim.setValue(0);
+            exitOpacity.setValue(1);
+            // Fade in new content
+            fadeAnim.setValue(0);
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }).start();
+            setIsSliding(false);
+            setIsNavigating(false);
+          });
+        });
+      }, 200);
     } else {
       setIsNavigating(true);
       onSetupComplete();
@@ -490,10 +652,8 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // "次へ"ボタン用のラッパー関数
   const handleNextWrapper = async () => {
-    if (isNavigating || !canProceed) return;
-    setIsNavigating(true);
+    // Always advance without guard
     await handleNext();
-    // setIsNavigating(false); // handleNext may move screen, so do not reset here
   };
 
   const handlePrev = () => {
@@ -515,55 +675,6 @@ const handleSelectLevel = (level: string) => {
     })
     .catch((error) => {
     });
-};
-
-const levelMap: { [key: string]: string } = {
-  '1': '1級',
-  '1_5': '準1級',
-  '2': '2級',
-  '2_5': '準2級',
-  '3': '3級',
-};
-
-const levelColors: { [key: string]: string } = {
-  '1': '#F9D65C',      // Gold-ish
-  '1_5': '#C1C1C1',    // Silver-ish
-  '2': '#CD7F32',      // Bronze-ish
-  '2_5': '#8FD4FF',    // Light Blue
-  '3': '#1c6d6e',      // Light Green
-};
-
-const levelCircleColors: {
-  [key: string]: { large: string; small: string };
-} = {
-  '1':   { large: '#F7E08B', small: '#F9D65C' },
-  '1_5': { large: '#D9D9D9', small: '#C1C1C1' },
-  '2':   { large: '#D9A06B', small: '#CD7F32' },
-  '2_5': { large: '#B4E2FF', small: '#8FD4FF' },
-  '3':   { large: '#89D98D', small: '#1c6d6e' },
-};
-
-// 各級ごとの買い切り価格
-const levelPriceMap: { [key: string]: string } = {
-  '1': '¥1,200',
-  '1_5': '¥900',
-  '2': '¥700',
-  '2_5': '¥500',
-  '3': '¥300',
-};
-
-const levelTextColorMap: {
-  [key: string]: {
-    badge: string;
-    price: string;
-    message: string;
-  };
-} = {
-  '1':   { badge: '#5B4100', price: '#9F7500', message: '#5B4100' },
-  '1_5': { badge: '#777',    price: '#555',    message: '#555'    },
-  '2':   { badge: '#663A00', price: '#663A00', message: '#663A00' },
-  '2_5': { badge: '#135A7E', price: '#2787C8', message: '#135A7E' },
-  '3':   { badge: '#ddd', price: '#eee', message: '#1F5E1F' },
 };
 
 const entitlementMap: { [key: string]: string } = {
@@ -588,16 +699,6 @@ const translateY2 = tiltProgress2.interpolate({
   outputRange: [-24, 0],
 });
 
-
-const handleTiltPress2 = () => {
-  setShowIndicator2(false);
-  Animated.timing(tiltProgress2, {
-    toValue: 1,
-    duration: 600,
-    easing: Easing.out(Easing.quad),
-    useNativeDriver: true,
-  }).start();
-};
   // スケジュールを保存
   const handleSave = async () => {
     try {
@@ -631,21 +732,23 @@ const handleTiltPress2 = () => {
 
   // ボタンのラベルを切り替える
   let buttonLabel = '';
-  if (currentStep === 6) {
+  if (currentStep === 5) {
     buttonLabel = '決定';
+  } else if (currentStep ===0) {
+    buttonLabel = 'はじめる';
   } else if (currentStep < messages.length - 1) {
     buttonLabel = '次へ';
-  } else {
+  } else if (currentStep ===6){
     buttonLabel = 'とりま、無料で始める';
   }
 
   const handlePressBoth1 = () => {
-    handleTiltPress2();
+    alignCards('second');
   };
 
   const handlePressBoth2 = () => {
     handlePurchase();
-    handleTiltPress1();
+    alignCards('first');
   };
 
 
@@ -696,35 +799,35 @@ const handleTiltPress2 = () => {
         </Animated.Text>
       )}
       {i === 1 && (
-        <Animated.Image
-          source={require('../../assets/images/citlinAI.png')}
-          style={{
-            width: SCREEN_WIDTH * 0.7,
-            height: SCREEN_WIDTH * 0.7,
-            marginTop: 40,
-            marginBottom: 20,
-            alignSelf: 'center',
-            opacity: fadeAnim,
-          }}
-          resizeMode="contain"
-        />
+        <LottieView
+            source={require('../../assets/lottie/BisinesAnimation.json')}
+            autoPlay          // ← 追加
+            loop              // ← ずっとループ
+            style={{
+              width: SCREEN_WIDTH,
+              height: SCREEN_WIDTH,
+              alignSelf: 'center',
+              marginTop: -80,
+            }}
+          />
       )}
       {i === 2 && (
         <View style={{ width: SCREEN_WIDTH * 0.7, alignItems: 'center', marginTop: 0 }}>
-          <Animated.Image
-            source={require('../../assets/images/nameTag.png')}
-            style={{
-              width: SCREEN_WIDTH * 0.6,
-              height: SCREEN_WIDTH * 0.6,
-              marginBottom: 10,
-              opacity: fadeAnim,
-            }}
-            resizeMode="contain"
-          />
+            <LottieView
+              source={require('../../assets/lottie/IncorrectPIN.json')}
+              autoPlay
+              loop
+              style={{
+                width: SCREEN_WIDTH * 0.5,
+                height: SCREEN_WIDTH * 0.5,
+                marginBottom: 50,
+                alignSelf: 'center',
+              }}
+            />
           <GlassCard width={SCREEN_WIDTH * 0.7} height={50}>
             <TextInput
               style={{ flex: 1, paddingHorizontal: 10, color: '#fff' }}
-              placeholder="ニックネームを入力..."
+              placeholder="ここに入力してね！！"
               placeholderTextColor="rgb(255, 255, 255)"
               value={nickname}
               onChangeText={text => setNickname(text.normalize())}
@@ -769,7 +872,7 @@ const handleTiltPress2 = () => {
                 <TouchableOpacity onPress={() => handleSelectLevel('3')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={40}
+                    height={60}
                   >
                     <Text
                       style={[
@@ -787,7 +890,7 @@ const handleTiltPress2 = () => {
                 <TouchableOpacity onPress={() => handleSelectLevel('2_5')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={40}
+                    height={60}
                   >
                     <Text
                       style={[
@@ -805,7 +908,7 @@ const handleTiltPress2 = () => {
                 <TouchableOpacity onPress={() => handleSelectLevel('2')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={40}
+                    height={60}
                   >
                     <Text
                       style={[
@@ -823,7 +926,7 @@ const handleTiltPress2 = () => {
                 <TouchableOpacity onPress={() => handleSelectLevel('1_5')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={40}
+                    height={60}
                   >
                     <Text
                       style={[
@@ -841,7 +944,7 @@ const handleTiltPress2 = () => {
                 <TouchableOpacity onPress={() => handleSelectLevel('1')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={40}
+                    height={60}
                   >
                     <Text
                       style={[
@@ -883,82 +986,20 @@ const handleTiltPress2 = () => {
                 transform: [
                   { perspective: 800 },
                   { rotateX: rotateX1 },
-                  { rotate: rotateZ1 },
+                  { rotateZ: rotateZ1 },
                   { translateY: translateY1 },
                 ],
               },
             ]}
           >
-            <View style={[styles.card, { backgroundColor: levelColors[selectedLevel ?? '3'] ?? '#fff' }]}>
-              {/* decorative circles */}
-              <View
-                style={[
-                  styles.circle1,
-                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.circle2,
-                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.large ?? '#5fba6d' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.circleSmall1,
-                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.circleSmall2,
-                  { backgroundColor: levelCircleColors[selectedLevel ?? '3']?.small ?? '#1c6d6e' },
-                ]}
-              />
-              {/* Level badge */}
-              <Text
-                style={[
-                  styles.badgeText,
-                  { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
-                ]}
-              >
-                {levelMap[selectedLevel ?? '3'] ?? (selectedLevel ?? '3')}
-              </Text>
-              <Text
-                style={[
-                  styles.badgeText1,
-                  { color: levelTextColorMap[selectedLevel ?? '3']?.badge ?? '#cbcdd0' },
-                ]}
-              >
-              広告削除
-              </Text>
-              <Text style={styles.mikounyu1}>タップで購入</Text>
-
-              {subscribed && (
-                <Text style={styles.unlockedText}>学習が解放されました！</Text>
-              )}
-
-              {!subscribed && (
-                <Text
-                  style={[
-                    styles.purchaseCardButtonText,
-                    { color: levelTextColorMap[selectedLevel ?? '3']?.price ?? '#cbcdd0' },
-                  ]}
-                >
-                  {`${levelPriceMap[selectedLevel ?? '3'] ?? '—'}`}
-                </Text>
-              )}
-            </View>
+            <CardDesign level={'All Level'} size="mini"/>
           </Animated.View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.purchaseCardButton} 
-          onPress={handlePressBoth1} 
+          style={styles.purchaseCardButton}
+          onPress={handlePressBoth1}
           disabled={isPurchasing}
         >
-          {isPurchasing && (
-            <ActivityIndicator size="large" style={StyleSheet.absoluteFill} />
-          )}
           <Animated.View
             style={[
               styles.cardWrapper,
@@ -966,38 +1007,13 @@ const handleTiltPress2 = () => {
                 transform: [
                   { perspective: 800 },
                   { rotateX: rotateX2 },
-                  { rotate: rotateZ2 },
+                  { rotateZ: rotateZ2 },
                   { translateY: translateY2 },
                 ],
               },
             ]}
           >
-            <LinearGradient
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}           // ← diagonal TL ➜ BR
-              colors={[
-                '#FFF9C4', // pale gold
-                '#FFE082', // light gold
-                '#FFD54F', // mid gold
-                '#FFCA28', // rich gold
-                '#FFC107', // deep gold
-              ]}
-              style={styles.card}
-            >
-                {/* Level list bottom‑left */}
-                  <Text style={styles.levelListHeader}>1〜3級</Text>
-                  <Text style={styles.levelListHeader2}>広告削除</Text>
-                  <Text style={styles.mikounyu}>タップで購入</Text>
-                  <View style={styles.levelListBlock}>
-                  <Text style={styles.levelListText}>1級 / 準1級 / 2級 / 準2級 / 3級</Text>
-                </View>
-
-                <Text style={styles.allAccessDesc1}>
-                  ¥2,000
-                </Text>
-                <Text style={[styles.allAccessDesc, { textDecorationLine: 'line-through' }]}>
-                  ¥3,600
-                </Text>
-            </LinearGradient>
+            <CardDesign level={selectedLevel ?? 'All Level'} size="mini"/>
           </Animated.View>
         </TouchableOpacity>
         </>
@@ -1010,6 +1026,21 @@ const handleTiltPress2 = () => {
     <LinearGradient
       colors={['#000', '#22b']}
       style={styles.container}>
+      {/* Hidden Lottie preloader: mount all animations in advance */}
+      <View style={styles.lottiePreload} pointerEvents="none">
+        <LottieView
+          source={require('../../assets/lottie/hello.json')}
+          autoPlay
+          loop
+          style={styles.lottiePreloadItem}
+        />
+        <LottieView
+          source={require('../../assets/lottie/BisinesAnimation.json')}
+          autoPlay
+          loop
+          style={styles.lottiePreloadItem}
+        />
+      </View>
       {/* Gradient Circle Behind GlassCard */}
       <View style={styles.gradientCircleContainer}>
         <LinearGradient
@@ -1087,7 +1118,7 @@ const handleTiltPress2 = () => {
       </View>
       {/* Back & Next buttons (bottom) */}
       <View style={styles.buttonRow}>
-        {currentStep !== 0 && showPrev && (
+        {currentStep !== 0 && (
           <TouchableOpacity
             style={styles.backButtonRow}
             onPress={handlePrev}
@@ -1098,20 +1129,16 @@ const handleTiltPress2 = () => {
             </GlassCard>
           </TouchableOpacity>
         )}
-        {(currentStep === 0 ? introAnimationDone : showNext) && (
+        <Animated.View style={{ opacity: nextFadeAnim, flex: 8 }}>
           <TouchableOpacity
-            style={[
-              styles.nextButtonRow,
-              (isNavigating || (!canProceed && currentStep >= 2 && currentStep <= 4)) && { opacity: 0.5 },
-            ]}
+            style={styles.nextButtonRow}
             onPress={currentStep === 5 ? handleSave : handleNextWrapper}
-            disabled={isNavigating || (currentStep >= 2 && currentStep <= 4 && !canProceed)}
           >
             <GlassCard width={NEXT_BUTTON_WIDTH} height={BUTTON_ROW_HEIGHT} style={styles.buttonCard}>
               <Text style={styles.buttonText}>{buttonLabel}</Text>
             </GlassCard>
           </TouchableOpacity>
-        )}
+        </Animated.View>
       </View>
     </LinearGradient>
   );
@@ -1147,10 +1174,6 @@ const styles = StyleSheet.create({
     top: '60%',
     right:'-10%',
   },
-  neomorphBox: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   contentContainer: {
     flex: 1,
     justifyContent: 'flex-start',
@@ -1161,18 +1184,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 230,
     alignItems: 'center',
-  },
-  lottieContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  lottieStyle: {
-    position: 'absolute',
-    top: -40,
-    width: 150,
-    height: 150,
-    zIndex: 8,
   },
   text: {
     position: 'absolute',
@@ -1202,59 +1213,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  indicatorOverlayFlat: {
-    position: 'absolute',
-    zIndex: 9999,          // 手前
-    top: '50%',
-    left: '50%',
-    // 中央揃え。size=250 なら −125
-    transform: [
-      { translateX: -125 },
-      { translateY: -125 },
-      { rotateX: '40deg' },
-      { rotate: '24deg' },
-    ],
-    pointerEvents: 'none',
-  },
   buttonText: {
     color: '#fff',
     fontSize: 25, // ← 少し下げる
     fontWeight: 'bold',
   },
-  levelBox: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 30,
-  },
-  selectedLevelBox: {
-    backgroundColor: '#bcdcff',
-  },
   levelButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
   },
   selectedLevelText: {
     color: "rgb(0, 255, 132)",
   },
-  LongWidgetcontainer: {
-    marginTop: 130,
-    width: SCREEN_WIDTH * 0.7,
-    flex: 1,
-    alignItems: 'center',
-  },
-  // progressContainer: {
-  //   width: CARD_WIDTH,
-  //   height: 4,
-  //   backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  //   borderRadius: 2,
-  //   marginBottom: 16,
-  //   overflow: 'hidden',
-  // },
-  // progressBar: {
-  //   height: '100%',
-  //   backgroundColor: '#ffffff',
-  // },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1278,14 +1249,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 24,
+    marginTop:70,
 
-  },
-  purchaseCardButtonText: {
-    position:'absolute',
-    bottom:10,
-    right:20,
-    fontSize:24,
-    fontWeight: '700',
   },
   cardWrapper: {
     width: '70%',
@@ -1293,161 +1258,30 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    // shadow
     shadowColor: '#010',
     shadowOpacity: 0.6,
     shadowOffset: { width: 20, height: 48 },
     shadowRadius: 12,
     elevation: 8,
   },
-  card: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 8,
-    padding: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  circle1: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    top: '-44%',
-    right: '-23%',
-  },
-  circleSmall1: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    top: '-32%',
-    right: '-16%',
-  },
-  circle2: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    bottom: '-56%',
-    left: '-3%',
-  },
-  circleSmall2: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    bottom: '-45%',
-    left: '4%',
-  },
-  badgeText: {
-    position:'absolute',
-    top:0,
-    left:20,
-    fontSize:60,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  badgeText1: {
-    position:'absolute',
-    top:10,
-    right:10,
-    fontSize:20,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  badgeText2: {
-    position:'absolute',
-    bottom:55,
-    right:15,
-    fontSize:20,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  badgeText3: {
-    position:'absolute',
-    bottom:30,
-    right:15,
-    fontSize:20,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  mikounyu1: {
-    position:'absolute',
-    bottom:20,
-    left:20,
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgba(0, 0, 0, 0.42)',
-    marginBottom: 4,
-  },
-  unlockedText: {
-    marginTop: 24,
-    fontSize: 16,
-    color: '#4CAF50',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  levelListHeader: {
-    position:'absolute',
-    top:20,
-    left:20,
-    fontSize: 30,
-    fontWeight: '700',
-    color: 'rgb(77, 80, 0)',
-    marginBottom: 4,
-  },
-  levelListHeader2: {
-    position:'absolute',
-    top:20,
-    right:20,
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgb(77, 80, 0)',
-    marginBottom: 4,
-  },
-  mikounyu: {
-    position:'absolute',
-    bottom:20,
-    left:20,
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgba(77, 80, 0, 0.41)',
-    marginBottom: 4,
-  },
-  levelListText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgb(77, 80, 0)',
-  },
-  levelListBlock: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-  },
-  allAccessDesc: {
-    position:'absolute',
-    bottom:5,
-    right:20,
-    fontSize: 20,
-    color: '#666',
-    fontWeight: '500',
-  },
-  allAccessDesc1: {
-    position:'absolute',
-    bottom:25,
-    right:20,
-    fontSize: 20,
-    color: '#444',
-    fontWeight: '500',
-  },
   backButtonText: {
     color: '#fff',
     fontSize: 18,
     textAlign: 'center',
   },
+  lottiePreload: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+    zIndex: -1,
+  },
+  lottiePreloadItem: {
+    width: 1,
+    height: 1,
+  },
 });
 
 export default InitialSetup;
+
 
