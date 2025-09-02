@@ -3,9 +3,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, ViewStyle, Linking, Modal, TextInput } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import useQuestionData from '../questioncomp/useQuestionData';
 import GlassCard from '../ui/GlassCard';
-
+import * as Notifications from 'expo-notifications';
 const windowWidth = Dimensions.get('window').width;
 
 
@@ -19,7 +18,6 @@ interface FirstTimeComponentProps {
 
 const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
   const [nickname, setNickname] = useState<string>('');
-  const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [dayCount, setDayCount] = useState<number>(1);
 
   const dailyMessages = [
@@ -45,21 +43,7 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
     });
   }, []);
 
-  // ストレージから選択級を取得
-  useEffect(() => {
-    AsyncStorage.getItem('@selected_levels').then(value => {
-      if (value) {
-        try {
-          const parsed = JSON.parse(value);
-          // 配列の場合は最初の要素を使用
-          const lvl = Array.isArray(parsed) ? parsed[0] : parsed;
-          setSelectedLevel(String(lvl));
-        } catch {
-          setSelectedLevel(value);
-        }
-      }
-    });
-  }, []);
+
 
   const safeGetData = async (key: string, defaultValue: any) => {
     try {
@@ -67,7 +51,6 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
       if (!json) return defaultValue;
       return JSON.parse(json);
     } catch (error) {
-      console.log(`[StreakProgressCard] Error loading ${key}:`, error);
       return defaultValue;
     }
   };
@@ -78,7 +61,6 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
     const loadDeadlineDays = async () => {
       try {
         let deadlineData = await safeGetData('@deadline_days', null);
-        console.log(deadlineData);
         // If no streakStart, initialize it to today
         if (!deadlineData?.streakStart) {
           const today = new Date();
@@ -90,7 +72,6 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
             streak: 1,
             today: streakStartISO,
           };
-          console.log(updatedData)
           await AsyncStorage.setItem('@deadline_days', JSON.stringify(updatedData));
           // reflect in local variable
           if (deadlineData) {
@@ -139,10 +120,6 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   // Compute today's date in format: YYYY年M月D日
-  const today = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-  }, []);
   // Animated value for Day counter opacity
   const dayOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -185,18 +162,39 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
   const [notifMessage, setNotifMessage] = useState<string>('単語の勉強の時間やで！😍');
   const [hasOpenedModal, setHasOpenedModal] = useState<boolean>(false);
 
-  const handleConfigureNotifications = useCallback(() => {
+  // 通知許可をリクエストする関数
+  const requestNotificationPermission = async () => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      alert('通知が許可されていません。設定から通知をオンにしてください。');
+      return false;
+    }
+    return true;
+  };
+
+  const handleConfigureNotifications = useCallback(async () => {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
     setHasOpenedModal(true);
     setModalVisible(true);
   }, []);
 
-  // Scheduling function (stub)
-  const scheduleLocalNotification = () => {
-    // TODO: integrate with notification library
-    console.log('Scheduled:', notifMessage, 'at', notifTime);
+  // 通知をスケジューリング
+  const scheduleLocalNotification = async () => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '復習の時間だよ！',
+        body: notifMessage,
+      },
+      trigger: {
+        type: 'calendar',
+        hour: notifTime.getHours(),
+        minute: notifTime.getMinutes(),
+        repeats: true,
+      } as Notifications.CalendarTriggerInput, // ← ここで明示！
+    });
     setModalVisible(false);
   };
-
   return (
     <View style={styles.container}>
       <Animated.Text style={[styles.bigDayText, { opacity: dayOpacity }]}>
@@ -214,21 +212,26 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
 
           <View style={styles.notificationIntro}>
             <Animated.Text style={[styles.title, styles.smallNotifTitle, { opacity: intro1Opacity }]}>
-              でも…
+              まず…
             </Animated.Text>
             <Animated.Text style={[styles.title, styles.smallNotifTitle, { opacity: intro2Opacity }]}>
-              そのために、通知を設定して、
+              通知を設定しよう！
             </Animated.Text>
             <Animated.Text style={[styles.title, styles.smallNotifTitle, { opacity: intro3Opacity }]}>
-              毎日学習できるようにしよう！
-            </Animated.Text>
+            通知を許可すると3倍、継続率が上がるよ！
+              </Animated.Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton} onPress={handleConfigureNotifications}>
-            <View style={styles.notificationButtonContent}>
-              <Ionicons name="notifications-outline" size={20} color="#121212" style={{ marginRight: 8 }} />
-              <Text style={styles.notificationButtonText}>通知を設定する</Text>
-            </View>
-          </TouchableOpacity>
+          <Text style={styles.notificationEffect}>
+            
+          </Text>
+          <View style={styles.centeredButtonContainer}>
+            <TouchableOpacity style={styles.notificationButton} onPress={handleConfigureNotifications}>
+              <View style={styles.notificationButtonContent}>
+                <Ionicons name="notifications-outline" size={20} color="#121212" style={{ marginRight: 8 }} />
+                <Text style={styles.notificationButtonText}>通知を設定する</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
           <Modal visible={modalVisible} transparent animationType="slide">
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -239,6 +242,7 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
                   display="spinner"
                   onChange={(_, date) => date && setNotifTime(date)}
                   style={{ width: '100%' }}
+                  textColor="#000000"
                 />
                 <TextInput
                   style={styles.modalInput}
@@ -294,7 +298,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#333',
+    backgroundColor: '#rgb(6, 0, 25)',
     padding: 20,
   },
   title: {
@@ -492,5 +496,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
+  centeredButtonContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationEffect: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
 });
-

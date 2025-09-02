@@ -1,9 +1,9 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { TouchableOpacity, Text, StyleSheet, View, Dimensions, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Audio } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type Action = {
   label: string;
@@ -28,6 +28,38 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
   shape
 }) => {
   const router = useRouter();
+  // Animated value for cross-fade between shadowed and normal text
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // Debug: log fadeAnim values to confirm animation is running
+  useEffect(() => {
+    const id = fadeAnim.addListener(({ value }) => {
+    });
+    return () => {
+      fadeAnim.removeListener(id);
+    };
+  }, []);
+  // Interpolate text color between two colors in a loop
+  const colorAnim = fadeAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['rgb(0, 255, 208)', '#666', 'rgb(0, 255, 208)'], // red → blue → red
+  });
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: false,
+        }),
+      ]),
+    ).start();
+  }, [fadeAnim]);
+
   // 初期サイズを定義 (size: 'long' の場合は 2 倍)
   const baseWidth = fromShop ? screenWidth * 0.2 : screenWidth * 0.4;
   const width = size === 'box' 
@@ -95,21 +127,68 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
           disabled={fromShop}
         >
           {shape === 'line' ? (
-            <View style={[styles.lineBox, { width, height }]}> 
+            <LinearGradient
+              colors={['rgb(0, 81, 255)', 'rgb(69, 153, 255)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.lineBox,
+                { width, height },
+                // Subtle shadow
+                {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 2, // for Android
+                },
+              ]}
+            >
               {action.label === 'note' ? (
                 <Icon name="notebook-outline" size={fontSize} color="#666" />
               ) : (
-                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+                <Text style={[styles.label, { fontSize, color: '#ffffff' }]}>
+                  {action.label}
+                </Text>
               )}
-            </View>
+            </LinearGradient>
           ) : shape === 'line_cercle' ? (
-            <View style={[styles.circleBox, { width, height, borderRadius: height / 2 }]}>  
-              {action.label === 'note' ? (
-                <Icon name="notebook-outline" size={fontSize} color="#666" />
-              ) : (
-                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
-              )}
-            </View>
+            (desigin === 'rainbow' ? (
+              <LinearGradient
+                colors={['#0000ff', '#add8e6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.circleBox, { width, height, borderRadius: height / 2 }]}
+              >
+                {action.label === 'note' ? (
+                  <Icon name="notebook-outline" size={fontSize} color="#666" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.label,
+                      { fontSize, color: '#666' },
+                    ]}
+                  >
+                    {action.label}
+                  </Text>
+                )}
+              </LinearGradient>
+            ) : (
+              <View style={[styles.circleBox, { width, height, borderRadius: height / 2 }]}>
+                {action.label === 'note' ? (
+                  <Icon name="notebook-outline" size={fontSize} color="#666" />
+                ) : (
+                  <Text
+                    style={[
+                      styles.label,
+                      { fontSize },
+                    ]}
+                  >
+                    {action.label}
+                  </Text>
+                )}
+              </View>
+            ))
           ) : (
             <NeomorphBox
               width={width}
@@ -120,8 +199,25 @@ const WidgetButton: React.FC<WidgetButtonProps> = ({
             >
               {action.label === 'note' ? (
                 <Icon name="notebook-outline" size={fontSize} color="#777" />
+              ) : (size === 'box' || desigin === 'rainbow') ? (
+                <Text
+                  style={[
+                    { fontSize },
+                    { color: '#666' },
+                    { zIndex:6}
+                  ]}
+                >
+                  {action.label}
+                </Text>
               ) : (
-                <Text style={[styles.label, { fontSize }]}>{action.label}</Text>
+                <Animated.Text
+                  style={[
+                    { fontSize },
+                    { color: colorAnim },
+                  ]}
+                >
+                  {action.label}
+                </Animated.Text>
               )}
             </NeomorphBox>
           )}
@@ -142,14 +238,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    color: '#666',
     fontSize:15,
     zIndex:5
   },
   lineBox: {
-    borderWidth: 1,
-    borderColor: '#666',
-    borderRadius: 20,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
   },

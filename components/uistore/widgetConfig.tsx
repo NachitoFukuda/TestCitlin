@@ -8,6 +8,9 @@ import PointsDisplay from './PointsDisplay';
 import StreakProgressCard from './StreakProgressCard';
 import WigeetButton from './wigeetButton';
 import TodayGool from './TodayGool';
+import Hometopcard from './Hometopcard';
+import Calender from './Calender';
+import Heatmapo2 from './Heatmapo2';
 
 // 例えば、この ID に対応づけ
 export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'start06'|'start07'|'start08'|'start09'
@@ -15,9 +18,9 @@ export type WidgetId = 'start01' | 'start02' | 'start03'| 'start04'|'start05'|'s
 |'chach01'| 'chach02' |'chach03'| 'chach04' | 'chach05'| 'chach06'| 'chach07'| 'chach08'
 |'TodayGool1'|'TodayGool2'
 |'TodayGool01'|'TodayGool0'|'Howday1'|'Howday2'
-|'Heatmap01'|'Heatmap02'|'Heatmap03'|'Heatmap04'
-|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress065'|'WeekProgress07'|'WeekProgress08'|'WeekProgress09';
-
+|'Heatmap01'|'Heatmap02'|'Heatmap03'|'Heatmap04'|'Heatmap05'
+|'WeekProgress01'|'WeekProgress02'|'WeekProgress03'|'WeekProgress04'|'WeekProgress05'|'WeekProgress06'|'WeekProgress065'|'WeekProgress07'|'WeekProgress08'|'WeekProgress09'|'WeekProgress10'
+|'calender01';
 // 各ウィジェットの共通 Props 型
 export interface WidgetSettings {
   shopcontainerStyle?: ViewStyle;
@@ -56,7 +59,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     getDefaultProps: () => ({
       actions: [
         {
-          label: 'start',
+          label: 'START',
           onPress: () => console.log('質問画面へ'),
           route: '/question',
         },
@@ -69,7 +72,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     getDefaultProps: () => ({
       actions: [
         {
-          label: 'start',
+          label: 'START',
           onPress: () => console.log('質問画面へ'),
           route: '/question',
         },
@@ -83,7 +86,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     getDefaultProps: () => ({
       actions: [
         {
-          label: 'start',
+          label: 'START',
           onPress: () => console.log('質問画面へ'),
           route: '/question',
         },
@@ -96,7 +99,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     getDefaultProps: () => ({
       actions: [
         {
-          label: 'start',
+          label: 'START',
           onPress: () => console.log('質問画面へ'),
           route: '/question',
         },
@@ -110,7 +113,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
        getDefaultProps: () => ({
          actions: [
            {
-             label: 'start',
+             label: 'START',
              onPress: () => console.log('質問画面へ'),
              route: '/question',
            },
@@ -122,7 +125,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       getDefaultProps: () => ({
         actions: [
           {
-            label: 'start',
+            label: 'START',
             onPress: () => console.log('質問画面へ'),
             route: '/question',
           },
@@ -135,7 +138,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       getDefaultProps: () => ({
         actions: [
           {
-            label: 'start',
+            label: 'START',
             onPress: () => console.log('質問画面へ'),
             route: '/question',
           },
@@ -148,7 +151,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
      getDefaultProps: () => ({
        actions: [
          {
-           label: 'start',
+           label: 'START',
            onPress: () => console.log('質問画面へ'),
            route: '/question',
          },
@@ -162,7 +165,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     getDefaultProps: () => ({
       actions: [
         {
-          label: 'start',
+          label: 'START',
           onPress: () => console.log('質問画面へ'),
           route: '/question',
         },
@@ -282,6 +285,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       component: TodayGool,
       getDefaultProps: () => {
         return {
+          fromShop: false,
           display:'Howday',
           desigin:'rainbow'
         };
@@ -291,6 +295,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     component: Heatmapo1,
     getDefaultProps: () => {
       return {
+        fromShop: false,
         data: Array.from({ length: 10 }, () => Array(10).fill(0.5)),
         label: 'brack',
         shape:'circle',
@@ -302,6 +307,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     component: Heatmapo1,
     getDefaultProps: () => {
       return {
+        fromShop: false,
         data: Array.from({ length: 10 }, () => Array(10).fill(0.5)),
         label: 'blue',
         shape:'circle',
@@ -314,6 +320,7 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     component: Heatmapo1,
     getDefaultProps: () => {
       return {
+        fromShop: false,
         data: Array.from({ length: 10 }, () => Array(10).fill(0.5)),
         label: 'brack',
         shape:'square',
@@ -326,11 +333,21 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
     component: Heatmapo1,
     getDefaultProps: () => {
       return {
+        fromShop: false,
         data: Array.from({ length: 10 }, () => Array(10).fill(0.5)),
         label: 'blue',
         shape:'square',
         backgroundColor:'white',
         border:'numo',
+      };
+    },
+  },
+  Heatmap05: {
+    component: Heatmapo2,
+    getDefaultProps: () => {
+      return {
+        fromShop: false,
+        data: Array.from({ length: 10 }, () => Array(10).fill(0.5)),
       };
     },
   },
@@ -411,5 +428,17 @@ export const WIDGET_CONFIG: Record<WidgetId, WidgetSettings> = {
       color: 'wight',
       shape:'RadarChart'
     }),
+},
+WeekProgress10: {
+  component: Hometopcard,
+  getDefaultProps: () => ({
+    fromShop: false,
+  }),
+},
+calender01: {
+  component: Calender,
+  getDefaultProps: () => ({
+    fromShop: false,
+  }),
 },
 };

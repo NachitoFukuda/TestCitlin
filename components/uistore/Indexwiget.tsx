@@ -146,17 +146,11 @@ export default function DraggableItem({
       ))}
     </Animated.View>
   );
-  
 }
 
 const styles = StyleSheet.create({
   widgetContainer: { 
     position: 'absolute', 
-  },
-  text: { 
-    fontSize: 12, 
-    textAlign: 'center', 
-    color: '#333', // テキスト色を少し濃く
   },
   actionButton: {
     marginTop: 4,

@@ -3,9 +3,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ref as dbRef, set as dbSet } from 'firebase/database';
+import { auth, rdb } from '../../firebaseConfig'; // adjust the path as needed
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-
 
 type ShopItem = {
   id: string;
@@ -70,7 +71,6 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
         <TouchableOpacity
           style={styles.purchaseButton}
           onPress={async () => {
-            console.log('[Detail] Attempt purchase for item:', item.id);
             try {
               // 1. ポイント差し引き
               const ptsJson = await AsyncStorage.getItem('@quiz_points');
@@ -81,7 +81,12 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
               }
               const newPoints = points - item.price;
               await AsyncStorage.setItem('@quiz_points', JSON.stringify(newPoints));
-              console.log('[Detail] Purchase successful, newPoints:', newPoints);
+              const storedUid = await AsyncStorage.getItem('@user_uid');
+              const writeUid = storedUid ?? auth.currentUser?.uid;
+              if (writeUid) {
+                const assetRef = dbRef(rdb, `users/${writeUid}/totalPoints`);
+                await dbSet(assetRef, newPoints);
+              }
               Alert.alert('購入完了', `${item.name} を購入しました！`);
               // チュートリアルステップを保存
 
@@ -91,7 +96,6 @@ export default function Detail({ item, onTutorialStepChange, onButtonTap }: Deta
               const purchases: Record<string, ShopItem> = raw ? JSON.parse(raw) : {};
               purchases[item.id] = item;
               await AsyncStorage.setItem('@quiz:purchases', JSON.stringify(purchases));
-              console.log('[Detail] Purchases saved:', purchases);
               setPurchasesLength(Object.keys(purchases).length);
             } catch (e) {
               console.error('[Detail] purchase error:', e);
@@ -142,12 +146,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 40,
     width: '100%',
-  },
-
-  widgetTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
   },
   title: {
     fontSize: 28,
@@ -215,12 +213,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
     height: '100%',
-  },
-  tapIndicatorContainer: {
-    position: 'absolute',
-    top: -90, // 半分のサイズ分上に移動
-    left: '50%',
-    marginLeft: -100, // 半分のサイズ分左に移動
-    zIndex: 1,
   },
 });

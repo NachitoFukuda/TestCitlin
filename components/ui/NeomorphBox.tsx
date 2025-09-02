@@ -14,9 +14,8 @@ interface NeomorphBoxProps {
   height?: number;
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  forceTheme?: 'light' ;
-  /** 親要素から 'AI' を渡すと、背景色がアニメーション */
-  variant?: 'circle' | 'AI' | 'VIP' | 'blue' | 'graph' | 'rainbow';
+  forceTheme?: 'light' | 'blue';  /** 親要素から 'AI' を渡すと、背景色がアニメーション */
+  variant?: 'circle1' | 'circle' | 'AI' | 'VIP' | 'blue' | 'graph' | 'rainbow';
   /** ボタンの色を指定 */
   push?: boolean;
 }
@@ -84,9 +83,9 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
           ],
         })
       : variant === 'VIP'
-      ? '#444'
+      ? '#070707ff'
       : variant === 'blue'
-      ? 'rgba(0, 123, 255, 0.79)'
+      ? '#0040ffff'
       : variant === 'graph'
       ? '#666'
       : baseOuter;
@@ -107,7 +106,7 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
       : variant === 'VIP'
       ? '#000'
       : variant === 'blue'
-      ? 'rgba(0, 123, 255, 0.79)'
+      ? '#0040ffff'
       : variant === 'graph'
       ? '#E3E5F2'
       : baseInner;
@@ -149,6 +148,8 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
       ? getRainbowShadowColor('top')
       : variant === 'VIP'
       ? '#rgb(249, 229, 117)'
+      : variant === 'blue'
+      ? '#c1f9ffff' // 明るめブルーの外側シャドウ
       : colors.outerShadow;
 
   const innerShadowColor =
@@ -167,6 +168,8 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
       ? getRainbowShadowColor('bottom')
       : variant === 'VIP'
       ? 'rgb(147, 125, 0)'
+      : variant === 'blue'
+      ? '#1a008cff' // 濃いめブルーの内側シャドウ
       : colors.innerShadow;
 
   return (
@@ -179,7 +182,7 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
           backgroundColor: outerBackground,
           shadowColor: outerShadowColor,
           shadowOpacity: variant === 'VIP' ? 0.7 : 0.9,
-          borderRadius: variant === 'circle' ? width / 2 : variant === 'graph' ? 0 : 15,
+          borderRadius: variant === 'circle' || variant === 'circle1' ? width / 2 : variant === 'graph' ? 0 : 15,
           ...(variant === 'rainbow' && {
             shadowOffset: { width: -4, height: -4 },
             shadowColor: getRainbowShadowColor('top'),
@@ -195,7 +198,7 @@ const NeomorphBox: React.FC<NeomorphBoxProps> = ({
             backgroundColor: innerBackgroundColor,
             shadowColor: innerShadowColor,
             shadowOpacity: variant === 'VIP' ? 0.4 : 0.6,
-            borderRadius: variant === 'circle' ? width / 2 : variant === 'graph' ? 0 : 15,
+            borderRadius: variant === 'circle' || variant === 'circle1' ? width / 2 : variant === 'graph' ? 0 : 15,
             ...(variant === 'rainbow' && {
               shadowOffset: { width: 4, height: 4 },
               shadowColor: getRainbowShadowColor('bottom'),

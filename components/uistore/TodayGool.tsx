@@ -2,9 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+import { getAuth } from 'firebase/auth';
+import { getDatabase, ref as dbRef, onValue } from 'firebase/database';
 import NeomorphBox from '../ui/NeomorphBox';
 import useQuestionData from '../questioncomp/useQuestionData';
 
+// ---- helpers: 開始日からの経過日数（さっきの方式）----
+const getTodayStart = (): Date => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+const calcElapsedDays = (startISO: string): number => {
+  const start = new Date(startISO);
+  start.setHours(0, 0, 0, 0);
+  const today = getTodayStart();
+  return Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+};
+// -----------------------------------------------
 
 /**
  * ポイント数を AsyncStorage から読み込み、0からカウントアップで表示するコンポーネント
@@ -32,7 +49,6 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
   desigin,
   display,
 }) => {
-  const [points, setPoints] = useState<number>(0);
   const [counts, setCounts] = useState<number>(0);
   const animatedValue = useRef(new Animated.Value(0)).current;
   const isFocused = useIsFocused();
@@ -41,19 +57,25 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
   const CORRECT_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
+  const dayAnim = useRef(new Animated.Value(0)).current;
+  const countAnim = useRef(new Animated.Value(0)).current;
+
+  const [displayedDay, setDisplayedDay] = useState<number>(1);
+  const [displayedCount, setDisplayedCount] = useState<number>(0);
+  const prevDayRef = useRef<number>(1);
+  const prevCountRef = useRef<number>(0);
+
   // AsyncStorage から読み込み
   useEffect(() => {
     const loadDeadlineDays = async () => {
       try {
         const deadlineData = await safeGetData('@deadline_days', null);
-        if (deadlineData?.savedAt) {
-          const savedDate = new Date(deadlineData.savedAt);
-          savedDate.setHours(0, 0, 0, 0);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const diffTime = today.getTime() - savedDate.getTime();
-          const dayCount = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          setDayCount(dayCount);
+        const startISO: string | undefined = deadlineData?.streakStart || deadlineData?.savedAt;
+        if (startISO) {
+          const days = calcElapsedDays(startISO);
+          setDayCount(days > 0 ? days : 1);
+        } else {
+          setDayCount(1);
         }
       } catch (error) {
         console.log('[StreakProgressCard] Error in loadDeadlineDays:', error);
@@ -62,24 +84,90 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
     loadDeadlineDays();
   }, []);
 
+  useEffect(() => {
+    const start = Number.isFinite(displayedDay) ? displayedDay : 0;
+    const end = Number.isFinite(dayCount) ? dayCount : 0;
+    prevDayRef.current = start;
+    dayAnim.setValue(0);
+
+    const id = dayAnim.addListener(({ value }) => {
+      const v = Math.round(start + (end - start) * value);
+      setDisplayedDay(v);
+    });
+
+    Animated.timing(dayAnim, { toValue: 1, duration: 420, useNativeDriver: true }).start(() => {
+      dayAnim.removeListener(id);
+      setDisplayedDay(end);
+    });
+
+    return () => {
+      dayAnim.removeListener(id);
+    };
+  }, [dayCount]);
+
+  useEffect(() => {
+    const target = Math.floor((Number.isFinite(counts) ? counts : 0) / 2);
+    const start = Number.isFinite(displayedCount) ? displayedCount : 0;
+    prevCountRef.current = start;
+    countAnim.setValue(0);
+
+    const id = countAnim.addListener(({ value }) => {
+      const v = Math.round(start + (target - start) * value);
+      setDisplayedCount(v);
+    });
+
+    Animated.timing(countAnim, { toValue: 1, duration: 420, useNativeDriver: true }).start(() => {
+      countAnim.removeListener(id);
+      setDisplayedCount(target);
+    });
+
+    return () => {
+      countAnim.removeListener(id);
+    };
+  }, [counts]);
+
   // points 更新時や画面がフォーカスされたときにアニメーション実行
 
-  // 今日の正解数を safeGetData で取得
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await safeGetData(CORRECT_KEY, {});
-        const todayKey = new Date().toISOString().split('T')[0];
-        if (data.hasOwnProperty(todayKey)) {
-          setCounts(data[todayKey]);
-        } else {
-          setCounts(0);
-        }
-      } catch (e) {
-        console.error('[TodayGool] Error loading today correct data:', e);
-      }
-    })();
-  }, [isFocused]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let unsubscribe: (() => void) | undefined;
+      (async () => {
+        // Determine today’s key
+        const levelJson = await AsyncStorage.getItem('@selected_levels');
+        const level = levelJson ? JSON.parse(levelJson)[0] : '1';
+        const sanitizedLevel = String(level).replace('.', '_');
+        const auth = getAuth();
+        const db = getDatabase();
+        const uid = auth.currentUser?.uid;
+        if (!uid) return;
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayKey = `${yyyy}-${mm}-${dd}`;
+        // Subscribe to daily correct count
+        const correctRef = dbRef(
+          db,
+          `users/${uid}/dailyCorrect_${sanitizedLevel}/${todayKey}`
+        );
+        unsubscribe = onValue(
+          correctRef,
+          snapshot => {
+            const val = snapshot.val();
+            setCounts(typeof val === 'number' ? val : 0);
+          },
+          error => {
+            console.error('[TodayGool] dailyCorrect onValue error:', error);
+            setCounts(0);
+          }
+        );
+      })();
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }, [])
+  );
 
   const screenWidth = Dimensions.get('window').width;
   const baseWidth = screenWidth * 0.45;
@@ -114,7 +202,21 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
               <>
                 <Text style={[styles.value, { fontSize: valueFontSize }]}>学習日数</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{dayCount}</Text>
+                  <Animated.Text
+                    style={[
+                      styles.value,
+                      { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold',
+                        opacity: dayAnim,
+                        transform: [{
+                          scale: dayAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] })
+                        }, {
+                          translateY: dayAnim.interpolate({ inputRange: [0, 1], outputRange: [2, 0] })
+                        }]
+                      }
+                    ]}
+                  >
+                    {displayedDay}
+                  </Animated.Text>
                   <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>日目</Text>
                 </View>
               </>
@@ -122,7 +224,21 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
               <>
                 <Text style={[styles.value, { fontSize: valueFontSize }]}>今日の学習単語</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{counts}</Text>
+                  <Animated.Text
+                    style={[
+                      styles.value,
+                      { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold',
+                        opacity: countAnim,
+                        transform: [{
+                          scale: countAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] })
+                        }, {
+                          translateY: countAnim.interpolate({ inputRange: [0, 1], outputRange: [2, 0] })
+                        }]
+                      }
+                    ]}
+                  >
+                    {displayedCount}
+                  </Animated.Text>
                   <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>単語</Text>
                 </View>
               </>
@@ -140,7 +256,21 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
               <>
                 <Text style={[styles.value, { fontSize: valueFontSize }]}>学習日数</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{dayCount}</Text>
+                  <Animated.Text
+                    style={[
+                      styles.value,
+                      { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold',
+                        opacity: dayAnim,
+                        transform: [{
+                          scale: dayAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] })
+                        }, {
+                          translateY: dayAnim.interpolate({ inputRange: [0, 1], outputRange: [2, 0] })
+                        }]
+                      }
+                    ]}
+                  >
+                    {displayedDay}
+                  </Animated.Text>
                   <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>日目</Text>
                 </View>
               </>
@@ -148,8 +278,22 @@ const TodayGool: React.FC<PTodayGoolProps> = ({
               <>
                 <Text style={[styles.value, { fontSize: valueFontSize }]}>今日の学習単語</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                  <Text style={[styles.value, { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold' }]}>{counts}</Text>
-                  <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>単語</Text>
+                <Animated.Text
+                  style={[
+                    styles.value,
+                    { fontSize: valueFontSize * 2, color: '#888', fontWeight: 'bold',
+                      opacity: countAnim,
+                      transform: [{
+                        scale: countAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] })
+                      }, {
+                        translateY: countAnim.interpolate({ inputRange: [0, 1], outputRange: [2, 0] })
+                      }]
+                    }
+                  ]}
+                >
+                  {displayedCount}
+                </Animated.Text>
+                <Text style={[styles.value, { fontSize: valueFontSize * 1.2, color: '#888', fontWeight: 'bold' }]}>単語</Text>
                 </View>
               </>
             )}
@@ -165,23 +309,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    fontSize:5,
-    color: '#333',
-    marginRight: 4,
-  },
   value: {
     fontSize: 18,
     color:'#666'
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#888',
   },
 });
 

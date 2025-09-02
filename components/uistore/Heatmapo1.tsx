@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Text, Dimensions } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuth } from 'firebase/auth';
+import { getDatabase, ref as dbRef, get } from 'firebase/database';
 import NeomorphBox from '../ui/NeomorphBox';
 import useQuestionData from '../questioncomp/useQuestionData';
 
-const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; backgroundColor?: string; border?: string; }> =
-  ({ fromShop = false, label, shape, backgroundColor, border }) => {
+const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; backgroundColor?: string; border?: string; testDate?: string; }> =
+  ({ fromShop = false, label, shape, backgroundColor, border, testDate }) => {
   const containerBgColor =
     backgroundColor === 'brack'
       ? '#000000'
@@ -13,6 +14,14 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
       ? '#FFFFFF'
       : backgroundColor || 'transparent';
   const scale = fromShop ? 0.6 : 1;
+  // テスト用: testDate があればその日付を「今日」として扱う
+  const effectiveToday = useMemo(() => {
+    if (testDate) {
+      const [y, m, d] = testDate.split('-').map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    }
+    return new Date();
+  }, [testDate]);
   // デフォルトデータ（ストレージに値がない場合はすべて0）
   const defaultData: number[][] = Array.from({ length: 4 }, () =>
     Array.from({ length: 7 }, () => 0)
@@ -20,46 +29,71 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
   const [data, setData] = useState<number[][]>(defaultData);
   const { level } = useQuestionData();
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
   // Determine the maximum score for dynamic color scaling (at least 1 to avoid division by zero)
   const flatData = data.flat();
   const maxValue = flatData.reduce((max, val) => Math.max(max, val), 1);
 
   useEffect(() => {
     (async () => {
-      const scoreJson = await AsyncStorage.getItem(CORRECT_New_KEY);
-      const scoreData: Record<string, any> = scoreJson ? JSON.parse(scoreJson) : {};
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        setData(defaultData);
+        return;
+      }
+      const db = getDatabase();
+      const snap = await get(dbRef(db, `users/${user.uid}/dailyCorrect_${sanitizedLevel}`));
+      const allData: Record<string, any> = snap.val() || {};
+
       // Clone defaultData
       const newData = defaultData.map(row => row.slice());
-      const today = new Date();
-      // Populate heatmap cells with stored counts
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const delta = (rows - 1 - r) * 7 + (todayIndex - c);
-          if (delta >= 0) {
-            const d = new Date(today);
-            d.setDate(today.getDate() - delta);
-            const key = d.toISOString().split('T')[0];
-            const rawVal = scoreData[key];
-            let num = 0;
-            if (typeof rawVal === 'string' && rawVal.includes('/')) {
-              // parse ratio string "count/goal"
-              num = Number(rawVal.split('/')[0]) || 0;
-            } else if (typeof rawVal === 'number') {
-              num = rawVal;
-            }
-            newData[r][c] = num;
-          }
+      const today = effectiveToday;
+
+      // Heatmapo2 と同じデータ配置ロジック
+      // 1) すべての日付キー(YYYY-MM-DD)を today からの差分日数で配置
+      // 2) 今日の値は一旦保持し、最後に最下段の todayIndex に書き込む
+      let todayValue = 0;
+
+      Object.entries(allData).forEach(([dateKey, rawVal]) => {
+        // 値を数値に正規化（"count/goal" 形式も先頭を採用）
+        let count = 0;
+        if (typeof rawVal === 'number') count = rawVal;
+        else if (typeof rawVal === 'string') count = rawVal.includes('/') ? Number(rawVal.split('/')[0]) || 0 : Number(rawVal) || 0;
+
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const date = new Date(y, (m || 1) - 1, d || 1);
+        const diffDays = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 0) {
+          todayValue = count;
+        } else if (diffDays >= 0 && diffDays < rows * cols) {
+          const row = rows - 1 - Math.floor(diffDays / cols);
+          const col = date.getDay();
+          newData[row][col] = count;
         }
+      });
+
+      // 未来日データがある場合の繰り上げ処理（Heatmapo2 と同じ）
+      const todayIndexLocal = today.getDay();
+      const lastRow = rows - 1;
+      const hasFutureInLastRow = newData[lastRow].some((val, idx) => idx > todayIndexLocal && val > 0);
+      if (hasFutureInLastRow) {
+        for (let r = 0; r < rows - 1; r++) {
+          newData[r] = [...newData[r + 1]];
+        }
+        newData[lastRow] = Array.from({ length: cols }, () => 0);
       }
+
+      // 繰り上げ後に今日の値を最後の行の今日カラムに書き込む
+      newData[lastRow][todayIndexLocal] = todayValue;
+
       setData(newData);
     })();
-  }, [sanitizedLevel]);
+  }, [sanitizedLevel, effectiveToday]);
 
 
 
     const cellMargin = 3;
-    const todayIndex = new Date().getDay(); // 0=Sunday ... 6=Saturday
+    const todayIndex = effectiveToday.getDay(); // 0=Sunday ... 6=Saturday
 
     // HSLからRGBへの変換関数
     const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
@@ -96,13 +130,13 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
   };
 
   const screenWidth = Dimensions.get('window').width;
-  const containerHeight = screenWidth * 0.75;
+  const containerHeight = screenWidth * 0.85;
 
   const cols = 7;
   const rows = 4;  // 固定で4行に設定
 
   // 正方形セルのサイズは両方向の最小値
-  const cellSize = 35 ;
+  const cellSize = 40 ;
   // 7列＋セル間マージンで正確なグリッド幅を計算
   const gridWidth = cellSize * cols + cellMargin * (cols - 1);
   const containerPadding = cellMargin + 10;
@@ -135,7 +169,7 @@ const Heatmap1: React.FC<{ fromShop?: boolean; label?: string; shape?: string; b
             <View style={{ transform: [{ scale }] }}>
               {/* 曜日ヘッダー */}
               <View style={{ flexDirection: 'row', width: gridWidth, marginBottom: cellMargin, alignItems: 'center' }}>
-                {['snu', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day, idx) => (
+                {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day, idx) => (
                   <Text
                     key={`header-${idx}`}
                     style={{

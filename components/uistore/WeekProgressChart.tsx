@@ -1,9 +1,10 @@
 import Svg, { Polyline, Path, Line, Polygon, Defs, LinearGradient, Stop } from 'react-native-svg';
 import React, { useState, useEffect } from 'react';
 import { View, Text, Dimensions, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import NeomorphBox from '../ui/NeomorphBox';
 import useQuestionData from '../questioncomp/useQuestionData';
+import { getDatabase, ref, query, orderByKey, limitToLast, onValue } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 
 /**
  * 過去1週間分の学習進捗データを棒グラフで表示するコンポーネント
@@ -26,73 +27,43 @@ const WeekProgressChart: React.FC<WeekProgressChartProps> = ({
   color = '#666',
   data,
   backgroundColor,
-  size,
-}) => {
+  size,}) => {
+  const db = getDatabase();
+  const auth = getAuth();
+  const currentUid = auth.currentUser?.uid;
+
   // weekDataはストレージから取得する
   const [weekData, setWeekData] = useState<number[]>(Array(7).fill(0));
   const [lastWeekData, setLastWeekData] = useState<number[]>(Array(7).fill(0));
   const { level } = useQuestionData();
+  const [todayGoal, setTodayGoal] = useState<number>(0);
+  const [dayCount, setDayCount] = useState<number>(1);
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
-  
-useEffect(() => {
-    (async () => {
-      if (!fromShop) {
-        // Generate placeholder random weekly data when shown in shop
-        const randomData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
-        setWeekData(randomData);
-        // 先週分もランダム生成
-        const randomPrevData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
-        setLastWeekData(randomPrevData);
-        return;
-      }
-      const scoreJson = await AsyncStorage.getItem(CORRECT_New_KEY);
-      console.log(scoreJson)
-      const scoreData: Record<string, any> = scoreJson ? JSON.parse(scoreJson) : {};
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayIndex = today.getDay(); // 0=Sunday ... 6=Saturday
-      const lastWeek: number[] = Array(7).fill(0);
-      const prevWeek: number[] = Array(7).fill(0);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - (todayIndex - i));
-        const key = d.toISOString().split('T')[0];
-        const rawVal = scoreData[key];
-        let num = 0;
-        if (typeof rawVal === 'string' && rawVal.includes('/')) {
-          // parse ratio string "count/goal"
-          num = Number(rawVal.split('/')[0]) || 0;
-        } else if (typeof rawVal === 'number') {
-          num = rawVal;
-        }
-        lastWeek[i] = num;
 
-        // 先週分
-        const dPrev = new Date(today);
-        dPrev.setDate(today.getDate() - 7 - (todayIndex - i));
-        const keyPrev = dPrev.toISOString().split('T')[0];
-        const rawPrev = scoreData[keyPrev];
-        let numPrev = 0;
-        if (typeof rawPrev === 'string' && rawPrev.includes('/')) {
-          numPrev = Number(rawPrev.split('/')[0]) || 0;
-        } else if (typeof rawPrev === 'number') {
-          numPrev = rawPrev;
-        }
-        prevWeek[i] = numPrev;
-      }
-      setWeekData(lastWeek);
-      // 先週分が全て0ならランダムデータをセット
-      if (prevWeek.every(v => v === 0)) {
-        const randomPrevData = Array(7).fill(0).map(() => Math.floor(Math.random() * 10));
-        setLastWeekData(randomPrevData);
-      } else {
-        setLastWeekData(prevWeek);
-      }
-    })();
-  }, [sanitizedLevel, fromShop]);
-
-
+  useEffect(() => {
+    if (!currentUid || !sanitizedLevel) return;
+    // Subscribe to last 7 days of data in real-time
+    const weeklyQuery = query(
+      ref(db, `users/${currentUid}/dailyCorrect_${sanitizedLevel}`),
+      orderByKey(),
+      limitToLast(7)
+    );
+    const unsubscribe = onValue(weeklyQuery, snap => {
+      const dataObj: Record<string, number> = snap.val() || {};
+      const arr = Array(7).fill(0);
+      Object.entries(dataObj).forEach(([dateStr, val]) => {
+        const d = new Date(dateStr);
+        d.setHours(0,0,0,0);
+        const idx = d.getDay();
+        if (idx >= 0 && idx < 7) arr[idx] = val;
+      });
+      setWeekData(arr);
+    }, error => {
+      console.error('[WeekProgressChart] RTDB weekly onValue error:', error);
+    });
+    // Cleanup subscription on unmount or level change
+    return () => unsubscribe();
+  }, [sanitizedLevel]);
 
   // Maintain width:height ratio of 2:1
   const ASPECT_RATIO = 0.5;
@@ -114,14 +85,6 @@ useEffect(() => {
   const simpleContainerHeight = chartHeight * 0.9;
   const simpleInnerHeight = simpleContainerHeight - innerMargin * 3;
 
-  // 背景色を親プロップから選択
-  const containerBgColor =
-    backgroundColor === 'brack'
-      ? '#000'
-      : backgroundColor === 'wight'
-      ? '#fff'
-      : backgroundColor || '#fff';
-
   // 月曜日始まり or 日曜日始まりに合わせて日付ラベル
   const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -142,34 +105,37 @@ useEffect(() => {
     return d;
   };
 
-  // データ優先度: dataが7件ならそちらを使い、なければweekData
-  const levelData = data && data.length === 7 ? data : weekData;
+  // Always use weekData (populated from AsyncStorage) for chart
+  const levelData = weekData;
   const prevLevelData = lastWeekData;
-
-  // Normalize heights based on actual data maximum (at least 1 to avoid zero division)
-  const maxVal = levelData.reduce((m, v) => Math.max(m, v), 1);
-  const prevMaxVal = prevLevelData.reduce((m, v) => Math.max(m, v), 1);
+  // Use today's goal as the maximum scale; if zero, use highest weekData value (at least 1)
+  const dataMax = Math.max(...weekData, ...lastWeekData, 1);
+  const maxVal = todayGoal > 0 ? todayGoal : dataMax;
 
   // 棒グラフ描画
-  const renderBarChart = () => (
-    <View style={[styles.bars, { height: innerHeight * 0.8, width: '100%' }]}>
-      {levelData.map((value, i) => {
-        const barHeight = (value / maxVal) * (innerHeight * 0.8);
-        return (
-          <View
-            key={i}
-            style={{
-              flex: 1,
-              marginHorizontal: 4,
-              height: barHeight,
-              backgroundColor: color,
-              borderRadius: 4,
-            }}
-          />
-        );
-      })}
-    </View>
-  );
+  const renderBarChart = () => {
+    const barWidth = innerWidth / levelData.length * 0.6;
+    return (
+      <View style={[styles.bars, { height: innerHeight * 0.8, width: '100%' }]}>
+        {levelData.map((value, i) => {
+          // Cap the bar to not exceed 100% of chart height
+          const cappedValue = Math.min(value, maxVal);
+          const barHeight = (cappedValue / maxVal) * (innerHeight * 0.8);
+          return (
+            <View
+              key={i}
+              style={{
+                width: barWidth,
+                height: barHeight,
+                backgroundColor: color,
+                borderRadius: 4,
+              }}
+            />
+          );
+        })}
+      </View>
+    );
+  };
 
   // 折れ線グラフ描画
   const renderLineChart = () => {
@@ -259,7 +225,8 @@ useEffect(() => {
   };
 
   return (
-    <View style={[styles.container, { width: '100%', height: chartHeight }]}>
+    <>
+      <View style={[styles.container, { width: '100%', height: chartHeight }]}>
       {shape === 'simple' ? (
         // Simple mode: no NeomorphBox
         <View style={{
@@ -277,7 +244,7 @@ useEffect(() => {
             width: '100%',
           }}>
             {levelData.map((value, i) => {
-              const barHeight = (value / maxVal) * (simpleInnerHeight);
+              const barHeight = (value / todayGoal) * (simpleInnerHeight);
               return (
                 <View
                   key={i}
@@ -328,7 +295,8 @@ useEffect(() => {
         </View>
       ) : (
         // Default mode: wrap in NeomorphBox
-        <NeomorphBox width={innerWidth} height={innerHeight} forceTheme="light">
+        <>
+          <NeomorphBox width={innerWidth} height={innerHeight} forceTheme="light">
           <View style={{
             width: '100%',
             height: '100%',
@@ -354,8 +322,10 @@ useEffect(() => {
             </View>
           </View>
         </NeomorphBox>
+        </>
       )}
     </View>
+    </>
   );
 };
 
@@ -368,6 +338,7 @@ const styles = StyleSheet.create({
   bars: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    justifyContent: 'space-around',
   },
   bar: {
     flex: 1,

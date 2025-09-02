@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+import { getAuth } from 'firebase/auth';
+import { getDatabase, ref as dbRef, onValue } from 'firebase/database';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
@@ -43,7 +47,6 @@ interface StreakProgressCardProps {
   const [counts, setCounts] = useState<number>(0);
   const { level } = useQuestionData();
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
-  const STORAGE_KEY_LEVEL = `correctData_${sanitizedLevel}`;
   const CORRECT_New_KEY = `DAYLY_CORRECT_${sanitizedLevel}`;
 
   
@@ -102,17 +105,6 @@ interface StreakProgressCardProps {
         const stepsData = await safeGetData(STEPS_KEY, 0);
         setSteps(typeof stepsData === 'number' ? stepsData : 0);
 
-        // 正解数の読み込み
-        const correctData = await safeGetData(STORAGE_KEY_LEVEL, {});
-        if (typeof correctData === 'object') {
-          const values = Object.values(correctData);
-          const count2_3 = values.filter((obj: any) => obj && (obj.C === 2 || obj.C === 3)).length;
-          const count4_5 = values.filter((obj: any) => obj && (obj.C === 4 || obj.C === 5)).length;
-          const count6_7 = values.filter((obj: any) => obj && (obj.C === 6 || obj.C === 7)).length;
-          const count8_9 = values.filter((obj: any) => obj && (obj.C === 8 || obj.C === 9)).length;
-          setCorrectCount(count2_3 + count4_5 + count6_7 + count8_9);
-        }
-
         // 今日の目標の読み込み
         const generatedData = await safeGetData(GENERATED_KEY, []);
         let entry;
@@ -158,30 +150,31 @@ interface StreakProgressCardProps {
     loadGeneratedData();
   }, [dayCount]);
 
-  useEffect(() => {
-    (async () => {
-      if (!sanitizedLevel || sanitizedLevel === 'unknown') return;
-      try {
-        const data = await safeGetData(CORRECT_New_KEY, {});
-        const todayKey = new Date().toISOString().split('T')[0];
-        if (data.hasOwnProperty(todayKey)) {
-          // Parse stored ratio string "count/goal" or numeric value
-          const stored = data[todayKey];
-          // If it's a string like "2/1", take the count before the slash
-          const countValue = typeof stored === 'string' && stored.includes('/')
-            ? Number(stored.split('/')[0])
-            : Number(stored);
-          // Divide by 2 and floor the result to drop decimals
-          const halfValue = Math.floor(countValue / 2);
-          setCounts(halfValue);
-        } else {
-          setCounts(0);
-        }
-      } catch (e) {
-        console.error('[StreakProgressCard] Error loading today correct data:', e);
-      }
-    })();
-  }, [sanitizedLevel]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!sanitizedLevel) return;
+      const auth = getAuth();
+      const db = getDatabase();
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const todayKey = `${yyyy}-${mm}-${dd}`;
+      const todayRef = dbRef(db, `users/${uid}/dailyCorrect_${sanitizedLevel}/${todayKey}`);
+      const unsubscribe = onValue(todayRef, snapshot => {
+        const val = snapshot.val();
+        const countValue = typeof val === 'number' ? val : 0;
+        const halfValue = Math.floor(countValue / 2);
+        setCounts(halfValue);
+      }, error => {
+        console.error('[StreakProgressCard] today RTDB onValue error:', error);
+        setCounts(0);
+      });
+      return () => unsubscribe();
+    }, [sanitizedLevel])
+  );
 
   // 継続日数 = 連続で>0 の日数
   const streak = (() => {
@@ -364,7 +357,7 @@ interface StreakProgressCardProps {
         {/* STEPS */}
         <View style={styles.stepsRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.stepsLabel, { color: textColor }]}>Correct</Text>
+            <Text style={[styles.stepsLabel, { color: textColor }]}>覚えた単語</Text>
             <Text style={[styles.stepsValue, { color: textColor }]}>
               {counts}
               <Text style={styles.stepsGoal}> / {todayGoal}</Text>
@@ -382,9 +375,7 @@ interface StreakProgressCardProps {
 };
 
 const styles = StyleSheet.create({
-
   card: {
-    backgroundColor: '#',
     borderRadius: 16,
     padding: 16,
   },
@@ -416,8 +407,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 4,
   },
-  dotActive: { backgroundColor: '#4CD964' },
-  dotInactive: { backgroundColor: '#555' },
   dotLabel: {
     color: '#888',
     fontSize: 10,

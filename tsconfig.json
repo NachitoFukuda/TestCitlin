@@ -3,6 +3,7 @@
   "compilerOptions": {
     "typeRoots": [
       "declarations",
+      "src/types",
       "node_modules/@types"
     ],
     "module": "esnext",
