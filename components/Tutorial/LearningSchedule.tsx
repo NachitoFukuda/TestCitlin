@@ -60,10 +60,6 @@ const LearningSchedule: React.FC<LearningScheduleProps> = ({
         />
       </View>
 
-      {/* 計算結果の表示 */}
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultText}>必要日数 約{learningDays} 日</Text>
-        </View>
     </View>
   );
 };
@@ -75,19 +71,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },  
   pickerContainer: {
+    marginTop:40,
     width: '100%',
   },
-  resultContainer: {
-    width: '100%',
-    alignItems: 'center',
-    margin: 20,
-  },
-  resultText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-
 });
 
 export default LearningSchedule;
