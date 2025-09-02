@@ -460,21 +460,7 @@ export default function UILayout() {
 
 const styles = StyleSheet.create({
   container:          { flex: 1, paddingTop: 70, backgroundColor: '#E3E5F2', alignItems: 'center' },
-  item:               { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#FFF', marginBottom: 8, borderRadius: 8 },
-  name:               { fontSize: 16 },
-  price:              { fontSize: 14, color: '#888' },
-  button: {
-    backgroundColor: '#E3E5F2',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderWidth: 2,
-    borderColor: '#666666',
-    borderRadius: 20,
-    marginTop:30
-  },
   buttonText:         { color: '#666', fontWeight: 'bold' ,fontSize: 18 },
-
-  buttonDisabled:     { backgroundColor: '#AAA' },
   smallGridContainer: {
     backgroundColor: '#E3E5F2',
     marginTop: 0,
@@ -506,7 +492,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 16,
   },
-
   bottomBarLabel: {
     marginLeft: 16,
     marginBottom: 4,
@@ -514,15 +499,6 @@ const styles = StyleSheet.create({
   },
   bottomScroll: {
     paddingHorizontal: 16,
-  },
-  bottomItem: {
-    width: 80,
-    height: 40,
-    backgroundColor: '#eee',
-    marginRight: 8,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   bottomItemText: {
     fontSize: 12,
@@ -534,11 +510,6 @@ const styles = StyleSheet.create({
        paddingHorizontal: 8,
        borderRadius: 4,
   },
-  addButtonText: {
-      color: '#FFF',
-      fontSize: 12,
-      fontWeight: 'bold',
-   },
    outerBorder: {
     alignSelf: 'center',
     borderWidth: 2,
