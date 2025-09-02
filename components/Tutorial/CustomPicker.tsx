@@ -69,13 +69,6 @@ const CustomPicker: React.FC<CustomPickerProps> = ({ selectedValue, onValueChang
           </ScrollView>
           <View style={styles.centerHighlight} pointerEvents="none" />
         </GlassCard>
-        <LottieView
-          ref={confettiRef}
-          source={require('../../assets/lottie/scroll.json')}
-          autoPlay
-          loop
-          style={styles.lottieStyle}
-        />
       </View>
     </View>
   );
@@ -91,7 +84,6 @@ const styles = StyleSheet.create({
   itemText: { fontSize: 16, color: '#aaa' },
   selectedText: { color: '#fff', fontWeight: 'bold' },
   centerHighlight: { position: 'absolute', top: (VISIBLE_ITEMS * ITEM_HEIGHT) / 2 - ITEM_HEIGHT / 2, left: 0, right: 0, height: ITEM_HEIGHT, borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgb(30, 30, 30)' },
-  lottieStyle: { position: 'absolute', right: -50, width: 80, height: 80, transform: [{ scaleY: -1 }] },
 });
 
 export default CustomPicker;
