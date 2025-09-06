@@ -1,6 +1,3 @@
-// Optional external countdown stopper if provided elsewhere
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-declare const stopCountdown: undefined | (() => void);
 import { initializeApp } from 'firebase/app';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { getAuth, signInAnonymously } from 'firebase/auth';
@@ -20,7 +17,8 @@ import LottieView from 'lottie-react-native';
 import { JsonData } from '../etc/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../ui/GlassCard';
-import CardDesign from '../questioncomp/CardDesign';
+import TapIndicator from '../ui/TapIndicator';
+import CardDesign from '../ui/CardDesign';
 interface InitialSetupProps {
   onSetupComplete: () => void;
 }
@@ -140,46 +138,6 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
 
   // 予定設定用ステート
   const tiltProgress2 = useRef(new Animated.Value(0)).current;
-
-  // Align cards: make one face front and the other tilt
-  const alignCards = (front: 'first' | 'second') => {
-    try { stopCountdown?.(); } catch {}
-    if (front === 'first') {
-      setShowIndicator1(false);
-      setShowIndicator2(true);
-      Animated.parallel([
-        Animated.timing(tiltProgress1, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(tiltProgress2, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      setShowIndicator2(false);
-      setShowIndicator1(true);
-      Animated.parallel([
-        Animated.timing(tiltProgress2, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(tiltProgress1, {
-          toValue: 0,
-          duration: 600,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  };
 
   // メッセージ
   const messages = [
@@ -307,8 +265,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
             "start02": { "gridX": 0, "gridY": 6 }
           };
           await AsyncStorage.setItem('@quiz:positions', JSON.stringify(positions));
-          console.log('[InitialSetup] Saved initial positions:', positions);
-  
+
           const purchases = {
             "Heatmap05": {
               "id": "Heatmap05",
@@ -360,7 +317,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
             }
           };
           await AsyncStorage.setItem('@quiz:purchases', JSON.stringify(purchases));
-  
+
           console.log('[InitialSetup] 初期ポジションと購入データを保存しました');
         } catch (e) {
           console.error('[InitialSetup] 初期データの保存に失敗しました', e);
@@ -381,14 +338,13 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
   }, [currentStep, fadeAnim, slideAnim]);
 
   const handleTiltPress1 = () => {
-    console.log('[InitialSetup] handleTiltPress1 tapped');
     setShowIndicator1(false);
     Animated.timing(tiltProgress1, {
       toValue: 1,
       duration: 600,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
-    }).start(({ finished }) => console.log('[InitialSetup] tiltProgress1 -> 1 finished:', finished));
+    }).start();
   };
 
   // currentStep が 12 のときに保存済みの期限日数を取得
@@ -529,7 +485,7 @@ const InitialSetup: React.FC<InitialSetupProps> = ({ onSetupComplete }) => {
       console.log('[Tutorial] Step 2 check, nickname.trim().length:', nickname.trim().length);
       const cleanName = nickname.trim();
       if (!cleanName) {
-        Alert.alert('�', '入力できてないよ！');
+        Alert.alert('😡😡😡', '入力できてないよ！');
         return;
       }
       const auth = getAuth();
@@ -677,6 +633,55 @@ const handleSelectLevel = (level: string) => {
     });
 };
 
+const levelMap: { [key: string]: string } = {
+  '1': '1級',
+  '1_5': '準1級',
+  '2': '2級',
+  '2_5': '準2級',
+  '3': '3級',
+};
+
+const levelColors: { [key: string]: string } = {
+  '1': '#F9D65C',      // Gold-ish
+  '1_5': '#C1C1C1',    // Silver-ish
+  '2': '#CD7F32',      // Bronze-ish
+  '2_5': '#8FD4FF',    // Light Blue
+  '3': '#1c6d6e',      // Light Green
+};
+
+const levelCircleColors: {
+  [key: string]: { large: string; small: string };
+} = {
+  '1':   { large: '#F7E08B', small: '#F9D65C' },
+  '1_5': { large: '#D9D9D9', small: '#C1C1C1' },
+  '2':   { large: '#D9A06B', small: '#CD7F32' },
+  '2_5': { large: '#B4E2FF', small: '#8FD4FF' },
+  '3':   { large: '#89D98D', small: '#1c6d6e' },
+};
+
+// 各級ごとの買い切り価格
+const levelPriceMap: { [key: string]: string } = {
+  '1': '¥1,200',
+  '1_5': '¥900',
+  '2': '¥700',
+  '2_5': '¥500',
+  '3': '¥300',
+};
+
+const levelTextColorMap: {
+  [key: string]: {
+    badge: string;
+    price: string;
+    message: string;
+  };
+} = {
+  '1':   { badge: '#5B4100', price: '#9F7500', message: '#5B4100' },
+  '1_5': { badge: '#777',    price: '#555',    message: '#555'    },
+  '2':   { badge: '#663A00', price: '#663A00', message: '#663A00' },
+  '2_5': { badge: '#135A7E', price: '#2787C8', message: '#135A7E' },
+  '3':   { badge: '#ddd', price: '#eee', message: '#1F5E1F' },
+};
+
 const entitlementMap: { [key: string]: string } = {
   '1':'eiken_grade1_lifetime',
   '1_5':'eiken_pre1_lifetime',
@@ -699,6 +704,16 @@ const translateY2 = tiltProgress2.interpolate({
   outputRange: [-24, 0],
 });
 
+
+const handleTiltPress2 = () => {
+  setShowIndicator2(false);
+  Animated.timing(tiltProgress2, {
+    toValue: 1,
+    duration: 600,
+    easing: Easing.out(Easing.quad),
+    useNativeDriver: true,
+  }).start();
+};
   // スケジュールを保存
   const handleSave = async () => {
     try {
@@ -743,12 +758,12 @@ const translateY2 = tiltProgress2.interpolate({
   }
 
   const handlePressBoth1 = () => {
-    alignCards('second');
+    handleTiltPress2();
   };
 
   const handlePressBoth2 = () => {
     handlePurchase();
-    alignCards('first');
+    handleTiltPress1();
   };
 
 
@@ -872,7 +887,7 @@ const translateY2 = tiltProgress2.interpolate({
                 <TouchableOpacity onPress={() => handleSelectLevel('3')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={60}
+                    height={50}
                   >
                     <Text
                       style={[
@@ -890,7 +905,7 @@ const translateY2 = tiltProgress2.interpolate({
                 <TouchableOpacity onPress={() => handleSelectLevel('2_5')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={60}
+                    height={50}
                   >
                     <Text
                       style={[
@@ -908,7 +923,7 @@ const translateY2 = tiltProgress2.interpolate({
                 <TouchableOpacity onPress={() => handleSelectLevel('2')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={60}
+                    height={50}
                   >
                     <Text
                       style={[
@@ -926,7 +941,7 @@ const translateY2 = tiltProgress2.interpolate({
                 <TouchableOpacity onPress={() => handleSelectLevel('1_5')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={60}
+                    height={50}
                   >
                     <Text
                       style={[
@@ -944,7 +959,7 @@ const translateY2 = tiltProgress2.interpolate({
                 <TouchableOpacity onPress={() => handleSelectLevel('1')}>
                   <GlassCard
                     width={SCREEN_WIDTH * 0.6}
-                    height={60}
+                    height={50}
                   >
                     <Text
                       style={[
@@ -986,13 +1001,14 @@ const translateY2 = tiltProgress2.interpolate({
                 transform: [
                   { perspective: 800 },
                   { rotateX: rotateX1 },
-                  { rotateZ: rotateZ1 },
+                  { rotate: rotateZ1 },
                   { translateY: translateY1 },
                 ],
               },
             ]}
           >
-            <CardDesign level={'All Level'} size="mini"/>
+            {/* Use shared CardDesign for selected level */}
+            <CardDesign level={selectedLevel ?? '3'} size="mini" />
           </Animated.View>
         </TouchableOpacity>
         <TouchableOpacity
@@ -1007,13 +1023,13 @@ const translateY2 = tiltProgress2.interpolate({
                 transform: [
                   { perspective: 800 },
                   { rotateX: rotateX2 },
-                  { rotateZ: rotateZ2 },
+                  { rotate: rotateZ2 },
                   { translateY: translateY2 },
                 ],
               },
             ]}
           >
-            <CardDesign level={selectedLevel ?? 'All Level'} size="mini"/>
+            <CardDesign level="All Level" size="mini" />
           </Animated.View>
         </TouchableOpacity>
         </>
@@ -1174,6 +1190,10 @@ const styles = StyleSheet.create({
     top: '60%',
     right:'-10%',
   },
+  neomorphBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   contentContainer: {
     flex: 1,
     justifyContent: 'flex-start',
@@ -1184,6 +1204,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 230,
     alignItems: 'center',
+  },
+  lottieContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  lottieStyle: {
+    position: 'absolute',
+    top: -40,
+    width: 150,
+    height: 150,
+    zIndex: 8,
   },
   text: {
     position: 'absolute',
@@ -1213,19 +1245,59 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  indicatorOverlayFlat: {
+    position: 'absolute',
+    zIndex: 9999,          // 手前
+    top: '50%',
+    left: '50%',
+    // 中央揃え。size=250 なら −125
+    transform: [
+      { translateX: -125 },
+      { translateY: -125 },
+      { rotateX: '40deg' },
+      { rotate: '24deg' },
+    ],
+    pointerEvents: 'none',
+  },
   buttonText: {
     color: '#fff',
     fontSize: 25, // ← 少し下げる
     fontWeight: 'bold',
   },
+  levelBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 30,
+  },
+  selectedLevelBox: {
+    backgroundColor: '#bcdcff',
+  },
   levelButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
   },
   selectedLevelText: {
     color: "rgb(0, 255, 132)",
   },
+  LongWidgetcontainer: {
+    marginTop: 130,
+    width: SCREEN_WIDTH * 0.7,
+    flex: 1,
+    alignItems: 'center',
+  },
+  // progressContainer: {
+  //   width: CARD_WIDTH,
+  //   height: 4,
+  //   backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  //   borderRadius: 2,
+  //   marginBottom: 16,
+  //   overflow: 'hidden',
+  // },
+  // progressBar: {
+  //   height: '100%',
+  //   backgroundColor: '#ffffff',
+  // },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1252,17 +1324,167 @@ const styles = StyleSheet.create({
     marginTop:70,
 
   },
+  purchaseCardButtonText: {
+    position:'absolute',
+    bottom:10,
+    right:20,
+    fontSize:24,
+    fontWeight: '700',
+  },
   cardWrapper: {
     width: '70%',
     aspectRatio: 1.6,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    // shadow
     shadowColor: '#010',
     shadowOpacity: 0.6,
     shadowOffset: { width: 20, height: 48 },
     shadowRadius: 12,
     elevation: 8,
+  },
+  card: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  circle1: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    top: '-44%',
+    right: '-23%',
+  },
+  circleSmall1: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    top: '-32%',
+    right: '-16%',
+  },
+  circle2: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    bottom: '-56%',
+    left: '-3%',
+  },
+  circleSmall2: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    bottom: '-45%',
+    left: '4%',
+  },
+  badgeText: {
+    position:'absolute',
+    top:0,
+    left:20,
+    fontSize:60,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  badgeText1: {
+    position:'absolute',
+    top:10,
+    right:10,
+    fontSize:20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  badgeText2: {
+    position:'absolute',
+    bottom:55,
+    right:15,
+    fontSize:20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  badgeText3: {
+    position:'absolute',
+    bottom:30,
+    right:15,
+    fontSize:20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  mikounyu1: {
+    position:'absolute',
+    bottom:20,
+    left:20,
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(0, 0, 0, 0.42)',
+    marginBottom: 4,
+  },
+  unlockedText: {
+    marginTop: 24,
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  levelListHeader: {
+    position:'absolute',
+    top:20,
+    left:20,
+    fontSize: 30,
+    fontWeight: '700',
+    color: 'rgb(77, 80, 0)',
+    marginBottom: 4,
+  },
+  levelListHeader2: {
+    position:'absolute',
+    top:20,
+    right:20,
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgb(77, 80, 0)',
+    marginBottom: 4,
+  },
+  mikounyu: {
+    position:'absolute',
+    bottom:20,
+    left:20,
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'rgba(77, 80, 0, 0.41)',
+    marginBottom: 4,
+  },
+  levelListText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgb(77, 80, 0)',
+  },
+  levelListBlock: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+  },
+  allAccessDesc: {
+    position:'absolute',
+    bottom:5,
+    right:20,
+    fontSize: 20,
+    color: '#666',
+    fontWeight: '500',
+  },
+  allAccessDesc1: {
+    position:'absolute',
+    bottom:25,
+    right:20,
+    fontSize: 20,
+    color: '#444',
+    fontWeight: '500',
   },
   backButtonText: {
     color: '#fff',
@@ -1283,5 +1505,3 @@ const styles = StyleSheet.create({
 });
 
 export default InitialSetup;
-
-
