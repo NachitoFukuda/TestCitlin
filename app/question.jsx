@@ -708,9 +708,9 @@ export default function QuestionScreen() {
         // ドットが含まれていたらアンダースコアに置換
         if (currentLevel.includes('.')) {
           currentLevel = currentLevel.replace(/\./g, '_');
-        }                    
+        }    z
         const imageKey = `${currentLevel}-${question.id}`;
-        console.log('取得したキー:', imageKey);
+        // getOrSaveImageUrlRTDB の戻り値を受け取る
         const url = await getOrSaveImageFileUrlRTDB(imageKey, question.question);
         console.log('取得した画像URL:', url);
         if (url) {
