@@ -1,15 +1,21 @@
 // QuizEndComponent.tsx
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import {View,StyleSheet,Text,TouchableOpacity,Dimensions} from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {View,StyleSheet,Text,TouchableOpacity,Dimensions,Linking,Platform} from 'react-native';
+import * as Application from 'expo-application';
+import * as StoreReview from 'react-native-store-review';
 import * as Haptics from 'expo-haptics';
 import LottieView from 'lottie-react-native';
-import { router } from 'expo-router';
 import NeomorphBox from '../ui/NeomorphBox';
 import { useSubscription } from '@/components/contexts/SubscriptionContext';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import ScoreSummary from './ScoreSummary';
 import useQuestionData from './useQuestionData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { getAuth } from 'firebase/auth'; // removed
+import { ref as dbRef, set as dbSet, get } from 'firebase/database';
+import { rdb ,auth} from '../../firebaseConfig';
+import RankingComponent from './RankingComponent';
+
 
 type QuizEndComponentProps = {
   score: number;
@@ -41,7 +47,7 @@ const ReviewList: React.FC<ReviewListProps> = ({
   <View style={{ alignItems: 'center', justifyContent: 'center', width: '100%' }}>
     <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
       <NeomorphBox
-        width={SCREEN_WIDTH * 0.9}
+        width={SCREEN_WIDTH * 0.85}
         height={330}
         style={{
           marginBottom: 20,
@@ -79,7 +85,7 @@ const ReviewList: React.FC<ReviewListProps> = ({
           return (
             <NeomorphBox
               key={q.id}
-              width={SCREEN_WIDTH * 0.8}
+              width={SCREEN_WIDTH * 0.75}
               height={40}
               style={{ marginBottom: 12, justifyContent: 'center', alignItems: 'center' }}
             >
@@ -137,7 +143,61 @@ const ReviewList: React.FC<ReviewListProps> = ({
 
 
 const POINTS_STORAGE_KEY = '@quiz_points';
+const RESTORE_FLAG_NS = '@restore_done_'; // + uid
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ===== Store review fallback (in-app review unavailable => open store review page) =====
+const APPLE_APP_ID = '6746064585'; // Provided App Store ID
+
+const openStoreReviewPage = async () => {
+  try {
+    if (Platform.OS === 'ios') {
+      const url = `itms-apps://itunes.apple.com/app/id${APPLE_APP_ID}?action=write-review`;
+      await Linking.openURL(url);
+    } else {
+      const pkg = Application.applicationId;
+      const marketUrl = `market://details?id=${pkg}`;
+      const webUrl = `https://play.google.com/store/apps/details?id=${pkg}&showAllReviews=true`;
+      await Linking.openURL(marketUrl).catch(async () => {
+        await Linking.openURL(webUrl);
+      });
+    }
+  } catch (err) {
+    console.warn('[QuizEndComponent] openStoreReviewPage failed:', err);
+  }
+};
+
+/**
+ * Restore をユーザーごとに一度だけ実行するヘルパー。
+ * 使い方:
+ *   await restorePurchasesOnce(async () => {
+ *     // 実際のリストア処理を呼ぶ（例: Purchases.restoreTransactions()）
+ *   });
+ */
+export const restorePurchasesOnce = async (
+  restoreFn: () => Promise<void>
+): Promise<{ status: 'skipped' | 'restored'; uid: string } | void> => {
+  try {
+    // UID を決定（ログイン時に保存している値 or Firebase auth）
+    const storedUid = await AsyncStorage.getItem('@user_uid');
+    const uid = storedUid ?? auth.currentUser?.uid ?? 'anonymous';
+    const flagKey = `${RESTORE_FLAG_NS}${uid}`;
+
+    const already = await AsyncStorage.getItem(flagKey);
+    if (already === '1') {
+      return { status: 'skipped', uid };
+    }
+
+    // 呼び出し元から渡された本物のリストア処理を実行
+    await restoreFn();
+
+    // 成功したらフラグを立てる（失敗時は立てない＝再試行可能）
+    await AsyncStorage.setItem(flagKey, '1');
+    return { status: 'restored', uid };
+  } catch (err) {
+    console.warn('[restorePurchasesOnce] restore failed; will not flag to allow retry:', err);
+  }
+};
 
 const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   score,
@@ -150,6 +210,14 @@ const QuizEndComponent: React.FC<QuizEndComponentProps> = ({
   visibleCount: propVisibleCount,
   themeColors: propThemeColors,
 }) => {
+
+  // 例: 復元ボタンの onPress（コメントのまま。必要時に有効化して使ってください）
+  // const handleManualRestore = async () => {
+  //   await restorePurchasesOnce(async () => {
+  //     // ここで実際の復元を呼ぶ
+  //     // 例) await Purchases.restoreTransactions();
+  //   });
+  // };
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -285,7 +353,7 @@ useEffect(() => {
 }, [soundLoaded, wrongSoundLoaded, fullSoundLoaded]);
 
 
-
+  // Remove any automatic restore logic here (none present).
   const { customerInfo } = useSubscription();
   const isVIP = true;
   // ポイント計算: 問題IDが大きいほど指数関数的に倍率アップ
@@ -311,7 +379,11 @@ useEffect(() => {
   const [displayPoints, setDisplayPoints] = useState(baseReward);
   const [showConfetti, setShowConfetti] = useState(false);
   const [finishProcessing, setFinishProcessing] = useState(false);
+  const [showRanking, setShowRanking] = useState(false);
   const confettiRef = useRef<LottieView>(null);
+
+  // レビューリクエストの二重防止用
+  const hasRequestedReviewRef = useRef(false);
 
   const [nextReviewInfo, setNextReviewInfo] = useState<{ id: string | number; daysUntilDue: number }[]>([]);
   const { level } = useQuestionData();
@@ -368,7 +440,6 @@ useEffect(() => {
   }, []);
 
 
-
   // スコアを徐々にカウントアップするアニメーション
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -409,7 +480,6 @@ useEffect(() => {
 
           // 全問正解時にもスコア履歴をマージして保存
           const existingJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-          console.log(existingJson)
           const existingMap: Record<string, number> = existingJson ? JSON.parse(existingJson) : {};
           const today = new Date().toISOString().split('T')[0];
           existingMap[today] = (existingMap[today] ?? 0) + score;
@@ -449,54 +519,105 @@ useEffect(() => {
     };
   }, [animatedScore, score, total, showConfetti]);
 
-  // 完了ボタン押下時の処理
+  // 満点時 & アニメ完了 & コンフェッティ表示後にレビューリクエスト
+  useEffect(() => {
+    // 条件: スコアが満点 & スコア表示アニメ完了 & コンフェッティ開始後
+    const isMaxScore = score === total && total > 0;
+    if (!isMaxScore) return;
+    if (!showConfetti) return; // コンフェッティ再生を「演出終了の合図」とみなす
+    if (hasRequestedReviewRef.current) return;
+
+    let timer: NodeJS.Timeout | null = null;
+    // コンフェッティが出た直後にすぐ出すと被るので、少し待ってから表示
+    timer = setTimeout(async () => {
+      try {
+        const canRequest = 'requestReview' in StoreReview && typeof (StoreReview as any).requestReview === 'function';
+        if (canRequest) {
+          await (StoreReview as any).requestReview();
+          // 同一セッションでの連続起動は避ける（次回以降の満点時には再トライ可）
+          hasRequestedReviewRef.current = true;
+        } else {
+          // アプリ内ポップアップが使えない場合は保留。ストアは開かない。
+        }
+      } catch (e) {
+        console.warn('[QuizEndComponent] requestReview failed (will defer):', e);
+      }
+    }, 3000); // アニメ演出と被らない程度にディレイ
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [showConfetti, score, total]);
+
+  // 完了ボタン押下時の処理（即ランキング表示・保存系はバックグラウンド）
   const handleFinish = async () => {
-    // レベル取得を保証
-    if (level == null) {
-      return;
-    }
-    // 履歴読み込み完了まで待機
-    if (!isHistoryLoaded) {
-      await new Promise<void>(resolve => {
-        const iv = setInterval(() => {
-          if (isHistoryLoaded) {
-            clearInterval(iv);
-            resolve();
-          }
-        }, 50);
-      });
-    }
+    // 二重押下防止（UI は即座に遷移させる）
     if (finishProcessing) return;
     setFinishProcessing(true);
-    try {
-      // ① 既存のポイントを取得
-      const stored = await AsyncStorage.getItem(POINTS_STORAGE_KEY);
-      const prevPoints = stored ? JSON.parse(stored) : 0;
-      // ② 今回獲得した points を加算
-      const totalPoints = prevPoints + points;
-      // ③ 合計を保存
-      await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
-      // ★ ④ 今日の正解数を保存
-      const today = new Date().toISOString().split('T')[0];
-      const correctRaw = await AsyncStorage.getItem(CORRECT_KEY);
-      const correctParsed = correctRaw ? JSON.parse(correctRaw) : {};
-      correctParsed[today] = (correctParsed[today] || 0) + score;
-      await AsyncStorage.setItem(CORRECT_KEY, JSON.stringify(correctParsed));
-      const scoreJson = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
-      const scoreMap: Record<string, number> = scoreJson ? JSON.parse(scoreJson) : {};
-      scoreMap[today] = (scoreMap[today] ?? 0) + score;
-      await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(scoreMap));
-      // 追記: 保存されたスコア履歴をログ出力
-      // ※ スコア保存処理は useEffect 側に移動
-    } catch (e) {
-      console.error('保存エラー:', e);
-    }
 
-    // 通常はホーム画面に遷移、20%の確率でUpsell画面に遷移
-    const shouldShowUpsell = Math.random() < 0.2; // 20%の確率
-    router.push(shouldShowUpsell ? '/Upsell' : '/');
+    // まずランキング画面を即表示（ローディング挟まない）
+    setShowRanking(true);
+
+    // 以後の保存系処理は UI をブロックしないように非同期で実行
+    (async () => {
+      try {
+        // レベルが無い場合は保存系だけスキップ（UI はもう表示済み）
+        if (level == null) return;
+
+        // スコア合計の保存
+        const stored = await AsyncStorage.getItem(POINTS_STORAGE_KEY);
+        const prevPoints = stored ? JSON.parse(stored) : 0;
+        const totalPoints = prevPoints + points;
+        await AsyncStorage.setItem(POINTS_STORAGE_KEY, JSON.stringify(totalPoints));
+
+        // RTDB: 合計ポイント
+        const storedUid = await AsyncStorage.getItem('@user_uid');
+        const writeUid = storedUid ?? auth.currentUser?.uid;
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const today = `${yyyy}-${mm}-${dd}`;
+
+        if (writeUid) {
+          // 合計ポイント
+          try {
+            const assetPath = `users/${writeUid}/totalPoints`;
+            await dbSet(dbRef(rdb, assetPath), totalPoints);
+          } catch (e) {
+            console.error('[handleFinish] RTDB totalPoints write failed:', e);
+          }
+
+          // 日別正解数（レベル別）
+          try {
+            const path = `users/${writeUid}/dailyCorrect_${sanitizedLevel}/${today}`;
+            const snap = await get(dbRef(rdb, path));
+            const existingCount = typeof snap.val() === 'number' ? snap.val() : 0;
+            const newCount = existingCount + score;
+            await dbSet(dbRef(rdb, path), newCount);
+          } catch (e) {
+            console.error('[RTDB WRITE] Failed dailyCorrect write:', e);
+          }
+        } else {
+          console.warn('[handleFinish] No UID available; skipping RTDB write');
+        }
+
+        // ローカル: 今日稼いだポイントの累積
+        try {
+          const scoreJsonLocal = await AsyncStorage.getItem(SCORE_BY_DATE_KEY);
+          const localMap: Record<string, number> = scoreJsonLocal ? JSON.parse(scoreJsonLocal) : {};
+          localMap[today] = (localMap[today] ?? 0) + points;
+          await AsyncStorage.setItem(SCORE_BY_DATE_KEY, JSON.stringify(localMap));
+        } catch (e) {
+          console.error('[handleFinish] Local SCORE_BY_DATE write failed:', e);
+        }
+      } catch (e) {
+        console.error('保存エラー:', e);
+      } finally {
+        setFinishProcessing(false);
+      }
+    })();
   };
-
 
     useEffect(() => {
       setNextReviewInfo(propNextReviewInfo ?? []);
@@ -529,36 +650,45 @@ useEffect(() => {
   }, [sanitizedLevel]);
 
 
+  if (showRanking) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>
+        <RankingComponent
+          score={score}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.containerBg }]}>
-
-      <ScoreSummary
-        animatedScore={animatedScore}
-        total={total}
-        points={displayPoints}
-        bonusPoints={score === total && total > 0}
-        vipBonusPoints={isVIP}
-        themeColors={themeColors}
-        scoreStarkLevelValue={scoreStarkLevelValue}
-      />
-      <ReviewList
-        questions={filteredQuestions}
-        nextReviewInfo={nextReviewInfo}
-        incorrectQuestions={incorrectQuestions}
-        visibleCount={visibleCount}
-        themeColors={themeColors}
-      />
-
-      <View style={styles.nextButtonContainer}>
-        <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
-          <NeomorphBox width={SCREEN_WIDTH * 0.85} height={60}>
-            <Text style={[styles.nextButtonText, { color: themeColors.buttonTextColor }]}>
-              完了
-            </Text>
-          </NeomorphBox>
-        </TouchableOpacity>
-      </View>
+      <>
+        <ScoreSummary
+          animatedScore={animatedScore}
+          total={total}
+          points={displayPoints}
+          bonusPoints={score === total && total > 0}
+          vipBonusPoints={isVIP}
+          themeColors={themeColors}
+          scoreStarkLevelValue={scoreStarkLevelValue}
+        />
+        <ReviewList
+          questions={filteredQuestions}
+          nextReviewInfo={nextReviewInfo}
+          incorrectQuestions={incorrectQuestions}
+          visibleCount={visibleCount}
+          themeColors={themeColors}
+        />
+        <View style={styles.nextButtonContainer}>
+          <TouchableOpacity style={styles.nextButton} onPress={handleFinish}>
+            <NeomorphBox width={SCREEN_WIDTH * 0.85} height={60}>
+              <Text style={[styles.nextButtonText, { color: themeColors.buttonTextColor }]}>
+                次へ
+              </Text>
+            </NeomorphBox>
+          </TouchableOpacity>
+        </View>
+      </>
     </View>
   );
 };

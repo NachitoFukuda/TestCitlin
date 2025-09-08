@@ -32,8 +32,9 @@ function createStyles(isDark: boolean) {
       color: isDark ? '#eee' : '#666', // ダーク時は白寄りに、ライト時は黒寄りに
     },
     lottieStyle: {
-      width: 100,
-      height: 100,
+      width: 140,
+      height: 140,
+      marginLeft: -20,
     },
   });
 }
@@ -58,32 +59,72 @@ const MLabel: React.FC<MLabelProps> = ({ mValue, questionId, forceTheme }) => {
     let messages: string[] = [];
 
     if (mValue === undefined || mValue === null) {
-      animationSource = require('../../assets/lottie/AI1.json');
+      animationSource = require('../../assets/lottie/LoaderCat.json');
       messages = [
-        '次の単語、行ってみよう！',
-        'ここから始めよう！',
-        '順調だよ！'
+        '脳みそフル回転でいこう！🧠',
+        'いい感じに習慣になってる！✨',
+        'もしかして、天才？🤓',
+        '今日も絶好調だね！🔥',
+        'その勢い止めるな！🚀',
+        '脳みそ温まってきた！♨️',
+        '集中モード突入！🎯',
+        'やる気ゲージMAX！📈',
+        '知識の旅は続く！🌍',
+        '一歩ずつ最強に！🥇',
+        '君の脳、輝いてる！💡',
+        '今日も記憶更新中！📖',
+        'その調子で進め！💨',
+        'どんどん賢くなってる！📈',
+        'やればできるじゃん！🙌',
+        '思考エンジン全開！⚙️',
+        '君なら絶対いける！👍',
+        '次も余裕でクリア！✅',
+        '脳細胞が喜んでる！🎉',
+        'スキル急上昇中！📊',
+        'いい波乗ってるね！🌊',
+        'まさに覚醒モード！⚡',
+        '学びが止まらない！📚'
       ];
     } else if (mValue === 0) {
-      animationSource = require('../../assets/lottie/AI2.json');
+      animationSource = require('../../assets/lottie/LoaderCat.json');
       messages = [
-        '復習ばっちりだね！',
-        'その調子で続けよう！',
-        'いい感じに習慣になってる！'
+        '復習ばっちりだね！📚',
+        'その調子で続けよう！💪',
+        'いい感じに習慣になってる！✨',
+        '着実にレベルアップ！📈',
+        '完璧な仕上がり！🎯',
+        'コツコツが最強！💎',
+        '頭のキレが光ってる！💡',
+        '知識が定着してる！🔒',
+        'まるで先生みたい！👨‍🏫',
+        '今日も完璧クリア！✅'
       ];
     } else if (mValue === 1) {
-      animationSource = require('../../assets/lottie/AI3.json');
+      animationSource = require('../../assets/lottie/LoaderCat.json');
       messages = [
-        '前回は惜しかったね！',
-        '次はできるよ！',
-        'もう一回チャレンジしよう！'
+        '惜しい！あと少しで伝説の達人！🏆',
+        '失敗は成功の母！💡',
+        'もう一回チャレンジ！🔥',
+        '次は絶対クリア！🎯',
+        'ミスは成長のチャンス！🌱',
+        'おしい〜！でもナイスファイト！👏',
+        'リベンジ魂燃えてる！😤',
+        '惜しいけど可能性MAX！✨',
+        'ちょっとずつ近づいてる！👣'
       ];
     } else if (mValue >= 2) {
-      animationSource = require('../../assets/lottie/AI4.json');
+      animationSource = require('../../assets/lottie/LoaderCat.json');
       messages = [
-        'ちょっと難しいけどファイト！',
-        '焦らずいこう！',
-        '繰り返しが大事だよ！'
+        '難問も笑顔で吹き飛ばせ！😁',
+        '焦りすぎじゃね？💦',
+        'この単語にがてだね？📖',
+        'まあまあ落ち着こう！☕',
+        'まだ巻き返せる！🔥',
+        'これは練習のチャンス！📚',
+        '笑って次いこ！👍',
+        '挑戦する姿勢がカッコいい！💎',
+        'これも経験値！📈',
+        '負けてもただじゃ起きない！😎'
       ];
     }
 
