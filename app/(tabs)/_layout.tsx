@@ -124,6 +124,16 @@ export default function TabLayout() {
             }
           }}
         />
+        <Tabs.Screen
+          name="UpsellRevealCarousel"
+          options={{
+            title: '広告',
+            headerShown: true,
+            headerTitleStyle: {
+              color: '#fff'
+            }
+          }}
+        />
       </Tabs>
     </UIConfigProvider>
   );

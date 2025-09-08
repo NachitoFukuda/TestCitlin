@@ -31,8 +31,9 @@ import AnimatedRemoteImage from '../components/questioncomp/AnimatedRemoteImage'
 import { createEmptyCard, generatorParameters, fsrs, Rating } from 'ts-fsrs';
 import useQuestionData from '../components/questioncomp/useQuestionData'; // パスは実際の配置に合わせて調整
 import BannerAdComponent from '@/components/indexcomp/BannerAdComponent';
-import { storage } from '../firebaseConfig';
+import { storage, rdb, auth } from '../firebaseConfig';
 import { getDownloadURL, ref } from 'firebase/storage';
+import { ref as dbRef, get } from 'firebase/database';
 import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -66,7 +67,6 @@ export default function QuestionScreen() {
   const [nextReviewInfo, setNextReviewInfo] = useState([]);
   const isDark = isDarkMode === true;
   const styles = createStyles(isDark);
-
   const { questionData, level } = useQuestionData();
   // ---- Level‑aware storage keys ----
   const sanitizedLevel = String(level || 'unknown').replace(/\./g, '_');
@@ -82,56 +82,100 @@ export default function QuestionScreen() {
 
 
   const [isCountingDown, setIsCountingDown] = useState(true);
-  const [isTodayMaxCount, setTodayMaxCount] = useState(60);
+  const [isTodayMaxCount, setTodayMaxCount] = useState(10);
   const [dailyCount, setDailyCount] = useState(null);
   const [isButtonPressed, setIsButtonPressed] = useState(false);
 
-useEffect(() => {
-  if (level == null) return;
-  (async () => {
-    const storedMaxCount = await AsyncStorage.getItem(MAX_DAILY_LIMIT_KEY_LEVEL);
-    const today = new Date().toISOString().split('T')[0];
-    let parsedMaxCount = 20;
+  // ---- Gate check: ensure RTDB-based decision before showing anything ----
+  const [gateChecked, setGateChecked] = useState(false);
 
-    if (storedMaxCount) {
-      try {
-        const parsed = JSON.parse(storedMaxCount);
-        if (parsed.date === today) {
-          parsedMaxCount = parsed.value ?? 20;
-        }
-      } catch {
-        parsedMaxCount = parseInt(storedMaxCount, 10) || 20;
+  // Local YYYY-MM-DD (Asia/Tokyo などローカルタイム基準)
+  const getTodayLocalKey = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const getTodayKey = () => getTodayLocalKey();
+
+  const fetchTodayCorrectFromRTDB = useCallback(async () => {
+    try {
+      const uid = auth?.currentUser?.uid || (await AsyncStorage.getItem('@user_uid'));
+      const today = getTodayKey();
+      if (!uid) throw new Error('Missing uid');
+      const snap = await get(dbRef(rdb, `users/${uid}/dailyCorrect_${sanitizedLevel}/${today}`));
+      const val = typeof snap.val() === 'number' ? snap.val() : 0;
+      return val;
+    } catch (e) {
+      // Fallback to local
+      const today = getTodayKey();
+      const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
+      const map = raw ? JSON.parse(raw) : {};
+      return map[today] || 0;
+    }
+  }, [sanitizedLevel]);
+
+      useEffect(() => {
+        if (level == null) return;
+        (async () => {
+          const today = getTodayLocalKey();
+          const storedMaxCount = await AsyncStorage.getItem(MAX_DAILY_LIMIT_KEY_LEVEL);
+          let maxCount = 10; // default
+          let storedDateForLog = null;
+          if (storedMaxCount) {
+            try {
+              const parsed = JSON.parse(storedMaxCount);
+              storedDateForLog = parsed?.date ?? null;
+              if (parsed.date === today) {
+                maxCount = parsed.value;
+              } else {
+                // reset when date mismatches
+                const resetData = { date: today, value: 10 };
+                await AsyncStorage.setItem(MAX_DAILY_LIMIT_KEY_LEVEL, JSON.stringify(resetData));
+                maxCount = 10;
+              }
+            } catch {
+              // old format (number only), overwrite with today's default
+              storedDateForLog = 'legacy';
+              const resetData = { date: today, value: 10 };
+              await AsyncStorage.setItem(MAX_DAILY_LIMIT_KEY_LEVEL, JSON.stringify(resetData));
+              maxCount = 10;
+            }
+          }
+
+          setTodayMaxCount(maxCount);
+        })();
+      }, [level]);
+
+  // After max count is known, fetch today's correct count from RTDB and decide gate
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (level == null) return;
+      const todayCorrect = await fetchTodayCorrectFromRTDB();
+      if (cancelled) return;
+
+      setDailyCount(todayCorrect);
+
+      // Decide: start or gate
+      const canStart = todayCorrect < isTodayMaxCount;
+      setIsCountingDown(canStart);         // 許可時のみカウントダウン
+      if (canStart) {
+        // 日次上限判定では isQuizFinished を触らない（誤発火の原因）
+        setIsQuizFinished(false);
       }
-    }
+      console.log(
+        `[QuestionScreen] gate: todayCorrect=${todayCorrect}, max=${isTodayMaxCount}, canStart=${canStart}`
+      );
+      setGateChecked(true);                // render decisions are now allowed
+    })();
 
-    setTodayMaxCount(parsedMaxCount);
+    return () => { cancelled = true; };
+  }, [level, isTodayMaxCount, fetchTodayCorrectFromRTDB]);
 
-    const now = Date.now();
-    const raw = await AsyncStorage.getItem(MAKE_DAYLY_COLECT);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const raw2 = await AsyncStorage.getItem(FIVE_MINUTES_LATER);
-    const FoveMinutesLater = raw2 ? JSON.parse(raw2) : {};
-    let todayCount = parsed[today] || 0;
-    // 購入済みならリセット
-    if (purchased) {
-      todayCount = 0;
-    }
-    // Use the parsedMaxCount from above, do not redeclare
-    if (
-      todayCount >= parsedMaxCount &&
-      typeof FoveMinutesLater === 'number' && FoveMinutesLater > now
-    ) {
-      todayCount = parsedMaxCount-1;
-    }
-    setDailyCount(todayCount);
-    if (todayCount <= parsedMaxCount) {
-      setIsCountingDown(true);
-    } else {
-      setIsCountingDown(false);
-      setIsQuizFinished(true); // クイズを終了扱いにして別画面表示
-    }
-  })();
-}, [level]);
+
 
   const [C, setCount] = useState(3);
   const confettiRef = useRef(null);
@@ -232,16 +276,23 @@ useEffect(() => {
     const fsrsCards = [];
     for (const question of uniqueQuestions) {
       const qid = question.id;
-      if (parsedCorrectData[qid] != null ) {
+      if (parsedCorrectData[qid] != null) {
+        const C = parsedCorrectData[qid].C;
         const key = `${FSRS_PREFIX_LEVEL}${qid}`;
         const storedCard = await AsyncStorage.getItem(key);
         if (storedCard) {
           const card = JSON.parse(storedCard);
           card.due = new Date(card.due);
           fsrsCards.push({ id: qid, card });
-          if (card.due <= now) {
-            // C値に応じて問題を取得
-            const nextQ = getQuestionsBasedOnCorrectCount(parsedCorrectData[qid].C, qid);
+          if ([2, 4, 6].includes(C)) {
+            // C が 2,4,6 のときのみ日付で出題可否を判定
+            if (card.due <= now) {
+              const nextQ = getQuestionsBasedOnCorrectCount(C, qid);
+              if (nextQ) dueQuestions.push(nextQ);
+            }
+          } else {
+            // その他の C 値は常に出題候補に追加
+            const nextQ = getQuestionsBasedOnCorrectCount(C, qid);
             if (nextQ) dueQuestions.push(nextQ);
           }
         } else {
@@ -280,7 +331,6 @@ useEffect(() => {
     if (!isTransitioning && filteredQuestions.length > 0 && currentQuestionIndex < filteredQuestions.length) {
       const question = filteredQuestions[currentQuestionIndex];
       setDisplayedQuestion(question);
-      console.log('Displayed question ID:', question.id);
       setRisaltQuestion(question.question);
       loadAudio(question);
       loadImage(question);
@@ -441,19 +491,23 @@ useEffect(() => {
     }
   };
 
-  // 正解時に Lottie アニメーションを再生する useEffect
+  // 正解時に Lottie アニメーションを再生する useEffect (null-safe, always-mounted)
   useEffect(() => {
     let timeoutId;
-    if (isAnswerCorrect && confettiRef.current) {
+    if (isAnswerCorrect) {
       timeoutId = setTimeout(() => {
-        confettiRef.current.reset();
-        confettiRef.current.play();
-      }, 100);
+        const inst = confettiRef.current;
+        if (inst && typeof inst.reset === 'function' && typeof inst.play === 'function') {
+          // ensure layout commit
+          requestAnimationFrame(() => {
+            inst.reset();
+            inst.play();
+          });
+        }
+      }, 120);
     }
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isAnswerCorrect]);
 
@@ -533,12 +587,11 @@ useEffect(() => {
       if (currentQuestionIndex < filteredQuestions.length - 1) {
         const nextIndex = currentQuestionIndex + 1;
         setCurrentQuestionIndex(nextIndex);
-        const nextQ = filteredQuestions+1[nextIndex];
+        const nextQ = filteredQuestions[nextIndex];
         // フェードアウト後、フェードイン前に UI 上の問題を切り替える
         setDisplayedQuestion(nextQ);
         // フェードイン前に UI 上の問題表示に切り替え
         setIsTransitioning(false);
-
         loadAudio(nextQ);
         loadImage(nextQ);
       } else {
@@ -645,16 +698,21 @@ useEffect(() => {
 
     // 🖼️ 画像読み込み処理
     const loadImage = async (question) => {
+                      console.log('取得した問題:', question);
+
       try {
         // 例: レベル＋ID をキーにしたいなら
         let currentLevel = level || "3";
+                console.log('取得したレベル:', currentLevel);
+
         // ドットが含まれていたらアンダースコアに置換
         if (currentLevel.includes('.')) {
           currentLevel = currentLevel.replace(/\./g, '_');
-        }    
+        }                    
         const imageKey = `${currentLevel}-${question.id}`;
-        // getOrSaveImageUrlRTDB の戻り値を受け取る
+        console.log('取得したキー:', imageKey);
         const url = await getOrSaveImageFileUrlRTDB(imageKey, question.question);
+        console.log('取得した画像URL:', url);
         if (url) {
           // state にセットして画面に反映
           setImageData({
@@ -672,7 +730,6 @@ useEffect(() => {
     
   // 🔊 音声読み込み処理
   const loadAudio = async (question) => {
-    console.log('Loading audio for question ID:', question.id);
     setReloading(true);
     try {
       if (loadedSound) {
@@ -730,20 +787,37 @@ useEffect(() => {
     }
   }, [reloading, queuedPlay, loadedSound]);
 
-
-  if (isCountingDown) {
+  // Gate rendering: wait until RTDB-based check finishes
+  if (!gateChecked) {
     return (
-        <Countdown 
-          count={3}
-          onComplete={() => setIsCountingDown(false)}
-        />
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+
+
+ // ✅ Over daily limit: ALWAYS show DailyLimitScreen, never start countdown
+ const overDailyLimit = dailyCount != null && dailyCount >= isTodayMaxCount;
+ if (overDailyLimit) {
+   return <DailyLimitScreen level={level} />;
+ }
+
+ // ✅ Only when not over the limit, we may show a countdown
+ if (gateChecked && isCountingDown) {
+    return (
+      <Countdown
+        count={3}
+        onComplete={() => {
+         setIsCountingDown(false);
+       }}
+      />
     );
   }
 
   // 日次上限画面の表示
-    if ( dailyCount > isTodayMaxCount) {
-     return <DailyLimitScreen level={3}/>;
-      }
+
 
   // 出題数0
   if (filteredQuestions.length === 0) {
@@ -888,19 +962,17 @@ useEffect(() => {
                 </>
               ) : (
                 <>
-                  {/* フィードバック内容のうち、実際の「正解」「不正解」のラベルは外部に出すため、ここではアニメーションやその他のフィードバック情報のみを表示 */}
-                  {isAnswerCorrect && (
-                    <View style={styles.lottieContainer}>
-                      <LottieView
-                        ref={confettiRef}
-                        source={HanahubukiAnimation}
-                        autoPlay={false}
-                        loop={false}
-                        style={styles.lottieStyle}
-                        enableMergePathsAndroidForKitKatAndAbove
-                      />
-                    </View>
-                  )}
+                  {/* Confetti animation: always mounted, opacity controls visibility */}
+                  <View style={styles.lottieContainer} pointerEvents="none">
+                    <LottieView
+                      ref={confettiRef}
+                      source={HanahubukiAnimation}
+                      autoPlay={false}
+                      loop={false}
+                      style={[styles.lottieStyle, { opacity: isAnswerCorrect ? 1 : 0 }]}
+                      enableMergePathsAndroidForKitKatAndAbove
+                    />
+                  </View>
                   <Text style={styles.feedbackText}>{risaltQuestion}</Text>
                   <Text style={styles.feedbackText}>{currentQuestion.correctAnswer}</Text>
                 </>
@@ -1060,7 +1132,7 @@ useEffect(() => {
 
 function createStyles(isDark) {
   // テーマに応じた色を一元管理
-  const backgroundColor = isDark ? '#E3E5F2' : '#E3E5F2';
+  const backgroundColor = isDark ? '#303030' : '#E3E5F2';
   const textColor       = isDark ? '#ccc'    : '#666';
   const questionColor   = isDark ? '#ddd'    : '#666';
   const buttonBg        = isDark ? '#444'    : '#6200ee';
@@ -1095,6 +1167,12 @@ function createStyles(isDark) {
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 20,
+    backgroundColor,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor,
   },
   widgetsContainer: {
@@ -1262,12 +1340,9 @@ function createStyles(isDark) {
     color: textColor,
     textAlign: 'center',
   },
-  nextButtoncontainer:{
-    flex: 1,
-    backgroundColor,
-    justifyContent: 'flex-end', // 子要素を下部に配置
+  nextButton: {
+
   },
-  // 新しい nextButtonContainer を追加（存在しなければ）
   nextButtonContainer: {
     position: 'absolute',
     bottom: 0,
@@ -1276,12 +1351,6 @@ function createStyles(isDark) {
     paddingVertical: 10,
     alignItems: 'center',
   },
-  nextButtoncontainer1:{
-    flex: 1,
-    backgroundColor,
-    justifyContent: 'flex-end', // 子要素を下部に配置
-    marginBottom:50,
-    },
   nextButtonText: {
     color:textColor,
     fontWeight: 'bold',
@@ -1298,6 +1367,13 @@ function createStyles(isDark) {
     width: '100%',
     alignItems: 'center',
   },
+  nextButtonIncorrectContainer: {
+    position: 'absolute',
+    bottom: 50,        // 画面下部に配置
+    left: 0,
+    right: 0,          // 横幅いっぱいに広げて中央揃えを効かせる
+    alignItems: 'center',
+  },
   nextButtonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1306,24 +1382,10 @@ function createStyles(isDark) {
     marginTop: 10,
     paddingBottom: 20,
   },
-  evalTitle: {
-    fontSize: 16,
-    marginBottom: 8,
-    color: textColor,
-    textAlign: 'center',
-  },
   nextButtonGridItem: {
     width: '50%',
     marginBottom: 10,
   },
-  // 不正解時の下部表示用スタイル
-  nextButtonIncorrectContainer: {
-  position: 'absolute',
-  bottom: 50,        // 画面下部に配置
-  left: 0,
-  right: 0,          // 横幅いっぱいに広げて中央揃えを効かせる
-  alignItems: 'center',
-},
   disabledText: {
     opacity: 0.5,
   },
