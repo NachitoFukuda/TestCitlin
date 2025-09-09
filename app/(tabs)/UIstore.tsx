@@ -53,7 +53,6 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'Heatmap02', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'Heatmap03', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'Heatmap04', name: 'Learning History', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'Heatmap05', name: 'Learning History', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
 
   { id: 'WeekProgress01', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress02', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
@@ -61,10 +60,6 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'WeekProgress04', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress05', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
   { id: 'WeekProgress06', name: 'Weekly Tracker', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress07', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress09', name: 'Weekly Tracker Mini A', price: 0, widthCells: 2, heightCells: 2, tag: 'theme' },
-  { id: 'WeekProgress10', name: 'WeekProgress10', price: 0, widthCells: 4, heightCells: 2, tag: 'theme' },
-  { id: 'calender01', name: 'calender01', price: 0, widthCells: 4, heightCells: 1, tag: 'theme' },
 
 ];
 
@@ -248,6 +243,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     zIndex: 10,
   },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
   container: {
     flex: 1,
     backgroundColor: '#E3E5F2',
@@ -258,6 +258,7 @@ const styles = StyleSheet.create({
     paddingVertical: 35,
     paddingHorizontal: 17,
     backgroundColor: '#E3E5F2',
+
   },
   simpleHeaderText: {
     top: 14,
@@ -266,6 +267,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     fontSize: 25,
     fontWeight: '200',
+  },
+  shopcontainerStyle: {
+    backgroundColor: '#000',
+
   },
   tabContainer: {
     backgroundColor: '#E3E5F2',
@@ -305,6 +310,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card1: {
+
     width: '45%',
     paddingTop:5,
     margin: 8,
@@ -321,4 +327,27 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#666',
    },
+  button: {
+    backgroundColor: '#E3E5F2',
+    borderWidth: 1,
+    borderColor: '#000',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    margin: 8,
+    position: 'relative', // TapIndicator の配置のため
+  },
+  buttonDisabled: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#AAA',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    margin: 8,
+  },
+  buttonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
 });

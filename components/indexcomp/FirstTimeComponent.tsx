@@ -173,9 +173,13 @@ const FirstTimeComponent: FC<FirstTimeComponentProps> = ({ onClose }) => {
   };
 
   const handleConfigureNotifications = useCallback(async () => {
-    const granted = await requestNotificationPermission();
-    if (!granted) return;
+    // まずはボタン押下の時点で Start を表示できるようにする
     setHasOpenedModal(true);
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      // 権限が拒否されても Start は表示継続。モーダルは開かない。
+      return;
+    }
     setModalVisible(true);
   }, []);
 

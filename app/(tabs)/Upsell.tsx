@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+﻿import React, { useCallback, useEffect, useState, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';

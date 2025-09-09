@@ -1,4 +1,4 @@
-import { rtdb } from '../firebaseConfig';
+import { rdb } from '../firebaseConfig';
 import { ref, get, set } from 'firebase/database';
 import Constants from 'expo-constants';
 
@@ -15,7 +15,7 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
   }
 
   const nodePath = `citlinimage/${problemId}`;
-  const nodeRef = ref(rtdb, nodePath);
+  const nodeRef = ref(rdb, nodePath);
 
   // 1) 既存の imageUrl をチェック
   let snap;
@@ -31,11 +31,16 @@ export async function getOrSaveImageFileUrlRTDB(problemId: any, query: string) {
 
   // 2) なければ Pexels API を叩く
   const effective = query?.trim() || 'default';
+
+  // API キー未設定なら処理を中断（ログはキー値を出さない）
+  if (!PEXELS_API_KEY) {
+    console.warn('[getOrSaveImageFileUrlRTDB] PEXELS_API_KEY が未設定のため画像取得をスキップします');
+    return null;
+  }
   let data;
   try {
     const url = `https://api.pexels.com/v1/search?per_page=1&query=${encodeURIComponent(effective)}`;
     console.log('[getOrSaveImageFileUrlRTDB] Fetch URL:', url);
-    console.log('[getOrSaveImageFileUrlRTDB] Using API Key:', PEXELS_API_KEY);
 
     const res = await fetch(url, {
       headers: { Authorization: PEXELS_API_KEY || '' },

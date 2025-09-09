@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, Pressable, ScrollView, Dimensions, Animated, Easing, Linking, TouchableOpacity } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import NeomorphBox from '../ui/NeomorphBox';
 import { LinearGradient } from 'expo-linear-gradient';
+
+import NeomorphBox from '../ui/NeomorphBox';
+import VipCardDesign from '../questioncomp/VipCardDesign';
+
+const EULA_URL = 'https://yourdomain.com/eula'; // TODO: Replace with actual EULA URL
+const PRIVACY_POLICY_URL = 'https://yourdomain.com/privacy'; // TODO: Replace with actual Privacy Policy URL
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -10,44 +16,109 @@ type PurchaseScreenProps = {
   customerInfo: any;
 };
 
-// 仮のサブスクリプションデータ
-const mockOfferings = {
-  premium_offering: {
-    monthlytitle: 'citrin premir+',
-    yearlytitle: 'citrin premir pro',
-    monthlyPrice: '500/月',
-    yearlyPrice: '¥5000/年',
-    features: [
-      '無制限のAIチャット',
-      '高度なAIモデルへのアクセス',
-      '広告非表示',
-      '優先サポート',
-    ],
-    popular: true,
-  },
-  adfree_offering: {
-    monthlytitle: '広告非表示  (月額）',
-    yearlytitle: '広告非表示  (年額）',
-    monthlyPrice: '200/月',
-    yearlyPrice: '¥2000/年',
-    features: [
-      '広告非表示',
-      '基本的なAIチャット機能',
-    ],
-    popular: false,
-  },
-};
+
 
 const PurchaseScreen: React.FC<PurchaseScreenProps> = ({ customerInfo }) => {
-  const [offerings, setOfferings] = useState<any | null>(mockOfferings);
   const [loadingOfferings, setLoadingOfferings] = useState<boolean>(false);
   const [processingPurchase, setProcessingPurchase] = useState<boolean>(false);
-  // 年額/月額プラン選択用
-  const [isYearly, setIsYearly] = useState(false);
-  // offering種別選択用
-  const [selectedOfferingId, setSelectedOfferingId] = useState<'premium_offering' | 'adfree_offering'>('premium_offering');
+
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
 
 
+  
+  const handleStartTrial = useCallback(() => {
+    // ここで選択されたプランに応じてトライアル処理を発火
+    // 実購入処理は走らず、あくまでトライアルの開始フローに進める
+    Alert.alert('無料トライアル', `${selectedPlan === 'monthly' ? '月額' : '年額'}プランのトライアルを開始します。`);
+    // TODO: 実際のトライアル開始ロジック（RevenueCat/サーバー連携など）に置き換えてください
+  }, [selectedPlan]);
+
+  const handleOpenEULA = () => {
+  Linking.openURL(EULA_URL).catch((err) => {
+    Alert.alert('エラー', `EULAページを開けませんでした:\n${String(err)}`);
+  });
+};
+
+const handleOpenPrivacyPolicy = () => {
+  Linking.openURL(PRIVACY_POLICY_URL).catch((err) => {
+    Alert.alert('エラー', `プライバシーポリシーページを開けませんでした:\n${String(err)}`);
+  });
+};
+  // Focus-style tilt animation values (0: tilted back, 1: front)
+  const focusMonthly = useRef(new Animated.Value(1)).current; // monthly starts front
+  const focusYearly = useRef(new Animated.Value(0)).current;  // yearly starts tilted
+
+  const focusCard = (front: 'monthly' | 'yearly') => {
+    // allow rapid re-taps by stopping current animations
+    focusMonthly.stopAnimation();
+    focusYearly.stopAnimation();
+
+    const toMonthly = front === 'monthly' ? 1 : 0;
+    const toYearly  = front === 'yearly'  ? 1 : 0;
+
+    // selection state (カードは選択のみ、購入処理は走らない)
+    setSelectedPlan(front);
+
+    Animated.parallel([
+      Animated.timing(focusMonthly, {
+        toValue: toMonthly,
+        duration: 900, // slower
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(focusYearly, {
+        toValue: toYearly,
+        duration: 900, // slower
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ], { stopTogether: false }).start();
+  };
+
+  // Map [0..1] -> tilted/back vs. front values similar to the reference
+  const getTiltStyle = (val: Animated.Value) => ({
+    transform: [
+      { perspective: 800 },
+      {
+        rotateX: val.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['40deg', '0deg'],
+        }),
+      },
+      {
+        rotateZ: val.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['20deg', '0deg'],
+        }),
+      },
+      {
+        translateY: val.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-20, 0],
+        }),
+      },
+    ],
+  });
+
+  // Tilt the cards each time this screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      // Reset to opposite state so animation is visible even if already focused
+      focusMonthly.stopAnimation();
+      focusYearly.stopAnimation();
+      focusMonthly.setValue(0); // monthly tilted
+      focusYearly.setValue(1);  // yearly front
+
+      const id = setTimeout(() => {
+        // Animate to monthly front (and yearly tilted) for the entry effect
+        focusCard('yearly');
+      }, 0);
+
+      return () => {
+        clearTimeout(id);
+      };
+    }, [focusMonthly, focusYearly])
+  );
 
   const handlePurchase = async (pkg: any) => {
     setProcessingPurchase(true);
@@ -74,114 +145,117 @@ const PurchaseScreen: React.FC<PurchaseScreenProps> = ({ customerInfo }) => {
     ? Object.keys(customerInfo.entitlements.active).length > 0
     : false;
 
-  const selectedPackages = offerings?.all?.[selectedOfferingId]?.availablePackages ?? [];
-
-  const filteredPackages = selectedPackages.filter((pkg: any) => {
-    if (isYearly) {
-      return pkg.identifier.includes('annual') || pkg.identifier.includes('Premier_Pro');
-    } else {
-      return pkg.identifier.includes('monthly') || pkg.identifier.includes('Plus');
-    }
-  });
-
   return (
-    <>
+    <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       {loadingOfferings ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4169e1" />
         </View>
       ) : (
         <>
-          {/* プラン切り替えトグル */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[styles.toggleButton, !isYearly && styles.toggleButtonActive]}
-              onPress={() => setIsYearly(false)}
-            >
-              <Text style={[styles.toggleButtonText, !isYearly && styles.toggleButtonTextActive]}>
-                月額プラン
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleButton, isYearly && styles.toggleButtonActive]}
-              onPress={() => setIsYearly(true)}
-            >
-              <Text style={[styles.toggleButtonText, isYearly && styles.toggleButtonTextActive]}>
-                年額プラン
-                <Text style={[styles.discountText, isYearly && styles.discountTextActive]}>
-                  {' '}17%OFF
-                </Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.offeringContainer}>
-            {Object.entries(mockOfferings).map(([id, offering]) => (
-              <View key={id} style={styles.cardWrapper}>
-                <NeomorphBox
-                  style={[
-                    styles.offeringCard,
-                    offering.popular && isYearly && styles.popularCard,
-                  ]}
-                  width={SCREEN_WIDTH * 0.85}
-                  height={370}
-                  variant={offering.popular && isYearly ? 'AI' : ''}
-                >
-                  <LinearGradient
-                    colors={offering.popular && isYearly ? ['rgba(230, 0, 255, 0.7)', 'rgba(13, 231, 255, 0.7)'] : ['#E3E5F2', '#E3E5F2']}
-                    start={{ x: 0, y: 0.8 }}
-                    end={{ x: 0.8, y: 0 }}
-                    style={offering.popular && isYearly ? styles.titleGradient : styles.titlesimple}
-                  >
-                    <Text style={offering.popular && isYearly ?styles.offeringTitle : styles.offeringTitle2}>
-                      {isYearly ? offering.yearlytitle : offering.monthlytitle}
-                    </Text>
-                  </LinearGradient>
-
-                  {offering.popular && isYearly && (
-                    <View style={styles.popularBadge}>
-                      <Text style={styles.popularText}>おすすめ</Text>
-                    </View>
-                  )}
-                  <Text style={styles.offeringPrice}>
-                    {isYearly ? `¥${Math.round(parseInt(offering.yearlyPrice.replace(/[^0-9]/g, '')) / 12)}/月` : offering.monthlyPrice}
-                  </Text>
-                  {isYearly && (
-                    <Text style={styles.yearlyDiscount}>
-                      年間一括払い {offering.yearlyPrice}
-                    </Text>
-                  )}
-                  <View style={styles.featuresContainer}>
-                    {offering.features.map((feature, index) => (
-                      <View key={index} style={styles.featureRow}>
-                        <Ionicons name="checkmark-circle" size={24} color="#444" />
-                        <Text style={styles.featureText}>{feature}</Text>
+            <View style={styles.cardOuterContainer}>
+              {/* Yearly card with tilt */}
+              <Pressable
+                style={[styles.purchaseCardButton, styles.yearlyPress]}
+                onPress={() => { console.log('[PurchaseScreen] tap yearly'); focusCard('yearly'); }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              >
+                <Animated.View style={[styles.cardWrapper, getTiltStyle(focusYearly), selectedPlan === 'yearly' && styles.selectedCard]} collapsable={false} pointerEvents="box-none">
+                  {selectedPlan === 'yearly' && (
+                    <>
+                      <LinearGradient
+                        colors={["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D7BAFF", "#FFBAE8"]}
+                        style={styles.selectedCardGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                      <View style={styles.selectedBadge}>
+                        <Ionicons name="checkmark" size={22} color="#000000ff" />
                       </View>
-                    ))}
+                      {/* おすすめバッジ（右下） */}
+                      <View style={styles.recommendCornerBadge} pointerEvents="none">
+                        <Text style={styles.recommendCornerText}>おすすめ</Text>
+                      </View>
+                    </>
+                  )}
+                  <View style={selectedPlan === 'yearly' ? styles.selectedCardInner : undefined}>
+                    <View pointerEvents="none">
+                        <VipCardDesign level="yearly" />
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.purchaseButton}
-                    onPress={() => handlePurchase(offering)}
-                    disabled={processingPurchase}
-                  >
-                    <Text style={styles.purchaseButtonText}>
-                      無料で試す
-                    </Text>
-                  </TouchableOpacity>
-                </NeomorphBox>
-              </View>
-            ))}
+                </Animated.View>
+              </Pressable>
+
+              {/* Monthly card with tilt */}
+              <Pressable
+                style={[styles.purchaseCardButton, styles.monthlyPress]}
+                onPress={() => { console.log('[PurchaseScreen] tap monthly'); focusCard('monthly'); }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              >
+                <Animated.View style={[styles.cardWrapper, getTiltStyle(focusMonthly), selectedPlan === 'monthly' && styles.selectedCard]} collapsable={false} pointerEvents="box-none">
+                  {selectedPlan === 'monthly' && (
+                    <>
+                      <LinearGradient
+                        colors={["#FFB3BA", "#FFDFBA", "#FFFFBA", "#BAFFC9", "#BAE1FF", "#D7BAFF", "#FFBAE8"]}
+                        style={styles.selectedCardGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                      <View style={styles.selectedBadge}>
+                        <Ionicons name="checkmark" size={22} color="#000000ff" />
+                      </View>
+                    </>
+                  )}
+                  <View style={selectedPlan === 'monthly' ? styles.selectedCardInner : undefined}>
+                    <View pointerEvents="none">
+                      <VipCardDesign level="monthly" />
+                    </View>
+                  </View>
+                </Animated.View>
+              </Pressable>
+            </View>
+          </View>
+          <View style={styles.trialButtonContainer}>
+            <Pressable
+              onPress={handleStartTrial}
+              style={({ pressed }) => [
+                styles.trialButton,
+                pressed && { opacity: 0.8 },
+                processingPurchase && { opacity: 0.6 },
+              ]}
+              disabled={processingPurchase}
+              hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+            >
+        <NeomorphBox
+          width={Dimensions.get('window').width * 0.9}
+          height={50}
+          variant={'blue'}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}> 
+            {selectedPlan === 'monthly' ? '月額プランの無料トライアルを開始' : '年額プランの無料トライアルを開始'}
+          </Text>
+        </NeomorphBox>
+            </Pressable>
           </View>
 
 
           <Text style={styles.termsText}>
             購入を完了すると、iTunesアカウントに請求されます。サブスクリプションは自動更新され、更新日の24時間前までにキャンセルしない限り更新されます。
           </Text>
-
+          <View style={styles.linksContainer}>
+            <TouchableOpacity onPress={handleOpenEULA} style={styles.linkButton}>
+              <Text style={styles.linkText}>EULA</Text>
+            </TouchableOpacity>
+            <Text style={styles.linkSeparator}>|</Text>
+            <TouchableOpacity onPress={handleOpenPrivacyPolicy} style={styles.linkButton}>
+              <Text style={styles.linkText}>プライバシーポリシー</Text>
+            </TouchableOpacity>
+          </View>
           {processingPurchase && <ActivityIndicator size="small" style={styles.loader} />}
         </>
       )}
-    </>
+    </ScrollView>
   );
 };
 
@@ -211,10 +285,32 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 20,
+    pointerEvents: 'box-none',
+  },
+  cardOuterContainer: {
+    width: '95%',
+    alignSelf: 'center',
+    pointerEvents: 'box-none',
   },
   cardWrapper: {
     alignItems: 'center',
     marginBottom: 20,
+    zIndex: 1,
+    pointerEvents: 'box-none',
+    width: '100%',
+    position: 'relative',
+  },
+  purchaseCardButton: {
+    alignItems: 'center',
+    marginBottom: 36,
+    width: '100%',
+    minHeight: 20,
+  },
+  yearlyPress: {
+    zIndex: 1,
+  },
+  monthlyPress: {
+    zIndex: 2,
   },
   offeringCard: {
     padding: 20,
@@ -290,10 +386,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   termsText: {
-    fontSize: 12,
+    paddingHorizontal: 40,
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
     lineHeight: 18,
+    marginTop: 8,
   },
   loader: { marginVertical: 20 },
   header: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
@@ -334,13 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 8,
   },
-  noticeText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 16,
-  },
   toggleContainer: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
@@ -380,8 +471,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingBottom: 120,
   },
   deleteButton: {
     backgroundColor: '#ff4444',
@@ -410,6 +502,103 @@ const styles = StyleSheet.create({
   titlesimple: {
     position: 'absolute',    // 絶対配置
     top: 0,                  // 上端にくっつく
+  },
+  linksContainer: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  linkButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  linkText: {
+    color: '#4169e1',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  linkSeparator: {
+    color: 'transparent', // no visual separator; spacing provided by gap
+    marginHorizontal: 0,
+  },
+  trialButtonContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  trialButton: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    minWidth: '88%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trialButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  selectedCard: {
+    borderColor: 'transparent',
+    borderRadius: 22,
+    borderStyle: 'solid',
+    overflow: 'visible',   // はみ出しを許可
+    padding: 6,            // 枠の太さを太く
+    position: 'relative',
+  },
+  selectedCardGradient: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+    pointerEvents: 'none',
+    borderRadius: 22,
+  },
+  selectedCardInner: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    backgroundColor: '#BAE1FF',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    zIndex: 3,              // ensure badge is above content
+    pointerEvents: 'none',  // don't block touches
+  },
+  recommendCornerBadge: {
+    position: 'absolute',
+    bottom:0,       // はみ出しOK（selectedCard の overflow: 'visible'）
+    right: 0,
+    backgroundColor: '#D7BAFF', // 柔らかいパステル
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderTopLeftRadius: 12,
+    borderBottomRightRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 12,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    zIndex: 2,
+  },
+  recommendCornerText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffffff',
+    letterSpacing: 0.2,
   },
 });
 
